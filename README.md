@@ -26,7 +26,7 @@ The legacy strategy engine still lives in the `123strk/` folder as internal code
 | Managed wallet generation + encryption | Working | Wallets are generated in Convex Node actions and encrypted with `WALLET_MASTER_KEY` |
 | Strategy account provisioning | Working | Creates user record, strategy account, venue accounts, wallet secrets, default config |
 | Strategy config save / enable / pause / emergency stop | Working | Backed by Convex mutations and audit events |
-| Account wallet UI | Working | `/settings/wallet` shows Particle UA addresses, unified balance, receive instructions, and share link controls |
+| Account wallet UI | Working | `/profile/wallet` shows Particle UA addresses, unified balance, receive instructions, and share link controls |
 | Deposit instructions UI | Working | Shows managed strategy funding addresses for Optimism + HyperLiquid master wallet |
 | Particle Universal Account funding | Working | Receives funds into UA, supports public payment links, and sends supported UA transfers into strategy rails |
 | Worker HTTP gateway + execution leases | Working | Exposed through `convex/http.ts` |
@@ -235,7 +235,7 @@ The supervisor currently:
 3. Open `/dashboard`.
 4. Click `Create strategy account`.
 5. Confirm three venue wallets appear.
-6. Open `/settings/wallet` and confirm the Particle account wallet shows owner EOA, EVM UA, Solana UA, and unified balance.
+6. Open `/profile/wallet` and confirm the Particle account wallet shows owner EOA, EVM UA, Solana UA, and unified balance.
 7. Sync the account wallet, create/copy the shared payment link, and open `/pay/<slug>` in a public browser context.
 8. On the public payment page, connect a Particle payer wallet and preview a supported deposit into the owner UA.
 9. Move funds from the owner UA into the supported strategy rails, then refresh managed funding state.

@@ -8,6 +8,7 @@ const protectedRoutePrefixes = [
   "/positions(.*)",
   "/risk(.*)",
   "/activity(.*)",
+  "/profile(.*)",
   "/settings(.*)",
   "/kill(.*)",
 ].map((pattern) => pattern.replace("(.*)", ""));

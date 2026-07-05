@@ -1,60 +1,73 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { createPaymentLinkSlug, PAYMENT_LINK_STATUS } from "./helpers/paymentLinks";
-import { requireViewerStrategy } from "./model";
+import { getStrategyAccountByUserId, getUserByAuthSubject } from "./model";
 
 function normalizeAddress(value: string) {
   return value.trim().toLowerCase();
 }
 
-async function requireViewerAccount(ctx: { auth: any; db: any }) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new Error("Unauthorized");
-  }
-  const { user, strategyAccount } = await requireViewerStrategy(ctx, identity.subject);
-  if (!user || !strategyAccount) {
-    throw new Error("Strategy account not provisioned");
-  }
-  return { user, strategyAccount };
+async function getViewerIdentity(ctx: { auth: any }) {
+  return await ctx.auth.getUserIdentity();
 }
 
-async function getOptionalViewerAccount(ctx: { auth: any; db: any }) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    return null;
-  }
-  const { user, strategyAccount } = await requireViewerStrategy(ctx, identity.subject);
-  if (!user || !strategyAccount) {
-    return null;
-  }
-  return { user, strategyAccount };
+async function getViewerUser(ctx: { auth: any; db: any }) {
+  const identity = await getViewerIdentity(ctx);
+  if (!identity) return null;
+  return await getUserByAuthSubject(ctx, identity.subject);
 }
 
-async function getAccountWallet(ctx: { db: any }, strategyAccountId: any) {
+async function requireViewerUser(ctx: { auth: any; db: any }) {
+  const identity = await getViewerIdentity(ctx);
+  if (!identity) throw new Error("Unauthorized");
+
+  const now = Date.now();
+  const existing = await getUserByAuthSubject(ctx, identity.subject);
+  if (existing) {
+    return { identity, user: existing };
+  }
+
+  const userId = await ctx.db.insert("users", {
+    authSubject: identity.subject,
+    authProvider: String(identity.authProvider ?? "particle"),
+    particleWalletAddress:
+      typeof identity.particleWalletAddress === "string" ? identity.particleWalletAddress : undefined,
+    particleUuid: typeof identity.particleUuid === "string" ? identity.particleUuid : undefined,
+    email: typeof identity.email === "string" ? identity.email : undefined,
+    displayName:
+      identity.name ??
+      [identity.givenName, identity.familyName].filter(Boolean).join(" ") ??
+      identity.nickname,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return { identity, user: await ctx.db.get(userId) };
+}
+
+async function getAccountWalletByUserId(ctx: { db: any }, userId: any) {
   return await ctx.db
     .query("accountWallets")
-    .withIndex("by_strategyAccountId", (q: any) => q.eq("strategyAccountId", strategyAccountId))
+    .withIndex("by_userId", (q: any) => q.eq("userId", userId))
     .first();
 }
 
-async function getActivePaymentLink(ctx: { db: any }, strategyAccountId: any) {
+async function getActivePaymentLinkByUserId(ctx: { db: any }, userId: any) {
   return await ctx.db
     .query("paymentLinks")
-    .withIndex("by_strategyAccountId_status", (q: any) =>
-      q.eq("strategyAccountId", strategyAccountId).eq("status", PAYMENT_LINK_STATUS.active),
+    .withIndex("by_userId_status", (q: any) =>
+      q.eq("userId", userId).eq("status", PAYMENT_LINK_STATUS.active),
     )
     .first();
 }
 
-async function createUniquePaymentLink(ctx: { db: any }, args: { userId: any; strategyAccountId: any }) {
+async function createUniquePaymentLink(ctx: { db: any }, args: { userId: any; strategyAccountId?: any }) {
   const now = Date.now();
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const randomPart =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
-        : `${args.strategyAccountId}:${now}:${attempt}`;
-    const slug = createPaymentLinkSlug(`${args.strategyAccountId}:${randomPart}:${attempt}`);
+        : `${args.userId}:${now}:${attempt}`;
+    const slug = createPaymentLinkSlug(`${args.userId}:${randomPart}:${attempt}`);
     const existing = await ctx.db
       .query("paymentLinks")
       .withIndex("by_slug", (q: any) => q.eq("slug", slug))
@@ -78,10 +91,9 @@ async function createUniquePaymentLink(ctx: { db: any }, args: { userId: any; st
 export const getViewerAccountWallet = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await getOptionalViewerAccount(ctx);
-    if (!viewer) return null;
-    const { strategyAccount } = viewer;
-    return await getAccountWallet(ctx, strategyAccount._id);
+    const user = await getViewerUser(ctx);
+    if (!user) return null;
+    return await getAccountWalletByUserId(ctx, user._id);
   },
 });
 
@@ -94,7 +106,9 @@ export const syncViewerAccountWallet = mutation({
     assetsJson: v.string(),
   },
   handler: async (ctx, args) => {
-    const { user, strategyAccount } = await requireViewerAccount(ctx);
+    const viewer = await requireViewerUser(ctx);
+    const user = viewer.user;
+    if (!user) throw new Error("Could not create user.");
     if (!args.evmUaAddress.trim() || !args.solanaUaAddress.trim()) {
       throw new Error("Universal Account addresses are not ready.");
     }
@@ -106,10 +120,11 @@ export const syncViewerAccountWallet = mutation({
     }
 
     const now = Date.now();
-    const existing = await getAccountWallet(ctx, strategyAccount._id);
+    const strategyAccount = await getStrategyAccountByUserId(ctx, user._id);
+    const existing = await getAccountWalletByUserId(ctx, user._id);
     const next = {
       userId: user._id,
-      strategyAccountId: strategyAccount._id,
+      strategyAccountId: strategyAccount?._id,
       ownerAddress: normalizeAddress(args.ownerAddress),
       evmUaAddress: args.evmUaAddress,
       solanaUaAddress: args.solanaUaAddress,
@@ -135,27 +150,29 @@ export const syncViewerAccountWallet = mutation({
 export const getViewerPaymentLink = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await getOptionalViewerAccount(ctx);
-    if (!viewer) return null;
-    const { strategyAccount } = viewer;
-    return await getActivePaymentLink(ctx, strategyAccount._id);
+    const user = await getViewerUser(ctx);
+    if (!user) return null;
+    return await getActivePaymentLinkByUserId(ctx, user._id);
   },
 });
 
 export const getOrCreateViewerPaymentLink = mutation({
   args: {},
   handler: async (ctx) => {
-    const { user, strategyAccount } = await requireViewerAccount(ctx);
-    const wallet = await getAccountWallet(ctx, strategyAccount._id);
+    const viewer = await requireViewerUser(ctx);
+    const user = viewer.user;
+    if (!user) throw new Error("Could not create user.");
+    const wallet = await getAccountWalletByUserId(ctx, user._id);
     if (!wallet?.evmUaAddress || !wallet?.solanaUaAddress) {
       throw new Error("Sync your Particle account wallet before creating a payment link.");
     }
 
-    const existing = await getActivePaymentLink(ctx, strategyAccount._id);
+    const existing = await getActivePaymentLinkByUserId(ctx, user._id);
     if (existing) return existing;
+    const strategyAccount = await getStrategyAccountByUserId(ctx, user._id);
     return await createUniquePaymentLink(ctx, {
       userId: user._id,
-      strategyAccountId: strategyAccount._id,
+      strategyAccountId: strategyAccount?._id,
     });
   },
 });
@@ -163,8 +180,10 @@ export const getOrCreateViewerPaymentLink = mutation({
 export const disableViewerPaymentLink = mutation({
   args: {},
   handler: async (ctx) => {
-    const { strategyAccount } = await requireViewerAccount(ctx);
-    const existing = await getActivePaymentLink(ctx, strategyAccount._id);
+    const viewer = await requireViewerUser(ctx);
+    const user = viewer.user;
+    if (!user) throw new Error("Could not create user.");
+    const existing = await getActivePaymentLinkByUserId(ctx, user._id);
     if (!existing) return null;
 
     const now = Date.now();
@@ -180,13 +199,15 @@ export const disableViewerPaymentLink = mutation({
 export const rotateViewerPaymentLink = mutation({
   args: {},
   handler: async (ctx) => {
-    const { user, strategyAccount } = await requireViewerAccount(ctx);
-    const wallet = await getAccountWallet(ctx, strategyAccount._id);
+    const viewer = await requireViewerUser(ctx);
+    const user = viewer.user;
+    if (!user) throw new Error("Could not create user.");
+    const wallet = await getAccountWalletByUserId(ctx, user._id);
     if (!wallet?.evmUaAddress || !wallet?.solanaUaAddress) {
       throw new Error("Sync your Particle account wallet before rotating a payment link.");
     }
 
-    const existing = await getActivePaymentLink(ctx, strategyAccount._id);
+    const existing = await getActivePaymentLinkByUserId(ctx, user._id);
     const now = Date.now();
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -196,9 +217,10 @@ export const rotateViewerPaymentLink = mutation({
       });
     }
 
+    const strategyAccount = await getStrategyAccountByUserId(ctx, user._id);
     return await createUniquePaymentLink(ctx, {
       userId: user._id,
-      strategyAccountId: strategyAccount._id,
+      strategyAccountId: strategyAccount?._id,
     });
   },
 });

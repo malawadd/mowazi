@@ -7,7 +7,7 @@ import ParticleAccountButton from "@/components/ParticleAccountButton";
 
 const navItems = [
   { href: "/dashboard", label: "Overview" },
-  { href: "/settings/wallet", label: "Wallet" },
+  { href: "/profile/wallet", label: "Wallet" },
   { href: "/deposits", label: "Deposits" },
   { href: "/withdrawals", label: "Withdrawals" },
   { href: "/positions", label: "Positions" },
@@ -24,6 +24,7 @@ function shellToneForPathname(pathname: string) {
   if (pathname.startsWith("/risk") || pathname.startsWith("/activity") || pathname.startsWith("/kill")) {
     return "rose";
   }
+  if (pathname.startsWith("/profile")) return "sky";
   if (pathname.startsWith("/settings")) return "lilac";
   return "sky";
 }

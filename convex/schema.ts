@@ -157,7 +157,7 @@ export default defineSchema({
 
   accountWallets: defineTable({
     userId: v.id("users"),
-    strategyAccountId: v.id("strategyAccounts"),
+    strategyAccountId: v.optional(v.id("strategyAccounts")),
     ownerAddress: v.string(),
     evmUaAddress: v.string(),
     solanaUaAddress: v.string(),
@@ -173,7 +173,7 @@ export default defineSchema({
 
   paymentLinks: defineTable({
     userId: v.id("users"),
-    strategyAccountId: v.id("strategyAccounts"),
+    strategyAccountId: v.optional(v.id("strategyAccounts")),
     slug: v.string(),
     status: v.union(v.literal("active"), v.literal("disabled")),
     createdAt: v.number(),
@@ -182,11 +182,12 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"])
     .index("by_slug", ["slug"])
+    .index("by_userId_status", ["userId", "status"])
     .index("by_strategyAccountId_status", ["strategyAccountId", "status"]),
 
   paymentIntents: defineTable({
     paymentLinkId: v.id("paymentLinks"),
-    strategyAccountId: v.id("strategyAccounts"),
+    strategyAccountId: v.optional(v.id("strategyAccounts")),
     payerAddress: v.string(),
     targetChainId: v.number(),
     targetTokenAddress: v.string(),

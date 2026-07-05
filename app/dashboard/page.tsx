@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import StrategyShell from "@/components/StrategyShell";
 import { useParticleSession } from "@/components/ParticleAuthProvider";
@@ -78,10 +78,16 @@ function toneForStatus(status: string) {
   return "info";
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function DashboardPage() {
-  const { status } = useParticleSession();
+  const { refreshSession, status } = useParticleSession();
+  const convexAuth = useConvexAuth();
   const isSignedIn = status === "authenticated";
-  const dashboard = useQuery(api.queries.getStrategyDashboard, {});
+  const canUseConvex = isSignedIn && convexAuth.isAuthenticated;
+  const dashboard = useQuery(api.queries.getStrategyDashboard, canUseConvex ? {} : "skip");
   const createStrategyAccount = useAction(api.publicActions.createStrategyAccount);
   const approveHyperliquidAgent = useAction(api.publicActions.approveHyperliquidAgent);
   const refreshFundingState = useAction(api.publicActions.refreshFundingState);
@@ -114,10 +120,44 @@ export default function DashboardPage() {
     );
   }
 
+  if (!canUseConvex) {
+    return (
+      <StrategyShell title="Overview" subtitle="Managed strategy account health and execution state">
+        <EmptyState
+          title={convexAuth.isLoading ? "Connecting account data..." : "Reconnect your wallet session."}
+          body={
+            convexAuth.isLoading
+              ? "Your Particle session is active. Moeazi is verifying the app data session."
+              : "The app data session could not be verified. Sign out and sign back in to mint a fresh token."
+          }
+        />
+      </StrategyShell>
+    );
+  }
+
+  if (dashboard === undefined) {
+    return (
+      <StrategyShell title="Overview" subtitle="Managed strategy account health and execution state">
+        <EmptyState title="Loading strategy dashboard..." body="Fetching your managed account state." />
+      </StrategyShell>
+    );
+  }
+
   const provision = async () => {
     setBusyAction("provision");
     try {
-      await createStrategyAccount({ label: "LINK / USDC Delta Neutral" });
+      await refreshSession();
+      try {
+        await createStrategyAccount({ label: "LINK / USDC Delta Neutral" });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.toLowerCase().includes("unauthorized")) {
+          throw error;
+        }
+        await refreshSession();
+        await wait(250);
+        await createStrategyAccount({ label: "LINK / USDC Delta Neutral" });
+      }
     } finally {
       setBusyAction(null);
     }
@@ -182,8 +222,16 @@ export default function DashboardPage() {
             title="No strategy account provisioned yet."
             body="Provisioning creates three managed wallets inside Convex: an Optimism execution wallet, a HyperLiquid master wallet, and a HyperLiquid agent wallet."
             action={
-              <button className="primary-button" onClick={provision} disabled={busyAction === "provision"}>
-                {busyAction === "provision" ? "Provisioning..." : "Create strategy account"}
+              <button
+                className="primary-button"
+                onClick={provision}
+                disabled={busyAction === "provision" || convexAuth.isLoading || !convexAuth.isAuthenticated}
+              >
+                {busyAction === "provision"
+                  ? "Provisioning..."
+                  : convexAuth.isLoading
+                    ? "Connecting auth..."
+                    : "Create strategy account"}
               </button>
             }
           />

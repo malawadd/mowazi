@@ -30,7 +30,7 @@ async function getActiveLinkBySlug(ctx: { db: any }, rawSlug: string) {
 async function getWalletForLink(ctx: { db: any }, link: any) {
   return await ctx.db
     .query("accountWallets")
-    .withIndex("by_strategyAccountId", (q: any) => q.eq("strategyAccountId", link.strategyAccountId))
+    .withIndex("by_userId", (q: any) => q.eq("userId", link.userId))
     .first();
 }
 
@@ -54,7 +54,7 @@ export const getPublicPaymentLink = query({
     if (!link) return null;
 
     const [strategyAccount, user, wallet] = await Promise.all([
-      ctx.db.get(link.strategyAccountId) as Promise<any>,
+      link.strategyAccountId ? (ctx.db.get(link.strategyAccountId) as Promise<any>) : Promise.resolve(null),
       ctx.db.get(link.userId) as Promise<any>,
       getWalletForLink(ctx, link),
     ]);
