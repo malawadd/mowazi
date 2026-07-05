@@ -1,0 +1,519 @@
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  users: defineTable({
+    authSubject: v.optional(v.string()),
+    authProvider: v.optional(v.string()),
+    particleWalletAddress: v.optional(v.string()),
+    particleUuid: v.optional(v.string()),
+    clerkUserId: v.optional(v.string()),
+    email: v.optional(v.string()),
+    displayName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_authSubject", ["authSubject"])
+    .index("by_clerkUserId", ["clerkUserId"]),
+
+  strategyAccounts: defineTable({
+    userId: v.id("users"),
+    strategyType: v.string(),
+    label: v.string(),
+    status: v.union(
+      v.literal("provisioning"),
+      v.literal("ready"),
+      v.literal("active"),
+      v.literal("paused"),
+      v.literal("emergency_stopped"),
+    ),
+    emergencyStop: v.boolean(),
+    enabledAt: v.optional(v.number()),
+    pausedAt: v.optional(v.number()),
+    lastHeartbeatAt: v.optional(v.number()),
+    healthStatus: v.optional(
+      v.union(
+        v.literal("bootstrapping"),
+        v.literal("ready"),
+        v.literal("degraded"),
+        v.literal("paused"),
+        v.literal("unwinding"),
+        v.literal("withdrawal_blocked"),
+      ),
+    ),
+    healthReason: v.optional(v.string()),
+    healthUpdatedAt: v.optional(v.number()),
+    lastReconciledAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_status", ["status"]),
+
+  venueAccounts: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    role: v.union(
+      v.literal("optimism_execution_wallet"),
+      v.literal("hyperliquid_master_wallet"),
+      v.literal("hyperliquid_agent_wallet"),
+    ),
+    venue: v.union(v.literal("uniswap"), v.literal("hyperliquid")),
+    chainRef: v.string(),
+    accountRef: v.string(),
+    walletAddress: v.string(),
+    status: v.union(
+      v.literal("provisioning"),
+      v.literal("ready"),
+      v.literal("approval_required"),
+      v.literal("paused"),
+    ),
+    lastSyncedAt: v.optional(v.number()),
+    lastSyncStatus: v.optional(
+      v.union(v.literal("never"), v.literal("fresh"), v.literal("stale"), v.literal("error")),
+    ),
+    lastSyncError: v.optional(v.string()),
+    balanceJson: v.optional(v.string()),
+    lastBalanceUsd: v.optional(v.number()),
+    metadataJson: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_strategyAccountId_role", ["strategyAccountId", "role"])
+    .index("by_accountRef", ["accountRef"]),
+
+  walletSecrets: defineTable({
+    venueAccountId: v.id("venueAccounts"),
+    address: v.string(),
+    cipherText: v.string(),
+    iv: v.string(),
+    authTag: v.string(),
+    algorithm: v.literal("aes-256-gcm"),
+    keyVersion: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_venueAccountId", ["venueAccountId"]),
+
+  strategyConfigs: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    version: v.number(),
+    active: v.boolean(),
+    allowedPairs: v.array(v.string()),
+    arbThresholdBps: v.number(),
+    hedgeThresholdUsd: v.number(),
+    minArbTradeUsd: v.number(),
+    maxArbTradeUsd: v.number(),
+    pollIntervalSeconds: v.number(),
+    maxDailyDrawdownPct: v.number(),
+    maxSlippageBps: v.number(),
+    executionMode: v.optional(v.union(v.literal("live"), v.literal("shadow"))),
+    maxSingleActionUsd: v.optional(v.number()),
+    maxDailyVolumeUsd: v.optional(v.number()),
+    rebalanceCooldownSeconds: v.optional(v.number()),
+    hedgeTwapThresholdUsd: v.optional(v.number()),
+    minLiquidityUsd: v.optional(v.number()),
+    maxMarketDataAgeMs: v.optional(v.number()),
+    maxPositionDriftUsd: v.optional(v.number()),
+    withdrawCooldownSeconds: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_strategyAccountId_active", ["strategyAccountId", "active"]),
+
+  deposits: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venueAccountId: v.id("venueAccounts"),
+    venueRole: v.union(
+      v.literal("optimism_execution_wallet"),
+      v.literal("hyperliquid_master_wallet"),
+      v.literal("hyperliquid_agent_wallet"),
+    ),
+    asset: v.string(),
+    chainRef: v.string(),
+    amount: v.optional(v.string()),
+    detectedAmount: v.optional(v.string()),
+    observedBalance: v.optional(v.string()),
+    txHash: v.optional(v.string()),
+    transferRef: v.optional(v.string()),
+    idempotencyKey: v.optional(v.string()),
+    status: v.union(
+      v.literal("awaiting_funds"),
+      v.literal("detected"),
+      v.literal("confirmed"),
+      v.literal("credited"),
+    ),
+    notes: v.optional(v.string()),
+    lastObservedAt: v.optional(v.number()),
+    confirmedAt: v.optional(v.number()),
+    creditedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_venueAccountId", ["venueAccountId"])
+    .index("by_status", ["status"]),
+
+  walletAssetStates: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venueAccountId: v.id("venueAccounts"),
+    venueRole: v.union(
+      v.literal("optimism_execution_wallet"),
+      v.literal("hyperliquid_master_wallet"),
+      v.literal("hyperliquid_agent_wallet"),
+    ),
+    chainRef: v.string(),
+    asset: v.string(),
+    purpose: v.union(
+      v.literal("capital"),
+      v.literal("inventory"),
+      v.literal("gas"),
+      v.literal("unsupported"),
+    ),
+    includedInStrategyEquity: v.boolean(),
+    balance: v.string(),
+    valueUsd: v.number(),
+    lastObservedAt: v.number(),
+    lastTransferAt: v.optional(v.number()),
+    lastTransferRef: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_venueAccountId", ["venueAccountId"])
+    .index("by_venueAccountId_asset", ["venueAccountId", "asset"]),
+
+  walletTransferEvents: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venueAccountId: v.id("venueAccounts"),
+    venueRole: v.union(
+      v.literal("optimism_execution_wallet"),
+      v.literal("hyperliquid_master_wallet"),
+      v.literal("hyperliquid_agent_wallet"),
+    ),
+    chainRef: v.string(),
+    asset: v.string(),
+    purpose: v.union(
+      v.literal("capital"),
+      v.literal("inventory"),
+      v.literal("gas"),
+      v.literal("unsupported"),
+    ),
+    includedInStrategyEquity: v.boolean(),
+    direction: v.union(v.literal("in"), v.literal("out")),
+    amount: v.string(),
+    balanceAfter: v.string(),
+    valueUsd: v.number(),
+    transferRef: v.string(),
+    txHash: v.optional(v.string()),
+    observedAt: v.number(),
+    detail: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_strategyAccountId_observedAt", ["strategyAccountId", "observedAt"])
+    .index("by_venueAccountId_observedAt", ["venueAccountId", "observedAt"])
+    .index("by_venueAccountId_transferRef", ["venueAccountId", "transferRef"]),
+
+  withdrawals: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venueAccountId: v.optional(v.id("venueAccounts")),
+    asset: v.string(),
+    amount: v.string(),
+    destination: v.string(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("pending_checks"),
+      v.literal("signing"),
+      v.literal("submitted"),
+      v.literal("confirming"),
+      v.literal("failed"),
+      v.literal("cancelled"),
+      v.literal("requested"),
+      v.literal("queued"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("rejected"),
+    ),
+    txHash: v.optional(v.string()),
+    note: v.optional(v.string()),
+    idempotencyKey: v.optional(v.string()),
+    feeEstimateUsd: v.optional(v.number()),
+    destinationVerified: v.optional(v.boolean()),
+    reviewStatus: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("approved"),
+        v.literal("rejected"),
+        v.literal("not_required"),
+      ),
+    ),
+    cooldownEndsAt: v.optional(v.number()),
+    failureCode: v.optional(v.string()),
+    requestedBy: v.optional(v.id("users")),
+    lastStageAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_status", ["status"]),
+
+  executionLeases: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    holderId: v.string(),
+    status: v.union(v.literal("active"), v.literal("released"), v.literal("expired")),
+    acquiredAt: v.number(),
+    heartbeatAt: v.number(),
+    expiresAt: v.number(),
+    releasedAt: v.optional(v.number()),
+  }).index("by_strategyAccountId", ["strategyAccountId"]),
+
+  lpPositions: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venueAccountId: v.id("venueAccounts"),
+    poolAddress: v.string(),
+    chainRef: v.string(),
+    token0: v.string(),
+    token1: v.string(),
+    liquidity: v.string(),
+    lowerTick: v.number(),
+    upperTick: v.number(),
+    amount0: v.optional(v.string()),
+    amount1: v.optional(v.string()),
+    feesEarnedUsd: v.optional(v.number()),
+    currentTick: v.optional(v.number()),
+    rangeStatus: v.optional(v.union(v.literal("in_range"), v.literal("near_edge"), v.literal("out_of_range"))),
+    inventoryDeltaUsd: v.optional(v.number()),
+    outOfRangeSince: v.optional(v.number()),
+    lastSyncedAt: v.optional(v.number()),
+    status: v.union(v.literal("open"), v.literal("closing"), v.literal("closed")),
+    openedAt: v.number(),
+    updatedAt: v.number(),
+    closedAt: v.optional(v.number()),
+  }).index("by_strategyAccountId", ["strategyAccountId"]),
+
+  hedgePositions: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venueAccountId: v.id("venueAccounts"),
+    symbol: v.string(),
+    side: v.union(v.literal("long"), v.literal("short"), v.literal("flat")),
+    size: v.string(),
+    entryPrice: v.number(),
+    markPrice: v.optional(v.number()),
+    unrealizedPnlUsd: v.optional(v.number()),
+    basisBps: v.optional(v.number()),
+    fundingRate: v.optional(v.number()),
+    lastSyncedAt: v.optional(v.number()),
+    orderRef: v.optional(v.string()),
+    status: v.union(v.literal("open"), v.literal("closing"), v.literal("closed")),
+    openedAt: v.number(),
+    updatedAt: v.number(),
+    closedAt: v.optional(v.number()),
+  }).index("by_strategyAccountId", ["strategyAccountId"]),
+
+  balanceSnapshots: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    totalEquityUsd: v.number(),
+    lpValueUsd: v.number(),
+    hedgeValueUsd: v.number(),
+    cashValueUsd: v.number(),
+    netExposureUsd: v.number(),
+    accountBalances: v.array(
+      v.object({
+        venueRole: v.string(),
+        asset: v.string(),
+        amount: v.string(),
+        valueUsd: v.number(),
+        purpose: v.optional(
+          v.union(
+            v.literal("capital"),
+            v.literal("inventory"),
+            v.literal("gas"),
+            v.literal("unsupported"),
+          ),
+        ),
+        includedInStrategyEquity: v.optional(v.boolean()),
+      }),
+    ),
+    capturedBy: v.optional(v.string()),
+    freshnessMs: v.optional(v.number()),
+    mode: v.optional(v.union(v.literal("live"), v.literal("shadow"), v.literal("degraded"))),
+    capturedAt: v.number(),
+  }).index("by_strategyAccountId", ["strategyAccountId"]),
+
+  executions: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venueAccountId: v.optional(v.id("venueAccounts")),
+    kind: v.union(
+      v.literal("uniswap_pool_swap"),
+      v.literal("uniswap_rebalance"),
+      v.literal("hyperliquid_approve_agent"),
+      v.literal("hyperliquid_order"),
+      v.literal("withdrawal"),
+      v.literal("system"),
+    ),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("submitted"),
+      v.literal("filled"),
+      v.literal("failed"),
+      v.literal("skipped"),
+    ),
+    summary: v.string(),
+    detail: v.optional(v.string()),
+    txHash: v.optional(v.string()),
+    requestId: v.optional(v.string()),
+    notionalUsd: v.optional(v.number()),
+    metadataJson: v.optional(v.string()),
+    origin: v.optional(v.union(v.literal("viewer"), v.literal("supervisor"), v.literal("system"))),
+    pipelineStage: v.optional(
+      v.union(
+        v.literal("intent"),
+        v.literal("prechecks"),
+        v.literal("simulation"),
+        v.literal("signing"),
+        v.literal("broadcast"),
+        v.literal("confirmation"),
+        v.literal("reconciliation"),
+      ),
+    ),
+    policyJson: v.optional(v.string()),
+    simulationJson: v.optional(v.string()),
+    confirmedAt: v.optional(v.number()),
+    intentHash: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    executedAt: v.optional(v.number()),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_status", ["status"]),
+
+  alerts: defineTable({
+    poolId: v.optional(v.string()),
+    strategyAccountId: v.optional(v.id("strategyAccounts")),
+    code: v.optional(v.string()),
+    message: v.string(),
+    detail: v.optional(v.string()),
+    severity: v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.literal("info"),
+      v.literal("warning"),
+      v.literal("critical"),
+    ),
+    status: v.optional(v.union(v.literal("open"), v.literal("resolved"))),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    resolvedAt: v.optional(v.number()),
+  }),
+
+  strategyAlerts: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    severity: v.union(v.literal("info"), v.literal("warning"), v.literal("critical")),
+    code: v.string(),
+    message: v.string(),
+    detail: v.optional(v.string()),
+    runbook: v.optional(v.string()),
+    status: v.union(v.literal("open"), v.literal("resolved")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_status", ["status"]),
+
+  auditEvents: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    userId: v.optional(v.id("users")),
+    actor: v.string(),
+    kind: v.string(),
+    summary: v.string(),
+    detail: v.optional(v.string()),
+    refTable: v.optional(v.string()),
+    refId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_kind", ["kind"]),
+
+  venueStates: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venueAccountId: v.id("venueAccounts"),
+    venueRole: v.string(),
+    venue: v.string(),
+    syncKind: v.union(
+      v.literal("balance"),
+      v.literal("deposit"),
+      v.literal("withdrawal"),
+      v.literal("lp_position"),
+      v.literal("hedge_state"),
+      v.literal("market"),
+    ),
+    status: v.union(v.literal("fresh"), v.literal("stale"), v.literal("error")),
+    summary: v.string(),
+    dataJson: v.optional(v.string()),
+    error: v.optional(v.string()),
+    syncedAt: v.number(),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_venueAccountId", ["venueAccountId"]),
+
+  reconciliationDeltas: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venueAccountId: v.optional(v.id("venueAccounts")),
+    kind: v.union(
+      v.literal("balance"),
+      v.literal("deposit"),
+      v.literal("withdrawal"),
+      v.literal("lp_position"),
+      v.literal("hedge_position"),
+    ),
+    status: v.union(
+      v.literal("matched"),
+      v.literal("pending"),
+      v.literal("drift"),
+      v.literal("resolved"),
+    ),
+    asset: v.optional(v.string()),
+    expectedAmount: v.optional(v.string()),
+    observedAmount: v.optional(v.string()),
+    deltaAmount: v.optional(v.string()),
+    summary: v.string(),
+    detail: v.optional(v.string()),
+    refTable: v.optional(v.string()),
+    refId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_status", ["status"]),
+
+  incidentEvents: defineTable({
+    strategyAccountId: v.optional(v.id("strategyAccounts")),
+    severity: v.union(v.literal("info"), v.literal("warning"), v.literal("critical")),
+    code: v.string(),
+    summary: v.string(),
+    detail: v.optional(v.string()),
+    runbook: v.optional(v.string()),
+    status: v.union(v.literal("open"), v.literal("acknowledged"), v.literal("resolved")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_status", ["status"]),
+
+  canaryChecks: defineTable({
+    scope: v.string(),
+    venue: v.string(),
+    checkType: v.string(),
+    status: v.union(v.literal("pass"), v.literal("warn"), v.literal("fail")),
+    summary: v.string(),
+    detail: v.optional(v.string()),
+    latencyMs: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_scope", ["scope"]),
+});

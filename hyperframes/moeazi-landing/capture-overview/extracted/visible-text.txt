@@ -1,0 +1,118 @@
+[p] Managed Strategy
+[h1] Moeazi
+[p] LINK/USDC delta-neutral execution across Optimism Uniswap and HyperLiquid.
+[a] Overview
+[a] Deposits
+[a] Withdrawals
+[a] Positions
+[a] Activity
+[a] Settings
+[a] Emergency Stop
+[p] Convex owns key custody.
+[p] External worker owns the live decision loop.
+[p] Overview
+[h2] Managed strategy account health and execution state
+[p] Strategy status
+[p] active
+[p] link_usdc_delta_neutral_v1
+[p] Total equity
+[p] $18,243.11
+[p] Strategy-only equity from the latest recorded snapshot
+[p] Net exposure
+[p] $143.62
+[p] Positive means long LINK delta
+[p] Open alerts
+[p] Critical alerts appear in the risk view
+[p] Execution mode
+[p] live
+[p] ready
+[p] Wallet holdings
+[p] $18,411.58
+[p] Live holdings across funding wallets, including gas reserve
+[p] Gas reserve
+[p] $114.83
+[p] Operational ETH reserve across tracked wallets
+[p] Execution
+[p] Account state, venue readiness, and control actions
+[button] Refresh balances
+[button] Pause
+[button] Enable
+[h4] optimism execution wallet
+[p] eip155:10:0x1bca20a91e5b9fd0344de1be59f5c12daf8fc2
+[span] ready
+[p] 0x1bca20a91e5b9fd0344de1be59f5c12daf8fc2
+[p] Wallet holdings:
+[p] $9,182.44
+[p] · Strategy assets:
+[p] $9,067.61
+[p] · Gas reserve:
+[p] $114.83
+[p] USDC 6,024.92 · LINK 53.62 · ETH 0.0301
+[p] Optimism execution wallet needs more ETH gas reserve.
+[h4] hyperliquid master wallet
+[p] 0x6f15f4216f10dc884215a5912d607de3d1659de3658a59521707f
+[span] ready
+[p] 0x6f15f4216f10dc884215a5912d607de3d1659de3658a59521707f
+[p] Wallet holdings:
+[p] $9,230.12
+[p] · Strategy assets:
+[p] $9,230.12
+[p] · Gas reserve:
+[p] $0.00
+[p] USDC 9,230.12
+[h4] hyperliquid agent wallet
+[p] 0x6f15f4216f10dc884215a5912d607de3d1659de3658a59521708a
+[span] ready
+[p] 0x6f15f4216f10dc884215a5912d607de3d1659de3658a59521708a
+[span] HyperLiquid agent approval
+[button] Approve agent wallet
+[span] Last worker heartbeat
+[strong] 5/4/2026, 11:03:49 AM
+[span] Health reason
+[strong] Healthy enough for managed execution
+[span] Last reconciliation
+[strong] 5/4/2026, 11:02:09 AM
+[span] Last execution error
+[strong] None
+[p] Lifecycle
+[p] Recent venue sync and withdrawal state
+[h4] optimism execution wallet
+[p] 5/4/2026, 11:03:03 AM
+[span] fresh
+[p] No sync error recorded.
+[h4] hyperliquid master wallet
+[p] 5/4/2026, 11:02:41 AM
+[span] fresh
+[p] No sync error recorded.
+[h4] hyperliquid agent wallet
+[p] 5/4/2026, 11:02:24 AM
+[span] fresh
+[p] No sync error recorded.
+[h4] 0.0006312
+[h4] ETH
+[p] Withdrawal pipeline
+[span] completed
+[h4] 125.00
+[h4] USDC
+[p] Withdrawal pipeline
+[span] queued
+[h4] 0.0006311
+[h4] ETH
+[p] Withdrawal pipeline
+[span] cancelled
+[p] Live positions
+[p] Current LP and hedge state
+[h4] LP positions
+[h4] LINK
+[h4] USDC
+[p] 0x3416cf6c708da44db2624d63ea0aaef7113527c6
+[span] in_range
+[p] Liquidity:
+[p] 44.2817
+[h4] Hedge positions
+[h4] LINK
+[p] Entry
+[p] 18.42
+[span] short
+[p] Size:
+[p] 52.90

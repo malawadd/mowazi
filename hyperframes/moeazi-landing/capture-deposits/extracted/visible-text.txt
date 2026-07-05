@@ -1,0 +1,122 @@
+[p] Managed Strategy
+[h1] Moeazi
+[p] LINK/USDC delta-neutral execution across Optimism Uniswap and HyperLiquid.
+[a] Overview
+[a] Deposits
+[a] Withdrawals
+[a] Positions
+[a] Activity
+[a] Settings
+[a] Emergency Stop
+[p] Convex owns key custody.
+[p] External worker owns the live decision loop.
+[p] Deposits
+[h2] Live wallet inventory, funding rails, and gas reserve visibility
+[p] Manual refresh
+[p] Fallback path for accounts that have not been picked up by the live supervisor yet.
+[button] Refresh wallet balances
+[p] Synthetic demo fixture showing how the operator fallback path looks before live supervisor activity catches up.
+[p] Manual sync complete. 2 funding wallets refreshed from the demo venue state.
+[p] optimism execution wallet
+[p] Fund USDC for LP-side strategy actions, LINK for inventory balance, and ETH for operational gas.
+[h4] Optimism / Uniswap
+[p] eip155:10
+[span] ready
+[p] 0x1bca20a91e5b9fd0344de1be59f5c12daf8fc2
+[p] Wallet holdings:
+[p] $9,182.44
+[p] · Strategy assets:
+[p] $9,067.61
+[p] · Operational gas reserve:
+[p] $114.83
+[p] Sync status:
+[p] fresh
+[p] 5/4/2026, 11:03:03 AM
+[p] Synthetic demo fixture: top up ETH if the Optimism wallet starts processing more chain actions.
+[h4] Strategy assets
+[h4] USDC
+[h4] Strategy capital
+[p] Balance:
+[p] 6,024.92
+[p] · Value:
+[p] $6,024.92
+[span] confirmed
+[p] Withdrawable now:
+[p] 5,820.00
+[p] · A small buffer stays allocated to in-flight onchain work.
+[h4] LINK
+[h4] Inventory buffer
+[p] Balance:
+[p] 53.62
+[p] · Value:
+[p] $3,042.69
+[span] detected
+[p] Withdrawable now:
+[p] 53.62
+[p] · Inventory can remain parked here even when no rebalance is active.
+[h4] Operational gas reserve
+[h4] ETH
+[h4] Gas reserve
+[p] Balance:
+[p] 0.0301
+[p] · Value:
+[p] $114.83
+[span] confirmed
+[p] Withdrawable now:
+[p] 0.0184
+[p] · Operational gas reserve is intentionally only partly withdrawable.
+[h4] Recent landed transfers
+[h4] 3,500.00
+[h4] USDC
+[p] Strategy asset
+[p] · Balance after:
+[p] 6,024.92
+[span] landed
+[p] $3,500.00
+[p] 5/4/2026, 10:55:29 AM
+[p] Funding landed from the managed deposit rail and was written into wallet inventory.
+[h4] 0.0100
+[h4] ETH
+[p] Gas reserve
+[p] · Balance after:
+[p] 0.0301
+[span] landed
+[p] $38.17
+[p] 5/4/2026, 10:53:29 AM
+[p] Operational gas top-up landed before the latest worker reconciliation.
+[p] hyperliquid master wallet
+[p] Fund the HyperLiquid master wallet for margin and withdrawals. Agent execution stays delegated separately.
+[h4] HyperLiquid
+[p] hyperliquid
+[span] ready
+[p] 0x6f15f4216f10dc884215a5912d607de3d1659de3658a59521707f
+[p] Wallet holdings:
+[p] $9,230.12
+[p] · Strategy assets:
+[p] $9,230.12
+[p] · Operational gas reserve:
+[p] $0.00
+[p] Sync status:
+[p] fresh
+[p] 5/4/2026, 11:02:41 AM
+[h4] Strategy assets
+[h4] USDC
+[h4] Margin capital
+[p] Balance:
+[p] 9,230.12
+[p] · Value:
+[p] $9,230.12
+[span] confirmed
+[p] Withdrawable now:
+[p] 8,900.00
+[p] · Keep a margin buffer if the hedge side is expected to reopen quickly.
+[h4] Recent landed transfers
+[h4] 4,000.00
+[h4] USDC
+[p] Strategy asset
+[p] · Balance after:
+[p] 9,230.12
+[span] landed
+[p] $4,000.00
+[p] 5/4/2026, 10:51:49 AM
+[p] Margin funding landed before the hedge account was marked ready.

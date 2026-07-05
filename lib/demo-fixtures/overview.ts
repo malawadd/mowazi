@@ -1,0 +1,102 @@
+export const overviewDemo = {
+  strategyType: "link_usdc_delta_neutral_v1",
+  config: {
+    executionMode: "live",
+  },
+  strategyAccount: {
+    status: "active",
+    healthStatus: "ready",
+    lastHeartbeatAt: 1777881829000,
+    healthReason: "Healthy enough for managed execution",
+    lastReconciledAt: 1777881729000,
+    lastError: null,
+  },
+  latestSnapshot: {
+    totalEquityUsd: 18243.11,
+    netExposureUsd: 143.62,
+  },
+  openAlerts: [{ code: "gas_reserve_low", message: "Optimism execution wallet gas is below the preferred reserve." }],
+  walletSummary: {
+    totalWalletHoldingsUsd: 18411.58,
+    gasReserveValueUsd: 114.83,
+    lowGasWarnings: [{ asset: "ETH", currentBalance: "0.0301", message: "Optimism execution wallet needs more ETH gas reserve." }],
+  },
+  venueAccounts: [
+    {
+      id: "optimism_execution_wallet",
+      role: "optimism_execution_wallet",
+      accountRef: "eip155:10:0x1bca20a91e5b9fd0344de1be59f5c12daf8fc2",
+      walletAddress: "0x1bca20a91e5b9fd0344de1be59f5c12daf8fc2",
+      status: "ready",
+      lastSyncedAt: 1777881783000,
+      lastSyncStatus: "fresh",
+      lastSyncError: null,
+    },
+    {
+      id: "hyperliquid_master_wallet",
+      role: "hyperliquid_master_wallet",
+      accountRef: "0x6f15f4216f10dc884215a5912d607de3d1659de3658a59521707f",
+      walletAddress: "0x6f15f4216f10dc884215a5912d607de3d1659de3658a59521707f",
+      status: "ready",
+      lastSyncedAt: 1777881761000,
+      lastSyncStatus: "fresh",
+      lastSyncError: null,
+    },
+    {
+      id: "hyperliquid_agent_wallet",
+      role: "hyperliquid_agent_wallet",
+      accountRef: "0x6f15f4216f10dc884215a5912d607de3d1659de3658a59521708a",
+      walletAddress: "0x6f15f4216f10dc884215a5912d607de3d1659de3658a59521708a",
+      status: "ready",
+      lastSyncedAt: 1777881744000,
+      lastSyncStatus: "fresh",
+      lastSyncError: null,
+    },
+  ],
+  fundingAccounts: [
+    {
+      venueAccountId: "optimism_execution_wallet",
+      totalWalletHoldingsUsd: 9182.44,
+      strategyAssetValueUsd: 9067.61,
+      gasReserveValueUsd: 114.83,
+      lowGasWarning: { message: "Optimism execution wallet needs more ETH gas reserve." },
+      walletAssets: [
+        { asset: "USDC", balance: "6,024.92" },
+        { asset: "LINK", balance: "53.62" },
+        { asset: "ETH", balance: "0.0301" },
+      ],
+    },
+    {
+      venueAccountId: "hyperliquid_master_wallet",
+      totalWalletHoldingsUsd: 9230.12,
+      strategyAssetValueUsd: 9230.12,
+      gasReserveValueUsd: 0,
+      lowGasWarning: null,
+      walletAssets: [{ asset: "USDC", balance: "9,230.12" }],
+    },
+  ],
+  recentWithdrawals: [
+    { _id: "wd-001", amount: "0.0006312", asset: "ETH", status: "completed" },
+    { _id: "wd-002", amount: "125.00", asset: "USDC", status: "queued" },
+    { _id: "wd-003", amount: "0.0006311", asset: "ETH", status: "cancelled" },
+  ],
+  openLpPositions: [
+    {
+      _id: "lp-001",
+      token0: "LINK",
+      token1: "USDC",
+      poolAddress: "0x3416cf6c708da44db2624d63ea0aaef7113527c6",
+      status: "in_range",
+      liquidity: "44.2817",
+    },
+  ],
+  openHedgePositions: [
+    {
+      _id: "hedge-001",
+      symbol: "LINK",
+      entryPrice: 18.42,
+      side: "short",
+      size: "52.90",
+    },
+  ],
+} as const;

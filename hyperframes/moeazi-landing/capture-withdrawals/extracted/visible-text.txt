@@ -1,0 +1,196 @@
+[p] Managed Strategy
+[h1] Moeazi
+[p] LINK/USDC delta-neutral execution across Optimism Uniswap and HyperLiquid.
+[a] Overview
+[a] Deposits
+[a] Withdrawals
+[a] Positions
+[a] Activity
+[a] Settings
+[a] Emergency Stop
+[p] Convex owns key custody.
+[p] External worker owns the live decision loop.
+[p] Withdrawals
+[h2] Wallet balances and settlement tracking
+[p] Funding wallets tracked
+[p] Live wallet inventory available to withdrawal flow
+[p] Wallet holdings
+[p] $18,412.56
+[p] Combined inventory across tracked funding rails
+[p] Low gas wallets
+[p] Operational ETH reserve still needs attention before more chain actions
+[p] Recent withdrawals
+[p] Latest settlement records across both funding rails
+[p] Manual refresh
+[p] Synthetic demo fixture of the operator fallback path for fresh wallet balances.
+[button] Refresh wallet balances
+[p] This mirrors the manual balance sync used before the supervisor has written fresh venue state back into the account.
+[p] Manual refresh completed from synthetic marketing fixture balances.
+[p] Wallet inventory
+[p] Use these balances as the source of truth for what each funding wallet currently holds.
+[h3] optimism execution wallet
+[div] Optimism / Uniswap · 0x1bca20a91e5b9fd0344de1be59f5c12daf8fc2
+[span] low gas
+[p] Wallet holdings:
+[p] $9,182.44
+[p] · Strategy assets:
+[p] $9,067.61
+[p] · Gas reserve:
+[p] $114.83
+[p] Synthetic demo fixture: ETH reserve is below the preferred runway for heavier chain activity.
+[p] Strategy assets
+[h4] USDC
+[h4] Strategy capital
+[p] Balance:
+[p] 6,024.92
+[p] · Withdrawable:
+[p] 5,820.00
+[span] strategy asset
+[p] Estimated value:
+[p] $6,024.92
+[p] A small portion remains reserved for pending onchain work.
+[h4] LINK
+[h4] Inventory buffer
+[p] Balance:
+[p] 53.62
+[p] · Withdrawable:
+[p] 53.62
+[span] strategy asset
+[p] Estimated value:
+[p] $3,042.69
+[p] Inventory can stay parked between rebalances.
+[p] Gas reserve
+[h4] ETH
+[h4] Gas reserve
+[p] Balance:
+[p] 0.0301
+[p] · Withdrawable:
+[p] 0.0184
+[span] gas reserve
+[p] Estimated value:
+[p] $114.83
+[p] Gas reserve remains only partly withdrawable.
+[h3] Transfer history
+[div] Recent observed incoming and outgoing balance changes for this wallet.
+[span] items
+[h4] 0.0006312
+[h4] ETH
+[p] Gas reserve
+[p] · Balance after:
+[p] 0.0301
+[span] outgoing
+[p] $2.41
+[p] 5/4/2026, 11:00:21 AM
+[p] Recent gas-reserve withdrawal settled on Optimism.
+[h4] 450.00
+[h4] USDC
+[p] Strategy asset
+[p] · Balance after:
+[p] 6,024.92
+[span] incoming
+[p] $450.00
+[p] 5/4/2026, 10:50:21 AM
+[p] Inventory refresh funding landed before the last rebalance.
+[h3] hyperliquid master wallet
+[div] HyperLiquid · 0x6f15f4216f10dc884215a5912d607de3d1659de3658a59521707f
+[span] tracked
+[p] Wallet holdings:
+[p] $9,230.12
+[p] · Strategy assets:
+[p] $9,230.12
+[p] · Gas reserve:
+[p] $0.00
+[p] Strategy assets
+[h4] USDC
+[h4] Margin capital
+[p] Balance:
+[p] 9,230.12
+[p] · Withdrawable:
+[p] 8,900.00
+[span] strategy asset
+[p] Estimated value:
+[p] $9,230.12
+[p] Leave runway if hedge activity may restart soon.
+[p] Gas reserve
+[h3] Transfer history
+[div] Recent observed incoming and outgoing balance changes for this wallet.
+[span] items
+[h4] 125.00
+[h4] USDC
+[p] Strategy asset
+[p] · Balance after:
+[p] 9,230.12
+[span] outgoing
+[p] $125.00
+[p] 5/4/2026, 10:58:41 AM
+[p] Queued withdrawal is visible in the managed settlement pipeline.
+[p] Request withdrawal
+[p] Only assets supported by the selected funding wallet appear here, and the available amount comes from the live inventory above.
+[span] Funding venue
+[option] optimism execution wallet
+[option] hyperliquid master wallet
+[span] Asset
+[option] USDC - Strategy capital
+[option] LINK - Inventory buffer
+[option] ETH - Gas reserve
+[span] Amount
+[span] Destination
+[span] Operator note
+[textarea] Synthetic withdrawal demo request for landing capture.
+[p] Available now: 5,820.00 USDC
+[p] Current wallet balance: 6,024.92 USDC
+[p] A small portion remains reserved for pending onchain work.
+[button] Send withdrawal
+[p] Settlement notes
+[p] Read the withdrawal status ladder as short operational checkpoints instead of one giant black box.
+[p] `pending checks` means the request needs validation before it can be signed.
+[p] `queued` is now only a brief internal staging step before Moeazi immediately tries to process the withdrawal.
+[p] `signing`, `submitted`, and `confirming` mean the venue action is in flight.
+[p] Native ETH on Optimism is treated as an operational gas reserve, so the withdrawable amount can be slightly lower than the full balance.
+[p] Optimism withdrawals complete from transaction receipts. HyperLiquid withdrawals stay in confirming until the venue state settles.
+[p] Recent withdrawals
+[p] Review the latest settlement state transitions across both funding rails.
+[h4] 0.0006312
+[h4] ETH
+[p] optimism execution wallet
+[span] completed
+[p] 0x21ab9c2838fedbf1b7a601f526816f28871c2
+[p] Fee estimate:
+[p] 0.75
+[p] USD
+[p] Recent gas-reserve withdrawal completed successfully.
+[p] 5/4/2026, 11:00:21 AM
+[h4] 125.00
+[h4] USDC
+[p] hyperliquid master wallet
+[span] queued
+[p] 0x31b2c8838fddb1dff5601f536916f23871c3
+[p] Fee estimate:
+[p] 0.25
+[p] USD
+[p] Margin release pending final live-balance confirmation.
+[p] 5/4/2026, 10:58:41 AM
+[button] Process now
+[button] Cancel
+[h4] 0.0006311
+[h4] ETH
+[p] optimism execution wallet
+[span] cancelled
+[p] 0x41ab9c2838fedbf1b7a601f526816f28871c4
+[p] Fee estimate:
+[p] 0.75
+[p] USD
+[p] Operator cancelled after protecting the LP-side gas reserve.
+[p] 5/4/2026, 10:57:01 AM
+[h4] 240.00
+[h4] USDC
+[p] hyperliquid master wallet
+[span] pending_checks
+[p] 0x51ab9c2838fedbf1b7a601f526816f28871c5
+[p] Fee estimate:
+[p] 0.3
+[p] USD
+[p] Waiting for a final venue-state validation pass.
+[p] 5/4/2026, 10:55:21 AM
+[button] Process now
+[button] Cancel

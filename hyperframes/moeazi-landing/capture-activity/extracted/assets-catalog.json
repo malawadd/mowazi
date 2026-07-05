@@ -1,0 +1,226 @@
+[
+  {
+    "url": "http://127.0.0.1:3100/_next/static/chunks/webpack.js?v=1777917377614",
+    "type": "Other",
+    "contexts": [
+      "link[rel=\"preload\"]"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/convex.svg",
+    "type": "Icon",
+    "contexts": [
+      "link[rel=\"icon\"]"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/0da54fcd0470ea43-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/680a7121f7a85e3f-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/8a1d8947e5852e30-s.p.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/6fe53d21e6e7ebd8-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/8ebc6e9dde468c4a-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/9e7b0a821b9dfcb4-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/636a5ac981f94f8b-s.p.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/58f386aa6b1a2a92-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/011e180705008d6f-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/7ba5fb2a8c88521c-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/92eeb95d069020cc-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/d3ebbfd689654d3a-s.p.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/ef4d5661765d0e49-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/d29838c109ef09b4-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/e40af3453d7c920a-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/99dcf268bda04fe5-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/98e207f02528a563-s.p.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/73cb51aac9c97f90-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/d26bbd13d6b70f89-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/20535187d867b7b9-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/5356a6a4f2c8c8d8-s.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/_next/static/media/db96af6b531dc71f-s.p.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/__nextjs_font/geist-latin-ext.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/__nextjs_font/geist-mono-latin-ext.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/__nextjs_font/geist-latin.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://127.0.0.1:3100/__nextjs_font/geist-mono-latin.woff2",
+    "type": "Font",
+    "contexts": [
+      "css url()"
+    ],
+    "notes": null
+  }
+]

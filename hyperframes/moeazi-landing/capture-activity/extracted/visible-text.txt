@@ -1,0 +1,98 @@
+[p] Managed Strategy
+[h1] Moeazi
+[p] LINK/USDC delta-neutral execution across Optimism Uniswap and HyperLiquid.
+[a] Overview
+[a] Deposits
+[a] Withdrawals
+[a] Positions
+[a] Activity
+[a] Settings
+[a] Emergency Stop
+[p] Convex owns key custody.
+[p] External worker owns the live decision loop.
+[p] Activity
+[h2] Execution ledger and operator audit stream
+[p] Executions
+[p] Bounded execution actions recorded by the worker
+[h4] Optimism rebalance approved
+[p] swap
+[span] filled
+[p] The worker detected LINK inventory drift and asked Convex to sign a bounded Uniswap-side rebalance.
+[p] 0x6fe712b31f7c91d784fc40e0c523d6128cb9d86a4f0c11f1aa91db22a0771bb1
+[h4] HyperLiquid hedge refreshed
+[p] hedge
+[span] filled
+[p] Short exposure was nudged back toward the configured target after the latest LP-side move settled.
+[p] 0x5f3ef1ab912c8dc30a11930b59f1a147d5f7882c6f8a2c119afe80f85b955e08
+[h4] Withdrawal request staged
+[p] withdrawal
+[span] skipped
+[p] A queued withdrawal was left pending until fresh wallet balances were confirmed by the manual refresh path.
+[p] wd-demo-queued-002
+[h4] Gas reserve top-up flagged
+[p] alert
+[span] failed
+[p] The worker refused to force a chain-side action while the ETH reserve was still below the preferred threshold.
+[p] incident-gas-watch-001
+[h4] Activity projection refreshed
+[p] snapshot
+[span] filled
+[p] A fresh snapshot and wallet inventory read were written back into the strategy account after both venues synced.
+[p] snapshot-1777881783
+[button] Show 5 more
+[p] Audit
+[p] Configuration and operator changes
+[h4] Execution mode changed to live
+[p] config_updated
+[span] operator
+[p] The demo account moved out of paper mode once all three wallets were provisioned and approved.
+[h4] HyperLiquid agent approved
+[p] approval
+[span] system
+[p] Master wallet approval succeeded and the delegated trading wallet became usable for hedge placement.
+[h4] Withdrawal cancelled
+[p] withdrawal_cancelled
+[span] viewer
+[p] {"destination":"0x21ab9c2838fedbf1b7a601f526816f28871c2","reason":"inventory buffer protected"}
+[h4] Margin top-up acknowledged
+[p] deposit_confirmed
+[span] system
+[p] Margin capital was confirmed after the latest HyperLiquid funding transfer landed.
+[h4] Risk review recorded
+[p] operator_note
+[span] operator
+[p] Operator accepted the current gas-reserve warning and scheduled a funding top-up for the next manual check.
+[button] Show 5 more
+[p] Incidents
+[p] Operational incidents and recovery breadcrumbs
+[h4] gas_reserve_low
+[p] Optimism gas reserve needs replenishment before a heavier onchain cycle begins.
+[span] warning
+[p] This incident stays visible until ETH reserve recovers above the preferred runway threshold.
+[h4] inventory_drift_watch
+[p] Inventory drift widened after the last LP rebalance, but recovered before a hard pause was required.
+[span] info
+[p] Synthetic marketing fixture incident to make the activity stream visually legible.
+[p] Withdrawals
+[p] Recent withdrawal pipeline activity
+[h4] 0.0006312
+[h4] ETH
+[p] 0x21ab9c2838fedbf1b7a601f526816f28871c2
+[span] completed
+[h4] 125.00
+[h4] USDC
+[p] 0x31b2c8838fddb1dff5601f536916f23871c3
+[span] queued
+[h4] 0.0006311
+[h4] ETH
+[p] 0x41ab9c2838fedbf1b7a601f526816f28871c4
+[span] cancelled
+[h4] 240.00
+[h4] USDC
+[p] 0x51ab9c2838fedbf1b7a601f526816f28871c5
+[span] pending_checks
+[h4] 0.0006200
+[h4] ETH
+[p] 0x61ab9c2838fedbf1b7a601f526816f28871c6
+[span] completed
+[button] Show 5 more

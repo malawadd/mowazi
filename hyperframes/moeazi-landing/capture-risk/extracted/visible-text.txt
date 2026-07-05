@@ -1,0 +1,63 @@
+[p] Managed Strategy
+[h1] Moeazi
+[p] LINK/USDC delta-neutral execution across Optimism Uniswap and HyperLiquid.
+[a] Overview
+[a] Deposits
+[a] Withdrawals
+[a] Positions
+[a] Activity
+[a] Settings
+[a] Emergency Stop
+[p] Convex owns key custody.
+[p] External worker owns the live decision loop.
+[p] Risk
+[h2] Alerts, exposure, and pause state
+[p] Snapshot
+[p] Latest equity and exposure view
+[span] Status
+[span] active
+[span] Health
+[span] degraded
+[span] Emergency stop
+[strong] Clear
+[span] Health reason
+[strong] Gas reserve is below the preferred threshold, but the strategy remains runnable.
+[span] Total equity
+[strong] $18,243.11
+[span] LP value
+[strong] $9,110.22
+[span] Hedge value
+[strong] $8,989.27
+[span] Net exposure
+[strong] $143.62
+[p] Open alerts
+[p] Warnings emitted by the worker or operator actions
+[h4] gas_reserve_low
+[p] Optimism gas reserve is below the preferred runway.
+[span] warning
+[p] Top up ETH before the worker needs multiple Uniswap-side transactions in a short window.
+[h4] hedge_balance_gap
+[p] HyperLiquid margin is healthy, but funding drift widened after the last rebalance.
+[span] info
+[p] The spread is still inside guardrails, yet it is worth watching before new LP inventory moves arrive.
+[p] Venue sync
+[p] Freshness of the latest worker reconciliation
+[h4] optimism execution wallet
+[p] Live wallet balances and LP-side inventory were refreshed from Optimism.
+[span] fresh
+[p] 5/4/2026, 11:03:03 AM
+[h4] hyperliquid master wallet
+[p] Margin inventory and delegated account readiness were refreshed from HyperLiquid.
+[span] fresh
+[p] 5/4/2026, 11:02:41 AM
+[h4] hyperliquid agent wallet
+[p] Agent account is approved, but no fresh hedge order has been recorded in the last polling interval.
+[span] warning
+[p] 5/4/2026, 11:02:24 AM
+[p] Incidents
+[p] Operator-facing incident stream and runbooks
+[h4] sync_drift_watch
+[p] Balance drift widened temporarily after the last LP-side inventory update.
+[span] warning
+[p] The system recovered without pausing, but the operator should confirm funding assumptions before larger rebalances.
+[p] Check deposits, confirm margin runway, then review the activity ledger for the latest worker actions.

@@ -1,0 +1,74 @@
+<template id="trust-model-template">
+  <div id="trust-model" data-composition-id="trust-model" data-start="0" data-duration="5" data-width="1920" data-height="1080">
+    <div class="scene">
+      <div class="header">
+        <div class="meta">trust model</div>
+        <h2>The worker decides, Convex signs and records, and venue wallets stay separate on purpose.</h2>
+      </div>
+
+      <div class="board">
+        <svg class="wires" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <line class="wire" x1="16" y1="33" x2="31" y2="33" />
+          <line class="wire" x1="41" y1="33" x2="56" y2="33" />
+          <line class="wire" x1="66" y1="33" x2="81" y2="33" />
+          <line class="wire" x1="37" y1="44" x2="37" y2="61" />
+          <line class="wire" x1="62" y1="44" x2="62" y2="61" />
+          <line class="wire" x1="87" y1="44" x2="87" y2="61" />
+          <circle class="pulse pulse-1" cx="16" cy="33" r="1.2" />
+          <circle class="pulse pulse-2" cx="62" cy="33" r="1.2" />
+          <circle class="pulse pulse-3" cx="37" cy="44" r="1.2" />
+        </svg>
+
+        <article class="node user"><span>actor</span><strong>User</strong><p>Funds the rails and reads the state.</p></article>
+        <article class="node strategy"><span>account</span><strong>Strategy account</strong><p>Visible app-level operating surface.</p></article>
+        <article class="node convex"><span>control plane</span><strong>Convex</strong><p>Encrypts keys, signs actions, and records state.</p></article>
+        <article class="node worker"><span>decision loop</span><strong>External worker</strong><p>Reads markets and decides what should happen next.</p></article>
+        <article class="node optimism"><span>venue</span><strong>Optimism wallet</strong><p>LP-side assets plus chain gas reserve.</p></article>
+        <article class="node master"><span>venue</span><strong>HL master wallet</strong><p>Approvals, margin, and withdrawals.</p></article>
+        <article class="node agent"><span>venue</span><strong>HL agent wallet</strong><p>Delegated hedge execution.</p></article>
+      </div>
+    </div>
+
+    <style>
+      #trust-model { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #fffdf5; }
+      .scene { display: grid; grid-template-rows: auto 1fr; gap: 28px; width: 100%; height: 100%; padding: 56px; background: #fffdf5; }
+      .header { display: grid; gap: 14px; }
+      .meta, .node span { display: inline-block; width: fit-content; padding: 8px 12px; border: 3px solid #111; background: #fffdf5; box-shadow: 4px 4px 0 #111; font: 700 20px/1 "IBM Plex Mono", monospace; letter-spacing: 0.12em; text-transform: uppercase; }
+      h2 { margin: 0; max-width: 14ch; font: 800 50px/0.94 "Syne", sans-serif; letter-spacing: -0.05em; color: #111; text-wrap: balance; }
+      .board { position: relative; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-areas: "user strategy convex worker" ". optimism master agent"; gap: 46px 26px; align-content: end; padding: 32px 8px 12px; }
+      .node { min-width: 0; min-height: 178px; display: grid; gap: 10px; padding: 18px; border: 5px solid #111; box-shadow: 8px 8px 0 #111; background: #fffdf5; z-index: 1; }
+      .node strong { font: 800 34px/0.92 "Syne", sans-serif; letter-spacing: -0.05em; color: #111; }
+      .node p { margin: 0; max-width: 13ch; font: 600 21px/1.32 "Plus Jakarta Sans", sans-serif; color: #111; }
+      .user { grid-area: user; background: #ffd23f; }
+      .strategy { grid-area: strategy; background: #74b9ff; }
+      .convex { grid-area: convex; background: #fff1cf; }
+      .worker { grid-area: worker; background: #ff7ba5; }
+      .optimism { grid-area: optimism; background: #88d498; }
+      .master { grid-area: master; background: #ffa552; }
+      .agent { grid-area: agent; background: #b8a9fa; }
+      .wires { position: absolute; inset: 24px 10px 18px; width: calc(100% - 20px); height: calc(100% - 42px); z-index: 0; }
+      .wire { stroke: #111; stroke-width: 0.8; fill: none; stroke-linecap: square; vector-effect: non-scaling-stroke; }
+      .pulse { stroke: #111; stroke-width: 0.45; vector-effect: non-scaling-stroke; }
+      .pulse-1 { fill: #74b9ff; }
+      .pulse-2 { fill: #ff7ba5; }
+      .pulse-3 { fill: #88d498; }
+    </style>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo(".header", { opacity: 0, y: -28 }, { opacity: 1, y: 0, duration: 0.35 }, 0);
+      tl.fromTo(".node", { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: 0.36, stagger: 0.08 }, 0.18);
+      tl.fromTo(".wire", { strokeDasharray: 24, strokeDashoffset: 24 }, { strokeDashoffset: 0, duration: 0.34, stagger: 0.06 }, 0.38);
+      tl.to(".pulse-1", { attr: { cx: 31, cy: 33 }, duration: 0.62, ease: "none" }, 1.02);
+      tl.to(".pulse-1", { attr: { cx: 56, cy: 33 }, duration: 0.74, ease: "none" }, 1.66);
+      tl.to(".pulse-2", { attr: { cx: 81, cy: 33 }, duration: 0.72, ease: "none" }, 2.16);
+      tl.to(".pulse-3", { attr: { cy: 61 }, duration: 0.62, ease: "none" }, 2.82);
+      tl.to(".pulse-3", { attr: { cx: 62 }, duration: 0.68, ease: "none" }, 3.48);
+      tl.to(".node.strategy", { y: -6, duration: 0.9, repeat: 1, yoyo: true, ease: "sine.inOut" }, 1.35);
+      tl.to(".node.convex", { y: -6, duration: 0.9, repeat: 1, yoyo: true, ease: "sine.inOut" }, 2.12);
+      tl.to(".node.agent", { y: -6, duration: 0.9, repeat: 1, yoyo: true, ease: "sine.inOut" }, 3.12);
+      window.__timelines["trust-model"] = tl;
+    </script>
+  </div>
+</template>
