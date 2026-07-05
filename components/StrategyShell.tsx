@@ -7,6 +7,7 @@ import ParticleAccountButton from "@/components/ParticleAccountButton";
 
 const navItems = [
   { href: "/dashboard", label: "Overview" },
+  { href: "/settings/wallet", label: "Wallet" },
   { href: "/deposits", label: "Deposits" },
   { href: "/withdrawals", label: "Withdrawals" },
   { href: "/positions", label: "Positions" },

@@ -206,9 +206,9 @@ export const docsPages = [
       {
         id: "account-model",
         title: "Managed strategy account model",
-        summary: "One product account, three venue-specific managed wallets.",
+        summary: "One Particle account wallet, one strategy account, and three venue-specific managed wallets.",
         paragraphs: [
-          "A Moeazi strategy account is the unit the user understands and interacts with. Under the hood, that account is represented by separate managed venue wallets so funding, approvals, and execution responsibilities are not blurred together.",
+          "A Moeazi strategy account is the unit the user understands and interacts with. The visible account wallet is the user's Particle Universal Account, while strategy execution still uses separate managed venue wallets so funding, approvals, and execution responsibilities stay legible.",
           "The current strategy uses one Optimism wallet for onchain strategy actions and two HyperLiquid wallets for master control and delegated execution.",
         ],
         bullets: [
@@ -241,12 +241,13 @@ export const docsPages = [
         bullets: [
           "1. A user signs in and provisions a strategy account.",
           "2. Convex generates the managed venue wallets and stores encrypted wallet secrets.",
-          "3. The user funds the separate venue wallets according to the deposit instructions.",
-          "4. The HyperLiquid agent wallet is approved by the HyperLiquid master wallet.",
-          "5. The strategy is enabled from the app.",
-          "6. The external worker acquires a lease, reads markets, and decides whether an action is needed.",
-          "7. The worker calls a bounded Convex action such as a Uniswap swap, HyperLiquid order, or pause action.",
-          "8. Convex signs and broadcasts the action, then records executions, alerts, and snapshots back into the strategy account state.",
+          "3. The user funds their Particle Universal Account directly or through a shared deposit link.",
+          "4. The user moves funds from the UA into the supported Moeazi strategy funding rails.",
+          "5. The HyperLiquid agent wallet is approved by the HyperLiquid master wallet.",
+          "6. The strategy is enabled from the app.",
+          "7. The external worker acquires a lease, reads markets, and decides whether an action is needed.",
+          "8. The worker calls a bounded Convex action such as a Uniswap swap, HyperLiquid order, or pause action.",
+          "9. Convex signs and broadcasts the action, then records executions, alerts, and snapshots back into the strategy account state.",
         ],
       },
       {
@@ -258,6 +259,7 @@ export const docsPages = [
           "The system also keeps internal records so the product can surface what happened and why. Executions, alerts, snapshots, leases, and audit events are all part of the control-plane design.",
         ],
         bullets: [
+          "Wallet view: shows Particle UA addresses, unified balance, share link controls, and the move-to-strategy action.",
           "Risk view: shows alerts, current snapshot state, and pause conditions.",
           "Activity view: shows executions and audit history.",
           "Settings view: stores strategy guardrails as versioned config.",
@@ -318,16 +320,17 @@ export const docsPages = [
       },
       {
         id: "funding-flow",
-        title: "Step 3: Fund the venue wallets",
-        summary: "The current product uses separate funding rails on purpose.",
+        title: "Step 3: Fund the Particle account wallet",
+        summary: "The account wallet receives first; strategy rails are funded from it.",
         paragraphs: [
-          "The Deposits page explains where funds should be sent for the current strategy. The current v1 model does not pretend there is one universal deposit address covering every venue action.",
-          "That separation is part of the product truth: onchain LP execution and offchain hedge margin have different operational needs, so they are funded separately.",
+          "The Wallet page shows the user's Particle Universal Account addresses, unified balance, and shared deposit link. Users can deposit EVM assets to the EVM UA address, Solana assets to the Solana UA address, or share a public payment page that routes another payer into the same account wallet.",
+          "After funds are in the UA, the user explicitly moves supported assets into Moeazi's strategy funding rails. That keeps the account wallet simple while preserving the operational truth that onchain LP execution and offchain hedge margin are funded separately.",
         ],
         bullets: [
-          "Optimism execution wallet: funded for Uniswap-side strategy actions and gas.",
+          "Particle UA: receives the user's cross-chain account wallet deposits and public payment-link deposits.",
+          "Optimism execution wallet: funded from the UA for Uniswap-side strategy actions and gas.",
           "On that Optimism wallet, ETH is treated as a gas reserve rather than general strategy capital.",
-          "HyperLiquid master wallet: funded for margin and higher-level HyperLiquid account control.",
+          "HyperLiquid master wallet: funded from the UA for margin and higher-level HyperLiquid account control.",
           "HyperLiquid agent wallet: typically receives delegated authority rather than direct user funding as the primary rail.",
         ],
       },
@@ -443,7 +446,7 @@ export const docsPages = [
           "These answers are intentionally plain. They are meant to help a visitor understand what the product is doing without needing to reverse engineer the stack from the UI.",
         ],
         bullets: [
-          "Who controls the funds? Moeazi currently operates as an app-controlled managed-wallet system with separate venue wallets per strategy account.",
+          "Who controls the funds? Users receive deposits into their Particle Universal Account; funds moved into strategy execution are then held in Moeazi managed venue wallets for that strategy account.",
           "Where do trades happen? Uniswap-side actions happen on Optimism, while hedge-side actions happen on HyperLiquid through the approved agent setup.",
           "Why are there multiple wallets? Because funding, account control, and delegated trade execution are different responsibilities and the product keeps them separate.",
           "What happens if the worker stops? The app still keeps the recorded state, but live market supervision and new automated actions stop until the worker returns.",
@@ -613,8 +616,8 @@ export const landingWalkthroughSteps = [
   },
   {
     step: "02",
-    title: "Fund the rails",
-    body: "Send assets to the separate Optimism and HyperLiquid funding rails instead of one omnibus address.",
+    title: "Fund the account wallet",
+    body: "Receive assets into the Particle Universal Account, then move supported funds into strategy rails.",
     tone: "paper",
   },
   {
@@ -676,7 +679,14 @@ export const landingSurfaceCards = [
     id: "deposits",
     title: "Deposits",
     question: "Where does each asset actually go?",
-    body: "See the separated funding rails and the split between strategy assets and operational reserves.",
+    body: "See the managed funding rails after account-wallet funds are moved into strategy execution.",
+    tone: "paper",
+  },
+  {
+    id: "wallet",
+    title: "Wallet",
+    question: "How does the account receive cross-chain deposits?",
+    body: "Use the Particle account wallet, shared payment link, and move-to-strategy flow.",
     tone: "paper",
   },
   {

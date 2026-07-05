@@ -8,16 +8,19 @@
  * @module
  */
 
+import type * as accountWallets from "../accountWallets.js";
 import type * as actions from "../actions.js";
 import type * as constants from "../constants.js";
 import type * as helpers_executionPolicy from "../helpers/executionPolicy.js";
 import type * as helpers_leases from "../helpers/leases.js";
+import type * as helpers_paymentLinks from "../helpers/paymentLinks.js";
 import type * as helpers_walletAssets from "../helpers/walletAssets.js";
 import type * as helpers_walletCrypto from "../helpers/walletCrypto.js";
 import type * as helpers_withdrawals from "../helpers/withdrawals.js";
 import type * as http from "../http.js";
 import type * as model from "../model.js";
 import type * as mutations from "../mutations.js";
+import type * as payments from "../payments.js";
 import type * as private_ from "../private.js";
 import type * as publicActions from "../publicActions.js";
 import type * as queries from "../queries.js";
@@ -38,16 +41,19 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  accountWallets: typeof accountWallets;
   actions: typeof actions;
   constants: typeof constants;
   "helpers/executionPolicy": typeof helpers_executionPolicy;
   "helpers/leases": typeof helpers_leases;
+  "helpers/paymentLinks": typeof helpers_paymentLinks;
   "helpers/walletAssets": typeof helpers_walletAssets;
   "helpers/walletCrypto": typeof helpers_walletCrypto;
   "helpers/withdrawals": typeof helpers_withdrawals;
   http: typeof http;
   model: typeof model;
   mutations: typeof mutations;
+  payments: typeof payments;
   private: typeof private_;
   publicActions: typeof publicActions;
   queries: typeof queries;

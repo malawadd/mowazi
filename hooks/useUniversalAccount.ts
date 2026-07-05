@@ -52,7 +52,7 @@ export function useUniversalAccount() {
   }, [address]);
 
   const refresh = useCallback(async () => {
-    if (!universalAccount || !address) return;
+    if (!universalAccount || !address) return null;
 
     setLoading(true);
     setError(null);
@@ -61,14 +61,17 @@ export function useUniversalAccount() {
         universalAccount.getSmartAccountOptions(),
         universalAccount.getPrimaryAssets(),
       ]);
-      setAccountInfo({
+      const nextAccountInfo = {
         ownerAddress: smartAccountOptions.ownerAddress ?? address,
         evmSmartAccount: smartAccountOptions.smartAccountAddress ?? "",
         solanaSmartAccount: smartAccountOptions.solanaSmartAccountAddress ?? "",
-      });
+      };
+      setAccountInfo(nextAccountInfo);
       setPrimaryAssets(assets);
+      return { accountInfo: nextAccountInfo, primaryAssets: assets };
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
+      return null;
     } finally {
       setLoading(false);
     }

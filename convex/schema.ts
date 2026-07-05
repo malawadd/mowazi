@@ -155,6 +155,64 @@ export default defineSchema({
     .index("by_venueAccountId", ["venueAccountId"])
     .index("by_status", ["status"]),
 
+  accountWallets: defineTable({
+    userId: v.id("users"),
+    strategyAccountId: v.id("strategyAccounts"),
+    ownerAddress: v.string(),
+    evmUaAddress: v.string(),
+    solanaUaAddress: v.string(),
+    unifiedBalanceUsd: v.number(),
+    assetsJson: v.string(),
+    lastRefreshedAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_ownerAddress", ["ownerAddress"]),
+
+  paymentLinks: defineTable({
+    userId: v.id("users"),
+    strategyAccountId: v.id("strategyAccounts"),
+    slug: v.string(),
+    status: v.union(v.literal("active"), v.literal("disabled")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    disabledAt: v.optional(v.number()),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_slug", ["slug"])
+    .index("by_strategyAccountId_status", ["strategyAccountId", "status"]),
+
+  paymentIntents: defineTable({
+    paymentLinkId: v.id("paymentLinks"),
+    strategyAccountId: v.id("strategyAccounts"),
+    payerAddress: v.string(),
+    targetChainId: v.number(),
+    targetTokenAddress: v.string(),
+    targetTokenSymbol: v.string(),
+    receiver: v.string(),
+    receiverKind: v.union(v.literal("evm"), v.literal("solana")),
+    amount: v.string(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("previewed"),
+      v.literal("submitted"),
+      v.literal("failed"),
+    ),
+    particleTransactionId: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    detailsJson: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    previewedAt: v.optional(v.number()),
+    submittedAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+  })
+    .index("by_paymentLinkId", ["paymentLinkId"])
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_status", ["status"]),
+
   walletAssetStates: defineTable({
     strategyAccountId: v.id("strategyAccounts"),
     venueAccountId: v.id("venueAccounts"),

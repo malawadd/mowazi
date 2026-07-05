@@ -5,6 +5,7 @@ Moeazi is a `Next.js + Convex + Particle` app for managed strategy accounts.
 The current product direction is:
 
 - one user identity via Particle Auth
+- one visible Particle Universal Account wallet per user strategy account
 - one managed strategy account per user in Convex
 - three managed venue wallets per account:
   - Optimism execution wallet
@@ -25,8 +26,9 @@ The legacy strategy engine still lives in the `123strk/` folder as internal code
 | Managed wallet generation + encryption | Working | Wallets are generated in Convex Node actions and encrypted with `WALLET_MASTER_KEY` |
 | Strategy account provisioning | Working | Creates user record, strategy account, venue accounts, wallet secrets, default config |
 | Strategy config save / enable / pause / emergency stop | Working | Backed by Convex mutations and audit events |
-| Deposit instructions UI | Working | Shows managed funding addresses for Optimism + HyperLiquid master wallet |
-| Particle Universal Account funding | Working | Shows UA addresses, unified balance, and sends supported funding transfers |
+| Account wallet UI | Working | `/settings/wallet` shows Particle UA addresses, unified balance, receive instructions, and share link controls |
+| Deposit instructions UI | Working | Shows managed strategy funding addresses for Optimism + HyperLiquid master wallet |
+| Particle Universal Account funding | Working | Receives funds into UA, supports public payment links, and sends supported UA transfers into strategy rails |
 | Worker HTTP gateway + execution leases | Working | Exposed through `convex/http.ts` |
 | Uniswap execution actions | Implemented | Needs live funded-wallet validation before treating as production-ready |
 | HyperLiquid approval / order / withdrawal actions | Implemented | Needs live funded-wallet validation before treating as production-ready |
@@ -233,13 +235,15 @@ The supervisor currently:
 3. Open `/dashboard`.
 4. Click `Create strategy account`.
 5. Confirm three venue wallets appear.
-6. Open `/deposits` and confirm the funding addresses render.
-7. Confirm the Particle Universal Account panel shows owner EOA, EVM UA, Solana UA, and unified balance.
-8. Send or preview a supported UA funding transfer, then refresh funding state.
-9. Approve the HyperLiquid agent wallet from the dashboard.
-10. Enable the strategy.
-11. Start the external supervisor if you want automated activity.
-12. Check `/risk` and `/activity` for snapshots, alerts, and execution events.
+6. Open `/settings/wallet` and confirm the Particle account wallet shows owner EOA, EVM UA, Solana UA, and unified balance.
+7. Sync the account wallet, create/copy the shared payment link, and open `/pay/<slug>` in a public browser context.
+8. On the public payment page, connect a Particle payer wallet and preview a supported deposit into the owner UA.
+9. Move funds from the owner UA into the supported strategy rails, then refresh managed funding state.
+10. Open `/deposits` and confirm the managed funding addresses and refreshed balances render.
+11. Approve the HyperLiquid agent wallet from the dashboard.
+12. Enable the strategy.
+13. Start the external supervisor if you want automated activity.
+14. Check `/risk` and `/activity` for snapshots, alerts, and execution events.
 
 ## Useful Commands
 
@@ -256,6 +260,7 @@ The supervisor currently:
 ## Known Gaps
 
 - There is no automated deposit watcher yet.
+- Public payment links record intent metadata, but balances still come from Particle UA and managed wallet refreshes.
 - Position syncing is not complete, so positions may stay empty until data is explicitly recorded.
 - Withdrawal requests exist at the backend level, but there is no dedicated withdrawal page yet.
 - The supervisor still reuses legacy market-reader modules from `123strk/`.
