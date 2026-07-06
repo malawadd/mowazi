@@ -168,6 +168,10 @@ function ParticleWalletWidgetPluginController() {
   }, [walletStatus, walletWidgetVisible]);
 
   useEffect(() => {
+    // When the wallet widget is ON, only the widget itself can close the
+    // wallet — clicking outside should NOT hide it.
+    if (walletWidgetVisible) return;
+
     const closeOnOutsidePointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
@@ -203,7 +207,7 @@ function ParticleWalletWidgetPluginController() {
         true,
       );
     };
-  }, []);
+  }, [walletWidgetVisible]);
 
   return null;
 }
