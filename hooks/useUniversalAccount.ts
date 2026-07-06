@@ -2,12 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAccount, useWallets } from "@particle-network/connectkit";
+import { Signature } from "ethers";
 import {
   UniversalAccount,
   UNIVERSAL_ACCOUNT_VERSION,
+  type EIP7702Authorization,
   type IAssetsResponse,
   type ITransaction,
 } from "@particle-network/universal-account-sdk";
+import {
+  detectEip7702Capability,
+  getEip7702Status,
+  type Eip7702Status,
+  type UniversalAccountMode,
+} from "@/lib/eip7702";
 
 type AccountInfo = {
   ownerAddress: string;
@@ -24,13 +32,59 @@ export type UniversalTransferInput = {
   receiver: string;
 };
 
-export function useUniversalAccount() {
+type SignAuthorizationInput = {
+  address: string;
+  chainId: number;
+  nonce: number;
+};
+
+function serializeAuthorizationSignature(value: unknown) {
+  if (typeof value === "string") return value;
+  const record = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const signature = record.signature;
+  if (typeof signature === "string") return signature;
+  if (signature && typeof signature === "object") {
+    const nested = signature as Record<string, unknown>;
+    if (typeof nested.serialized === "string") return nested.serialized;
+  }
+  if (typeof record.serialized === "string") return record.serialized;
+  if (record.r && record.s && record.yParity !== undefined) {
+    return Signature.from(record as any).serialized;
+  }
+  throw new Error("Wallet returned an unsupported EIP-7702 authorization signature.");
+}
+
+async function signEip7702Authorization(walletClient: unknown, auth: SignAuthorizationInput) {
+  const client = walletClient as Record<string, any> | null | undefined;
+  if (typeof client?.signAuthorization === "function") {
+    return serializeAuthorizationSignature(await client.signAuthorization(auth));
+  }
+  if (typeof client?.authorizeSync === "function") {
+    return serializeAuthorizationSignature(client.authorizeSync(auth));
+  }
+  if (typeof client?.sign7702Authorization === "function") {
+    return serializeAuthorizationSignature(await client.sign7702Authorization(auth));
+  }
+  if (typeof client?.wallet?.sign7702Authorization === "function") {
+    return serializeAuthorizationSignature(await client.wallet.sign7702Authorization(auth));
+  }
+  throw new Error("Connected wallet does not support EIP-7702 authorization.");
+}
+
+export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
   const { address } = useAccount();
   const [primaryWallet] = useWallets();
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
   const [primaryAssets, setPrimaryAssets] = useState<IAssetsResponse | null>(null);
+  const [eip7702Status, setEip7702Status] = useState<Eip7702Status>(() =>
+    getEip7702Status("smart", detectEip7702Capability(null)),
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const walletClient = useMemo(() => primaryWallet?.getWalletClient(), [primaryWallet]);
+  const eip7702Capability = useMemo(() => detectEip7702Capability(walletClient), [walletClient]);
+  const useEIP7702 = mode === "eip7702-if-supported" && eip7702Capability.supported;
 
   const signMessage = useCallback(
     async (message: string): Promise<string> => {
@@ -42,7 +96,7 @@ export function useUniversalAccount() {
         });
       }
       // Fallback: Particle-attached global EIP-1193 provider
-      const particleProvider = (window as Record<string, unknown>).particle as
+      const particleProvider = (window as unknown as Record<string, unknown>).particle as
         | { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<string> } }
         | undefined;
       if (particleProvider?.ethereum) {
@@ -64,7 +118,7 @@ export function useUniversalAccount() {
       projectClientKey: process.env.NEXT_PUBLIC_CLIENT_KEY ?? "",
       projectAppUuid: process.env.NEXT_PUBLIC_APP_ID ?? "",
       smartAccountOptions: {
-        useEIP7702: false,
+        useEIP7702,
         name: "UNIVERSAL",
         version: UNIVERSAL_ACCOUNT_VERSION,
         ownerAddress: address,
@@ -74,7 +128,7 @@ export function useUniversalAccount() {
         universalGas: true,
       },
     });
-  }, [address]);
+  }, [address, useEIP7702]);
 
   const refresh = useCallback(async () => {
     if (!universalAccount || !address) return null;
@@ -82,10 +136,14 @@ export function useUniversalAccount() {
     setLoading(true);
     setError(null);
     try {
-      const [smartAccountOptions, assets] = await Promise.all([
+      const [smartAccountOptions, assets, deployments] = await Promise.all([
         universalAccount.getSmartAccountOptions(),
         universalAccount.getPrimaryAssets(),
+        mode === "eip7702-if-supported"
+          ? universalAccount.getEIP7702Deployments().catch(() => undefined)
+          : Promise.resolve(undefined),
       ]);
+      setEip7702Status(getEip7702Status(mode, eip7702Capability, deployments));
       const nextAccountInfo = {
         ownerAddress: smartAccountOptions.ownerAddress ?? address,
         evmSmartAccount: smartAccountOptions.smartAccountAddress ?? "",
@@ -100,7 +158,7 @@ export function useUniversalAccount() {
     } finally {
       setLoading(false);
     }
-  }, [address, universalAccount]);
+  }, [address, eip7702Capability, mode, universalAccount]);
 
   useEffect(() => {
     void refresh();
@@ -122,9 +180,30 @@ export function useUniversalAccount() {
         throw new Error("Universal Account is not ready.");
       }
       const signature = await signMessage(transaction.rootHash);
-      return await universalAccount.sendTransaction(transaction, signature);
+      const authorizations: EIP7702Authorization[] = [];
+      const nonceMap = new Map<string, string>();
+      if (useEIP7702) {
+        for (const userOp of transaction.userOps ?? []) {
+          if (!userOp.eip7702Auth || userOp.eip7702Delegated) continue;
+          const nonceKey = `${userOp.eip7702Auth.chainId}:${userOp.eip7702Auth.nonce}`;
+          let authSignature = nonceMap.get(nonceKey);
+          if (!authSignature) {
+            authSignature = await signEip7702Authorization(walletClient, userOp.eip7702Auth);
+            nonceMap.set(nonceKey, authSignature);
+          }
+          authorizations.push({
+            userOpHash: userOp.userOpHash,
+            signature: authSignature,
+          });
+        }
+      }
+      return await universalAccount.sendTransaction(
+        transaction,
+        signature,
+        authorizations.length > 0 ? authorizations : undefined,
+      );
     },
-    [signMessage, universalAccount],
+    [signMessage, universalAccount, useEIP7702, walletClient],
   );
 
   return {
@@ -132,6 +211,7 @@ export function useUniversalAccount() {
     accountInfo,
     primaryAssets,
     universalAccount,
+    eip7702Status,
     loading,
     error,
     refresh,

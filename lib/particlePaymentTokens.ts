@@ -1,10 +1,13 @@
 import * as ParticleUa from "@particle-network/universal-account-sdk";
+import { getParticleEvmChain, isSupportedParticleEvmChain } from "@/lib/particleEvmChains";
 
-type ParticleToken = {
+export type ParticleToken = {
   assetId?: string;
   type?: string;
   chainId: number;
   address: string;
+  decimals?: number;
+  realDecimals?: number;
   symbol?: string;
 };
 
@@ -57,6 +60,20 @@ export type PaymentTokenOption = {
   receiverKind: "evm" | "solana";
 };
 
+export type EvmPrimaryDepositTokenOption = {
+  id: string;
+  label: string;
+  chainId: number;
+  chainName: string;
+  address: string;
+  symbol: string;
+  assetId: string;
+  tokenType: string;
+  decimals: number;
+  realDecimals: number;
+  isNative: boolean;
+};
+
 export function isSolanaChain(chainId: number) {
   return chainId === CHAIN.solana;
 }
@@ -90,6 +107,14 @@ function optionId(token: ParticleToken) {
   return `${token.chainId}:${token.address}`;
 }
 
+function tokenType(token: ParticleToken) {
+  return String(token.type ?? token.assetId ?? "").toLowerCase();
+}
+
+function tokenDecimals(token: ParticleToken) {
+  return token.realDecimals ?? token.decimals ?? 18;
+}
+
 export function getPaymentTokenOptions(): PaymentTokenOption[] {
   const seen = new Set<string>();
   const options: PaymentTokenOption[] = [];
@@ -99,8 +124,7 @@ export function getPaymentTokenOptions(): PaymentTokenOption[] {
   const supportedTargetTokens = particleMetadata.SUPPORTED_TARGET_TOKENS ?? [];
 
   for (const token of supportedTargetTokens) {
-    const type = String(token.type ?? token.assetId ?? "").toLowerCase();
-    if (!PRIMARY_TYPES.has(type)) continue;
+    if (!PRIMARY_TYPES.has(tokenType(token))) continue;
 
     const id = optionId(token);
     if (seen.has(id)) continue;
@@ -125,4 +149,53 @@ export function getPaymentTokenOptions(): PaymentTokenOption[] {
     if (tokenRank !== 0) return tokenRank;
     return a.label.localeCompare(b.label);
   });
+}
+
+export function getEvmPrimaryDepositTokenOptions(): EvmPrimaryDepositTokenOption[] {
+  const seen = new Set<string>();
+  const options: EvmPrimaryDepositTokenOption[] = [];
+  const particleMetadata = ParticleUa as unknown as {
+    SUPPORTED_PRIMARY_TOKENS?: ParticleToken[];
+  };
+
+  for (const token of particleMetadata.SUPPORTED_PRIMARY_TOKENS ?? []) {
+    if (isSolanaChain(token.chainId) || !isSupportedParticleEvmChain(token.chainId)) continue;
+    const chain = getParticleEvmChain(token.chainId);
+    if (!chain) continue;
+
+    const id = optionId(token);
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    const symbol = tokenSymbol(token);
+    const type = tokenType(token);
+    options.push({
+      id,
+      label: `${symbol} on ${chain.name}`,
+      chainId: token.chainId,
+      chainName: chain.name,
+      address: token.address,
+      symbol,
+      assetId: String(token.assetId ?? type),
+      tokenType: type,
+      decimals: token.decimals ?? 18,
+      realDecimals: tokenDecimals(token),
+      isNative: token.address.toLowerCase() === "0x0000000000000000000000000000000000000000",
+    });
+  }
+
+  return options.sort((a, b) => {
+    const tokenRank =
+      (TOKEN_PRIORITY[a.symbol.toLowerCase()] ?? 99) -
+      (TOKEN_PRIORITY[b.symbol.toLowerCase()] ?? 99);
+    if (tokenRank !== 0) return tokenRank;
+    return a.label.localeCompare(b.label);
+  });
+}
+
+export function getReceiverForDirectEvmDeposit(addresses: { evmUaAddress?: string | null }) {
+  if (!addresses.evmUaAddress) {
+    throw new Error("Recipient EVM Universal Account address is missing.");
+  }
+  return { receiver: addresses.evmUaAddress, receiverKind: "evm" as const };
 }

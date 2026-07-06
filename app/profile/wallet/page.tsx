@@ -5,15 +5,18 @@ import Link from "next/link";
 import { useAction, useConvexAuth, useQuery } from "convex/react";
 import StrategyShell from "@/components/StrategyShell";
 import AccountWalletPanel from "@/components/AccountWalletPanel";
+import ConnectedWalletDepositPanel from "@/components/ConnectedWalletDepositPanel";
 import PaymentLinkPanel from "@/components/PaymentLinkPanel";
 import StrategyFundingTransferPanel from "@/components/StrategyFundingTransferPanel";
 import { useParticleSession } from "@/components/ParticleConnectKitProvider";
+import { useUniversalAccount } from "@/hooks/useUniversalAccount";
 import { EmptyState, Panel } from "@/components/strategy-ui";
 import { api } from "@/convex/_generated/api";
 
 export default function ProfileWalletPage() {
   const { status } = useParticleSession();
   const convexAuth = useConvexAuth();
+  const { accountInfo } = useUniversalAccount("eip7702-if-supported");
   const isSignedIn = status === "authenticated";
   const canUseConvex = isSignedIn && convexAuth.isAuthenticated;
   const savedWallet = useQuery(api.accountWallets.getViewerAccountWallet, canUseConvex ? {} : "skip");
@@ -59,6 +62,12 @@ export default function ProfileWalletPage() {
       ) : (
         <div className="stack-list">
           <AccountWalletPanel savedWallet={savedWallet ?? null} />
+          <ConnectedWalletDepositPanel
+            receiverAddress={accountInfo?.evmSmartAccount ?? savedWallet?.evmUaAddress}
+            recipientLabel="your Particle account wallet"
+            title="Deposit from connected wallet"
+            description="Scan supported Particle primary assets in an EOA wallet and transfer them into your Universal Account."
+          />
           <PaymentLinkPanel savedWallet={savedWallet ?? null} />
           {(instructions ?? []).length > 0 ? (
             <StrategyFundingTransferPanel

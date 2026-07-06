@@ -8,9 +8,12 @@ import {
   PAYMENT_INTENT_STATUS,
 } from "../convex/helpers/paymentLinks";
 import {
+  getEvmPrimaryDepositTokenOptions,
   getPaymentTokenOptions,
+  getReceiverForDirectEvmDeposit,
   getReceiverForPaymentToken,
 } from "../lib/particlePaymentTokens";
+import { detectEip7702Capability, getEip7702Status } from "../lib/eip7702";
 
 const OPTIMISM_MAINNET = 10;
 const SOLANA_MAINNET = 101;
@@ -49,6 +52,22 @@ test("payment intent transitions stop final states from changing", () => {
   );
 });
 
+test("EIP-7702 detection only enables authorization-capable wallets", () => {
+  const jsonRpcWallet = { request: async () => "0x" };
+  const embeddedWallet = { signAuthorization: async () => "0xsig" };
+
+  assert.equal(detectEip7702Capability(jsonRpcWallet).supported, false);
+  assert.equal(detectEip7702Capability(embeddedWallet).supported, true);
+  assert.equal(
+    getEip7702Status("eip7702-if-supported", detectEip7702Capability(embeddedWallet)).enabled,
+    true,
+  );
+  assert.equal(
+    getEip7702Status("smart", detectEip7702Capability(embeddedWallet)).enabled,
+    false,
+  );
+});
+
 test("payment receiver selection uses EVM UA for EVM chains and Solana UA for Solana", () => {
   const addresses = {
     evmUaAddress: "0x1111111111111111111111111111111111111111",
@@ -57,6 +76,10 @@ test("payment receiver selection uses EVM UA for EVM chains and Solana UA for So
 
   assert.deepEqual(
     getReceiverForPaymentToken({ chainId: OPTIMISM_MAINNET }, addresses),
+    { receiver: addresses.evmUaAddress, receiverKind: "evm" },
+  );
+  assert.deepEqual(
+    getReceiverForDirectEvmDeposit(addresses),
     { receiver: addresses.evmUaAddress, receiverKind: "evm" },
   );
   assert.deepEqual(
@@ -75,4 +98,13 @@ test("public payment token options are sourced from Particle primary target meta
   assert.ok(options.length > 0);
   assert.ok(options.some((option) => option.token.symbol === "USDC"));
   assert.equal(options.some((option) => option.token.symbol === "BTC"), false);
+});
+
+test("EOA direct deposit options are Particle primary EVM tokens only", () => {
+  const options = getEvmPrimaryDepositTokenOptions();
+
+  assert.ok(options.length > 0);
+  assert.ok(options.every((option) => option.chainId !== SOLANA_MAINNET));
+  assert.ok(options.every((option) => !("receiverKind" in option)));
+  assert.ok(options.some((option) => option.symbol === "USDC"));
 });

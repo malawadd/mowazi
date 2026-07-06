@@ -13,7 +13,7 @@ import { Buffer } from "buffer";
 import { ConnectKitProvider, createConfig, useDisconnect } from "@particle-network/connectkit";
 import { authWalletConnectors } from "@particle-network/connectkit/auth";
 import { evmWalletConnectors } from "@particle-network/connectkit/evm";
-import { mainnet, optimism, arbitrum } from "viem/chains";
+import { PARTICLE_EVM_CHAINS } from "@/lib/particleEvmChains";
 
 // ---- Buffer polyfill (required by Particle) ----
 const globalWithBuffer = globalThis as typeof globalThis & { Buffer?: typeof Buffer };
@@ -22,7 +22,6 @@ if (!globalWithBuffer.Buffer) {
 }
 
 // ---- Constants ----
-const PARTICLE_CHAINS = [mainnet, optimism, arbitrum] as const;
 const PARTICLE_PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID || "missing-particle-project-id";
 const PARTICLE_CLIENT_KEY = process.env.NEXT_PUBLIC_CLIENT_KEY || "missing-particle-client-key";
 const PARTICLE_APP_ID = process.env.NEXT_PUBLIC_APP_ID || "missing-particle-app-id";
@@ -32,7 +31,7 @@ const connectKitConfig = createConfig({
   projectId: PARTICLE_PROJECT_ID,
   clientKey: PARTICLE_CLIENT_KEY,
   appId: PARTICLE_APP_ID,
-  chains: PARTICLE_CHAINS,
+  chains: PARTICLE_EVM_CHAINS,
   appearance: {
     mode: "dark",
     collapseWalletList: true,
@@ -65,7 +64,7 @@ type ParticleSessionState = {
   signOut: () => Promise<void>;
 };
 
-// ---- Session context (unchanged from ParticleAuthProvider) ----
+// ---- Session context ----
 const ParticleSessionContext = createContext<ParticleSessionState | null>(null);
 
 async function readTokenSession() {
@@ -88,7 +87,7 @@ async function readTokenSession() {
 }
 
 function ParticleSessionStateProvider({ children }: { children: ReactNode }) {
-  const { disconnect } = useDisconnect();
+  const { disconnectAsync } = useDisconnect();
   const [status, setStatus] = useState<ParticleSessionState["status"]>("loading");
   const [session, setSession] = useState<ParticleSession | null>(null);
 
@@ -101,10 +100,10 @@ function ParticleSessionStateProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    await disconnect().catch(() => undefined);
+    await disconnectAsync().catch(() => undefined);
     setSession(null);
     setStatus("unauthenticated");
-  }, [disconnect]);
+  }, [disconnectAsync]);
 
   useEffect(() => {
     void refreshSession();

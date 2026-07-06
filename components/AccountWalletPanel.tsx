@@ -52,7 +52,8 @@ function safeParseAssets(savedWallet: SavedAccountWallet) {
 }
 
 export default function AccountWalletPanel({ savedWallet }: { savedWallet: SavedAccountWallet }) {
-  const { ownerAddress, accountInfo, primaryAssets, loading, error, refresh } = useUniversalAccount();
+  const { ownerAddress, accountInfo, primaryAssets, eip7702Status, loading, error, refresh } =
+    useUniversalAccount("eip7702-if-supported");
   const syncWallet = useMutation(api.accountWallets.syncViewerAccountWallet);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -108,6 +109,14 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
             <div className="stack-list">
               <DataRow label="Owner EOA" value={<span className="mono-label">{ownerAddress ?? savedWallet?.ownerAddress}</span>} />
               <DataRow label="Unified balance" value={formatUsd(currentBalance)} />
+              <DataRow
+                label="Account mode"
+                value={
+                  <StatusBadge tone={eip7702Status.enabled ? "positive" : "info"}>
+                    {eip7702Status.enabled ? "EIP-7702" : "Smart Account"}
+                  </StatusBadge>
+                }
+              />
               <DataRow
                 label="Last synced"
                 value={

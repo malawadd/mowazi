@@ -17,12 +17,6 @@ type ParticleUserInfo = {
   }>;
 };
 
-function getUserInfoEvmAddress(userInfo: ParticleUserInfo | undefined) {
-  return userInfo?.wallets
-    ?.find((wallet) => wallet.chain_name === "evm_chain")
-    ?.public_address?.toLowerCase();
-}
-
 async function safeResponseJson<T>(response: Response): Promise<T | null> {
   try {
     return (await response.json()) as T;
@@ -70,7 +64,7 @@ export default function SignInPage() {
         });
       }
       // Fallback: Particle-attached global EIP-1193 provider
-      const particleProvider = (window as Record<string, unknown>).particle as
+      const particleProvider = (window as unknown as Record<string, unknown>).particle as
         | { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<string> } }
         | undefined;
       if (particleProvider?.ethereum) {
