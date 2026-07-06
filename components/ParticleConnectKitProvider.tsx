@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -13,12 +14,14 @@ import { Buffer } from "buffer";
 import {
   ConnectKitProvider,
   createConfig,
+  useAccount,
   useDisconnect,
   type Theme,
 } from "@particle-network/connectkit";
 import { authWalletConnectors } from "@particle-network/connectkit/auth";
 import { evmWalletConnectors } from "@particle-network/connectkit/evm";
 import { PARTICLE_EVM_CHAINS } from "@/lib/particleEvmChains";
+import { shouldClearSessionForWalletDisconnect } from "@/lib/headerWallet";
 
 // ---- Buffer polyfill (required by Particle) ----
 const globalWithBuffer = globalThis as typeof globalThis & { Buffer?: typeof Buffer };
@@ -129,9 +132,12 @@ async function readTokenSession() {
 }
 
 function ParticleSessionStateProvider({ children }: { children: ReactNode }) {
+  const { status: walletStatus } = useAccount();
   const { disconnectAsync } = useDisconnect();
   const [status, setStatus] = useState<ParticleSessionState["status"]>("loading");
   const [session, setSession] = useState<ParticleSession | null>(null);
+  const hadConnectedWalletRef = useRef(false);
+  const signOutInFlightRef = useRef(false);
 
   const refreshSession = useCallback(async () => {
     const nextSession = await readTokenSession();
@@ -140,16 +146,50 @@ function ParticleSessionStateProvider({ children }: { children: ReactNode }) {
     return nextSession;
   }, []);
 
-  const signOut = useCallback(async () => {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    await disconnectAsync().catch(() => undefined);
+  const clearLocalSession = useCallback(() => {
     setSession(null);
     setStatus("unauthenticated");
-  }, [disconnectAsync]);
+  }, []);
+
+  const clearAppSession = useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    clearLocalSession();
+  }, [clearLocalSession]);
+
+  const signOut = useCallback(async () => {
+    signOutInFlightRef.current = true;
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => undefined);
+      await disconnectAsync().catch(() => undefined);
+      clearLocalSession();
+    } finally {
+      signOutInFlightRef.current = false;
+      hadConnectedWalletRef.current = false;
+    }
+  }, [clearLocalSession, disconnectAsync]);
 
   useEffect(() => {
     void refreshSession();
   }, [refreshSession]);
+
+  useEffect(() => {
+    if (walletStatus === "connected") {
+      hadConnectedWalletRef.current = true;
+      return;
+    }
+
+    if (
+      shouldClearSessionForWalletDisconnect({
+        hasSession: Boolean(session),
+        hadConnectedWallet: hadConnectedWalletRef.current,
+        walletStatus,
+        signOutInFlight: signOutInFlightRef.current,
+      })
+    ) {
+      hadConnectedWalletRef.current = false;
+      void clearAppSession().catch(() => clearLocalSession());
+    }
+  }, [clearAppSession, clearLocalSession, session, walletStatus]);
 
   const value = useMemo(
     () => ({ status, session, refreshSession, signOut }),
