@@ -60,7 +60,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Particle sign-in signature is invalid." }, { status: 401 });
     }
 
-    const userInfo = await getParticleUserInfo(body.particleUuid, body.particleToken);
+    const [userInfo, isProjectUser] = await Promise.all([
+      getParticleUserInfo(body.particleUuid, body.particleToken),
+      isParticleProjectUser(address),
+    ]);
+
     const evmWallet = getEvmWalletAddress(userInfo)?.toLowerCase();
 
     if (!userInfo || !evmWallet) {
@@ -69,8 +73,6 @@ export async function POST(request: Request) {
         { status: 502 },
       );
     }
-
-    const isProjectUser = await isParticleProjectUser(address);
 
     if (!isProjectUser || evmWallet !== address) {
       return NextResponse.json({ error: "Wallet is not a verified Particle project user." }, { status: 401 });

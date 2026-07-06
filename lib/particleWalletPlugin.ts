@@ -59,7 +59,7 @@ export function createParticleWalletPluginOptions({
     themeType: "light",
     visible,
     entryPosition,
-    preload: true,
+    preload: false,
     customStyle: particleWalletCustomStyle,
   } satisfies WalletPluginParamers;
 }
