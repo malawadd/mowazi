@@ -7,6 +7,7 @@ import type { WalletCustomStyle } from "@particle-network/wallet";
 export const PARTICLE_WALLET_WIDGET_STORAGE_KEY =
   "moeazi:particle-wallet-widget-visible";
 export const DEFAULT_PARTICLE_WALLET_WIDGET_VISIBLE = false;
+const INITIAL_PARTICLE_WALLET_PLUGIN_VISIBLE = true;
 
 type ParticleWalletPluginOptions = {
   entryPosition?: WalletPluginParamers["entryPosition"];
@@ -44,14 +45,18 @@ export const particleWalletCustomStyle: ParticleWalletCustomStyle = {
   light: {
     ...particleWalletLightStyle,
   },
+  dark: {
+    ...particleWalletLightStyle,
+  },
 };
 
 export function createParticleWalletPluginOptions({
   entryPosition = EntryPosition.BR,
-  visible = DEFAULT_PARTICLE_WALLET_WIDGET_VISIBLE,
+  visible = INITIAL_PARTICLE_WALLET_PLUGIN_VISIBLE,
 }: ParticleWalletPluginOptions = {}) {
   return {
     widgetIntegration: "modal",
+    themeType: "light",
     visible,
     entryPosition,
     preload: true,

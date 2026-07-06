@@ -424,6 +424,36 @@ textarea {
   transform: translate(3px, 3px);
 }
 
+#particle-auth-core-iframe-wallet-mask {
+  background-color: rgba(17, 17, 17, 0.08) !important;
+  backdrop-filter: none !important;
+}
+
+.particle-wallet-entry-container .particle-pwe-btn {
+  width: 56px !important;
+  height: 56px !important;
+  border: var(--border-width) solid var(--line) !important;
+  border-radius: 0 !important;
+  background: var(--surface-yellow) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.particle-wallet-entry-container .particle-pwe-btn:hover {
+  background: var(--surface-sky) !important;
+}
+
+.particle-wallet-entry-container .particle-pwe-iframe-content {
+  border: var(--border-width) solid var(--line) !important;
+  border-radius: 0 !important;
+  background: var(--surface-paper) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.particle-wallet-entry-container .particle-pwe-iframe-content-dark,
+.particle-wallet-entry-container .particle-pwe-iframe-content-light {
+  background: var(--surface-paper) !important;
+}
+
 .marketing-grid,
 .metric-grid,
 .two-column-grid,
