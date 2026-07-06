@@ -10,7 +10,12 @@ import {
   type ReactNode,
 } from "react";
 import { Buffer } from "buffer";
-import { ConnectKitProvider, createConfig, useDisconnect } from "@particle-network/connectkit";
+import {
+  ConnectKitProvider,
+  createConfig,
+  useDisconnect,
+  type Theme,
+} from "@particle-network/connectkit";
 import { authWalletConnectors } from "@particle-network/connectkit/auth";
 import { evmWalletConnectors } from "@particle-network/connectkit/evm";
 import { PARTICLE_EVM_CHAINS } from "@/lib/particleEvmChains";
@@ -26,6 +31,42 @@ const PARTICLE_PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID || "missing-parti
 const PARTICLE_CLIENT_KEY = process.env.NEXT_PUBLIC_CLIENT_KEY || "missing-particle-client-key";
 const PARTICLE_APP_ID = process.env.NEXT_PUBLIC_APP_ID || "missing-particle-app-id";
 
+const moeaziConnectTheme = {
+  "--pcm-font-family": "var(--font-plus-jakarta-sans), sans-serif",
+  "--pcm-focus-color": "#111111",
+  "--pcm-overlay-background": "rgba(17, 17, 17, 0.38)",
+  "--pcm-overlay-backdrop-filter": "none",
+  "--pcm-modal-box-shadow": "0 0 0 3px #111111, 8px 8px 0 #111111",
+  "--pcm-modal-width": "420px",
+  "--pcm-modal-max-height": "78vh",
+  "--pcm-rounded-sm": "0px",
+  "--pcm-rounded-md": "0px",
+  "--pcm-rounded-lg": "0px",
+  "--pcm-rounded-xl": "0px",
+  "--pcm-rounded-full": "0px",
+  "--pcm-body-background": "#fffdf5",
+  "--pcm-body-background-secondary": "#fff8e9",
+  "--pcm-body-background-tertiary": "#eef7ff",
+  "--pcm-body-color": "#111111",
+  "--pcm-body-color-secondary": "#3f3f46",
+  "--pcm-body-color-tertiary": "#71717a",
+  "--pcm-body-action-color": "#111111",
+  "--pcm-button-border-color": "#111111",
+  "--pcm-button-font-weight": "800",
+  "--pcm-button-hover-shadow": "3px 3px 0 #111111",
+  "--pcm-primary-button-color": "#111111",
+  "--pcm-primary-button-bankground": "#ffd23f",
+  "--pcm-primary-button-hover-background": "#ffa552",
+  "--pcm-secondary-button-color": "#111111",
+  "--pcm-secondary-button-bankground": "#fffdf5",
+  "--pcm-secondary-button-hover-background": "#fff8e9",
+  "--pcm-accent-color": "#74b9ff",
+  "--pcm-error-color": "#ff6b6b",
+  "--pcm-success-color": "#88d498",
+  "--pcm-warning-color": "#ffd23f",
+  "--pcm-wallet-lable-color": "#88d498",
+} satisfies Theme;
+
 // ---- ConnectKit config (created once at module level) ----
 const connectKitConfig = createConfig({
   projectId: PARTICLE_PROJECT_ID,
@@ -33,7 +74,8 @@ const connectKitConfig = createConfig({
   appId: PARTICLE_APP_ID,
   chains: PARTICLE_EVM_CHAINS,
   appearance: {
-    mode: "dark",
+    mode: "light",
+    theme: moeaziConnectTheme,
     collapseWalletList: true,
   },
   walletConnectors: [

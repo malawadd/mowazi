@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAccount, useModal, useParticleAuth, useWallets } from "@particle-network/connectkit";
 import { EmptyState, Panel } from "@/components/strategy-ui";
 import { useParticleSession } from "@/components/ParticleConnectKitProvider";
+import { shouldStartParticleSignIn } from "@/lib/signInFlow";
 
 type ParticleUserInfo = {
   uuid?: string;
@@ -42,10 +43,30 @@ export default function SignInPage() {
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const signingRef = useRef(false);
+  const completedRef = useRef(false);
+  const autoAttemptedAddressRef = useRef<string | null>(null);
+  const activeAddressRef = useRef<string | null>(null);
+  const normalizedAddress = address?.toLowerCase() ?? null;
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!isConnected || !normalizedAddress) {
+      activeAddressRef.current = null;
+      autoAttemptedAddressRef.current = null;
+      completedRef.current = false;
+      return;
+    }
+
+    if (activeAddressRef.current !== normalizedAddress) {
+      activeAddressRef.current = normalizedAddress;
+      autoAttemptedAddressRef.current = null;
+      completedRef.current = false;
+      setError(null);
+    }
+  }, [isConnected, normalizedAddress]);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -79,14 +100,23 @@ export default function SignInPage() {
   );
 
   const completeSignIn = useCallback(async () => {
-    if (signingRef.current || !address) return;
+    if (
+      signingRef.current ||
+      !normalizedAddress ||
+      completedRef.current ||
+      sessionStatus !== "unauthenticated" ||
+      session
+    ) {
+      return;
+    }
+
+    const walletAddress = normalizedAddress;
+    autoAttemptedAddressRef.current = walletAddress;
     signingRef.current = true;
     setBusy(true);
     setError(null);
 
     try {
-      const walletAddress = address.toLowerCase();
-
       // Try to get Particle user info (works for social login, fails for wallet-only)
       let particleUuid: string | undefined;
       let particleToken: string | undefined;
@@ -139,25 +169,51 @@ export default function SignInPage() {
         throw new Error(sessionData?.error ?? "Could not verify sign-in.");
       }
 
+      completedRef.current = true;
       await refreshSession();
       router.replace(getRedirectPath());
     } catch (nextError) {
+      completedRef.current = false;
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
-      setBusy(false);
-      signingRef.current = false;
+      if (!completedRef.current) {
+        setBusy(false);
+        signingRef.current = false;
+      }
     }
-  }, [address, getUserInfo, signMessage, refreshSession, router]);
+  }, [getUserInfo, normalizedAddress, refreshSession, router, session, sessionStatus, signMessage]);
 
   // Watch for connection — trigger sign-in when user connects in the modal
   useEffect(() => {
-    if (isConnected && address && !signingRef.current && !busy) {
+    const canAutoStart = shouldStartParticleSignIn({
+      isConnected,
+      address: normalizedAddress,
+      autoAttemptedAddress: autoAttemptedAddressRef.current,
+      sessionStatus,
+      hasSession: Boolean(session),
+      busy,
+      signing: signingRef.current,
+      completed: completedRef.current,
+    });
+
+    if (canAutoStart) {
       void completeSignIn();
     }
-  }, [isConnected, address, completeSignIn, busy]);
+  }, [isConnected, normalizedAddress, session, sessionStatus, completeSignIn, busy]);
 
   const openConnectModal = () => {
     setError(null);
+    if (
+      isConnected &&
+      normalizedAddress &&
+      sessionStatus === "unauthenticated" &&
+      !session &&
+      !busy &&
+      !signingRef.current
+    ) {
+      void completeSignIn();
+      return;
+    }
     setOpen(true);
   };
 
