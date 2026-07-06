@@ -2,7 +2,9 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import {
   canTransitionPaymentIntent,
+  allowsEoaDirectDeposit,
   isActivePaymentLink,
+  normalizeDepositPolicy,
   normalizePaymentSlug,
   PAYMENT_INTENT_STATUS,
 } from "./helpers/paymentLinks";
@@ -63,6 +65,8 @@ export const getPublicPaymentLink = query({
       paymentLinkId: link._id,
       slug: link.slug,
       status: link.status,
+      depositPolicy: normalizeDepositPolicy(link.depositPolicy),
+      eoaDirectAllowed: allowsEoaDirectDeposit(link.depositPolicy),
       strategyLabel: strategyAccount?.label ?? "Moeazi account",
       recipientName: user?.displayName ?? "Moeazi account",
       ownerAddress: wallet?.ownerAddress ?? null,
@@ -90,6 +94,10 @@ export const createPaymentIntent = mutation({
     sourceAmount: v.optional(v.string()),
     receiver: v.string(),
     receiverKind: v.union(v.literal("evm"), v.literal("solana")),
+    settlementChainId: v.optional(v.number()),
+    settlementTokenAddress: v.optional(v.string()),
+    settlementTokenSymbol: v.optional(v.string()),
+    settlementAmount: v.optional(v.string()),
     amount: v.string(),
   },
   handler: async (ctx, args) => {
@@ -97,6 +105,10 @@ export const createPaymentIntent = mutation({
     const link = await getActiveLinkBySlug(ctx, args.slug);
     if (!link) {
       throw new Error("Payment link is not active.");
+    }
+    const paymentFlow = args.paymentFlow ?? "payer_ua";
+    if (paymentFlow === "eoa_direct" && !allowsEoaDirectDeposit(link.depositPolicy)) {
+      throw new Error("This payment link accepts Universal Account settlement only.");
     }
 
     const wallet = await getWalletForLink(ctx, link);
@@ -118,7 +130,7 @@ export const createPaymentIntent = mutation({
     const paymentIntentId = await ctx.db.insert("paymentIntents", {
       paymentLinkId: link._id,
       strategyAccountId: link.strategyAccountId,
-      paymentFlow: args.paymentFlow ?? "payer_ua",
+      paymentFlow,
       payerAddress: normalizeEvm(args.payerAddress),
       targetChainId: args.targetChainId,
       targetTokenAddress: args.targetTokenAddress,
@@ -130,6 +142,10 @@ export const createPaymentIntent = mutation({
       sourceAmount: args.sourceAmount,
       receiver: args.receiver,
       receiverKind: args.receiverKind,
+      settlementChainId: args.settlementChainId,
+      settlementTokenAddress: args.settlementTokenAddress,
+      settlementTokenSymbol: args.settlementTokenSymbol?.toUpperCase(),
+      settlementAmount: args.settlementAmount,
       amount: args.amount,
       status: PAYMENT_INTENT_STATUS.draft,
       particleTransactionId: undefined,

@@ -16,7 +16,36 @@ function hasCallable(value: unknown, key: string) {
   return Boolean(value && typeof value === "object" && typeof (value as Record<string, unknown>)[key] === "function");
 }
 
+function record(value: unknown) {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function nestedString(value: unknown, keys: string[]) {
+  let current: unknown = value;
+  for (const key of keys) {
+    const currentRecord = record(current);
+    if (!currentRecord) return undefined;
+    current = currentRecord[key];
+  }
+  return typeof current === "string" ? current.toLowerCase() : undefined;
+}
+
+function isJsonRpcWalletClient(walletClient: unknown) {
+  const accountType = nestedString(walletClient, ["account", "type"]);
+  if (accountType === "json-rpc") return true;
+  const clientType = nestedString(walletClient, ["type"]);
+  if (clientType === "json-rpc") return true;
+  const transportType = nestedString(walletClient, ["transport", "type"]);
+  return transportType === "http" || transportType === "websocket";
+}
+
 export function detectEip7702Capability(walletClient: unknown): Eip7702Capability {
+  if (isJsonRpcWalletClient(walletClient)) {
+    return {
+      supported: false,
+      reason: "JSON-RPC wallets cannot sign EIP-7702 authorizations; using Smart Account mode.",
+    };
+  }
   if (hasCallable(walletClient, "signAuthorization")) {
     return { supported: true, method: "signAuthorization", reason: "Wallet supports EIP-7702 authorization." };
   }
@@ -26,9 +55,7 @@ export function detectEip7702Capability(walletClient: unknown): Eip7702Capabilit
   if (hasCallable(walletClient, "sign7702Authorization")) {
     return { supported: true, method: "sign7702Authorization", reason: "Wallet supports EIP-7702 authorization." };
   }
-  const nestedWallet = walletClient && typeof walletClient === "object"
-    ? (walletClient as Record<string, unknown>).wallet
-    : null;
+  const nestedWallet = record(walletClient)?.wallet;
   if (hasCallable(nestedWallet, "sign7702Authorization")) {
     return { supported: true, method: "wallet.sign7702Authorization", reason: "Wallet supports EIP-7702 authorization." };
   }

@@ -16,6 +16,7 @@ import {
   type Eip7702Status,
   type UniversalAccountMode,
 } from "@/lib/eip7702";
+import { buildArbitrumUsdcSettlementTransaction } from "@/lib/universalAccountSettlement";
 
 type AccountInfo = {
   ownerAddress: string;
@@ -28,6 +29,12 @@ export type UniversalTransferInput = {
     chainId: number;
     address: string;
   };
+  amount: string;
+  receiver: string;
+};
+
+export type SettledTransferInput = {
+  /** Amount of Arbitrum USDC to deliver to the receiver. */
   amount: string;
   receiver: string;
 };
@@ -69,6 +76,11 @@ async function signEip7702Authorization(walletClient: unknown, auth: SignAuthori
     return serializeAuthorizationSignature(await client.wallet.sign7702Authorization(auth));
   }
   throw new Error("Connected wallet does not support EIP-7702 authorization.");
+}
+
+function isJsonRpcAuthorizationError(value: unknown) {
+  const message = value instanceof Error ? value.message : String(value);
+  return message.includes('Account type "json-rpc"') || message.includes("does not support JSON-RPC Accounts");
 }
 
 export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
@@ -174,6 +186,19 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
     [universalAccount],
   );
 
+  /** Convert supported UA assets into Arbitrum USDC and transfer it to the receiver. */
+  const createSettledTransfer = useCallback(
+    async (input: SettledTransferInput) => {
+      if (!universalAccount) {
+        throw new Error("Universal Account is not ready.");
+      }
+      return await universalAccount.createUniversalTransaction(
+        buildArbitrumUsdcSettlementTransaction(input),
+      );
+    },
+    [universalAccount],
+  );
+
   const signAndSend = useCallback(
     async (transaction: ITransaction) => {
       if (!universalAccount) {
@@ -188,7 +213,16 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
           const nonceKey = `${userOp.eip7702Auth.chainId}:${userOp.eip7702Auth.nonce}`;
           let authSignature = nonceMap.get(nonceKey);
           if (!authSignature) {
-            authSignature = await signEip7702Authorization(walletClient, userOp.eip7702Auth);
+            try {
+              authSignature = await signEip7702Authorization(walletClient, userOp.eip7702Auth);
+            } catch (nextError) {
+              if (isJsonRpcAuthorizationError(nextError)) {
+                throw new Error(
+                  "This wallet cannot sign EIP-7702 authorizations. Reconnect with a 7702-capable embedded wallet or use Smart Account mode.",
+                );
+              }
+              throw nextError;
+            }
             nonceMap.set(nonceKey, authSignature);
           }
           authorizations.push({
@@ -216,6 +250,7 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
     error,
     refresh,
     createTransfer,
+    createSettledTransfer,
     signAndSend,
   };
 }

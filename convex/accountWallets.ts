@@ -1,6 +1,11 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { createPaymentLinkSlug, PAYMENT_LINK_STATUS } from "./helpers/paymentLinks";
+import {
+  createPaymentLinkSlug,
+  normalizeDepositPolicy,
+  PAYMENT_LINK_DEPOSIT_POLICY,
+  PAYMENT_LINK_STATUS,
+} from "./helpers/paymentLinks";
 import { getStrategyAccountByUserId, getUserByAuthSubject } from "./model";
 
 function normalizeAddress(value: string) {
@@ -60,8 +65,19 @@ async function getActivePaymentLinkByUserId(ctx: { db: any }, userId: any) {
     .first();
 }
 
-async function createUniquePaymentLink(ctx: { db: any }, args: { userId: any; strategyAccountId?: any }) {
+const depositPolicyValidator = v.union(
+  v.literal(PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementOnly),
+  v.literal(PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementPlusEoaDirect),
+);
+
+async function createUniquePaymentLink(
+  ctx: { db: any },
+  args: { userId: any; strategyAccountId?: any; depositPolicy?: string },
+) {
   const now = Date.now();
+  const depositPolicy = normalizeDepositPolicy(
+    args.depositPolicy ?? PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementOnly,
+  );
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const randomPart =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -79,6 +95,7 @@ async function createUniquePaymentLink(ctx: { db: any }, args: { userId: any; st
       strategyAccountId: args.strategyAccountId,
       slug,
       status: PAYMENT_LINK_STATUS.active,
+      depositPolicy,
       createdAt: now,
       updatedAt: now,
       disabledAt: undefined,
@@ -157,8 +174,10 @@ export const getViewerPaymentLink = query({
 });
 
 export const getOrCreateViewerPaymentLink = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    depositPolicy: v.optional(depositPolicyValidator),
+  },
+  handler: async (ctx, args) => {
     const viewer = await requireViewerUser(ctx);
     const user = viewer.user;
     if (!user) throw new Error("Could not create user.");
@@ -168,12 +187,40 @@ export const getOrCreateViewerPaymentLink = mutation({
     }
 
     const existing = await getActivePaymentLinkByUserId(ctx, user._id);
-    if (existing) return existing;
+    const depositPolicy = normalizeDepositPolicy(
+      args.depositPolicy ?? PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementOnly,
+    );
+    if (existing) {
+      if (normalizeDepositPolicy(existing.depositPolicy) !== depositPolicy) {
+        await ctx.db.patch(existing._id, { depositPolicy, updatedAt: Date.now() });
+        return await ctx.db.get(existing._id);
+      }
+      return existing;
+    }
     const strategyAccount = await getStrategyAccountByUserId(ctx, user._id);
     return await createUniquePaymentLink(ctx, {
       userId: user._id,
       strategyAccountId: strategyAccount?._id,
+      depositPolicy,
     });
+  },
+});
+
+export const updateViewerPaymentLinkPolicy = mutation({
+  args: {
+    depositPolicy: depositPolicyValidator,
+  },
+  handler: async (ctx, args) => {
+    const viewer = await requireViewerUser(ctx);
+    const user = viewer.user;
+    if (!user) throw new Error("Could not create user.");
+    const existing = await getActivePaymentLinkByUserId(ctx, user._id);
+    if (!existing) {
+      throw new Error("Create a payment link before updating its policy.");
+    }
+    const depositPolicy = normalizeDepositPolicy(args.depositPolicy);
+    await ctx.db.patch(existing._id, { depositPolicy, updatedAt: Date.now() });
+    return await ctx.db.get(existing._id);
   },
 });
 
@@ -197,8 +244,10 @@ export const disableViewerPaymentLink = mutation({
 });
 
 export const rotateViewerPaymentLink = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    depositPolicy: v.optional(depositPolicyValidator),
+  },
+  handler: async (ctx, args) => {
     const viewer = await requireViewerUser(ctx);
     const user = viewer.user;
     if (!user) throw new Error("Could not create user.");
@@ -221,6 +270,7 @@ export const rotateViewerPaymentLink = mutation({
     return await createUniquePaymentLink(ctx, {
       userId: user._id,
       strategyAccountId: strategyAccount?._id,
+      depositPolicy: args.depositPolicy ?? PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementOnly,
     });
   },
 });

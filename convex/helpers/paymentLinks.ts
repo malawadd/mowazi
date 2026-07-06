@@ -3,6 +3,11 @@ export const PAYMENT_LINK_STATUS = {
   disabled: "disabled",
 } as const;
 
+export const PAYMENT_LINK_DEPOSIT_POLICY = {
+  uaSettlementOnly: "ua_settlement_only",
+  uaSettlementPlusEoaDirect: "ua_settlement_plus_eoa_direct",
+} as const;
+
 export const PAYMENT_INTENT_STATUS = {
   draft: "draft",
   previewed: "previewed",
@@ -11,6 +16,8 @@ export const PAYMENT_INTENT_STATUS = {
 } as const;
 
 export type PaymentIntentStatus = (typeof PAYMENT_INTENT_STATUS)[keyof typeof PAYMENT_INTENT_STATUS];
+export type PaymentLinkDepositPolicy =
+  (typeof PAYMENT_LINK_DEPOSIT_POLICY)[keyof typeof PAYMENT_LINK_DEPOSIT_POLICY];
 
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 
@@ -39,6 +46,17 @@ export function createPaymentLinkSlug(entropy: string, length = 18) {
 
 export function isActivePaymentLink(status: string | null | undefined) {
   return status === PAYMENT_LINK_STATUS.active;
+}
+
+export function normalizeDepositPolicy(value: string | null | undefined): PaymentLinkDepositPolicy {
+  if (value === PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementOnly) {
+    return PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementOnly;
+  }
+  return PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementPlusEoaDirect;
+}
+
+export function allowsEoaDirectDeposit(value: string | null | undefined) {
+  return normalizeDepositPolicy(value) === PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementPlusEoaDirect;
 }
 
 export function canTransitionPaymentIntent(from: PaymentIntentStatus, to: PaymentIntentStatus) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ConnectedWalletDepositPanel from "@/components/ConnectedWalletDepositPanel";
 import UniversalAccountTransferPanel from "@/components/UniversalAccountTransferPanel";
 import { DataRow, Panel, StatusBadge } from "@/components/strategy-ui";
@@ -12,12 +12,21 @@ type PublicPaymentLink = {
   evmUaAddress: string | null;
   solanaUaAddress: string | null;
   walletReady: boolean;
+  depositPolicy?: "ua_settlement_only" | "ua_settlement_plus_eoa_direct";
+  eoaDirectAllowed?: boolean;
 };
 
 type PaymentMode = "eoa_direct" | "payer_ua";
 
 export default function PublicPaymentForm({ paymentLink }: { paymentLink: PublicPaymentLink }) {
-  const [mode, setMode] = useState<PaymentMode>("eoa_direct");
+  const directAllowed =
+    paymentLink.eoaDirectAllowed ??
+    paymentLink.depositPolicy !== "ua_settlement_only";
+  const [mode, setMode] = useState<PaymentMode>("payer_ua");
+
+  useEffect(() => {
+    if (!directAllowed && mode === "eoa_direct") setMode("payer_ua");
+  }, [directAllowed, mode]);
 
   return (
     <div className="stack-list">
@@ -33,22 +42,36 @@ export default function PublicPaymentForm({ paymentLink }: { paymentLink: Public
                 </StatusBadge>
               }
             />
+            <DataRow
+              label="Default settlement"
+              value={<StatusBadge tone="positive">Arbitrum USDC</StatusBadge>}
+            />
+            <DataRow
+              label="Direct EOA"
+              value={
+                <StatusBadge tone={directAllowed ? "warning" : "info"}>
+                  {directAllowed ? "allowed" : "off"}
+                </StatusBadge>
+              }
+            />
           </div>
           <div className="inline-actions">
-            <button
-              className={mode === "eoa_direct" ? "primary-button" : "secondary-button"}
-              type="button"
-              onClick={() => setMode("eoa_direct")}
-            >
-              From connected wallet
-            </button>
             <button
               className={mode === "payer_ua" ? "primary-button" : "secondary-button"}
               type="button"
               onClick={() => setMode("payer_ua")}
             >
-              From Universal Account
+              Settle to Arbitrum USDC
             </button>
+            {directAllowed ? (
+              <button
+                className={mode === "eoa_direct" ? "primary-button" : "secondary-button"}
+                type="button"
+                onClick={() => setMode("eoa_direct")}
+              >
+                Direct EOA deposit
+              </button>
+            ) : null}
           </div>
         </div>
       </Panel>
@@ -58,6 +81,8 @@ export default function PublicPaymentForm({ paymentLink }: { paymentLink: Public
           receiverAddress={paymentLink.evmUaAddress}
           recipientLabel={paymentLink.recipientName}
           paymentLinkSlug={paymentLink.slug}
+          title="Direct EOA deposit"
+          description="Plain transfer into the receiver Universal Account; no automatic USDC settlement."
         />
       ) : (
         <UniversalAccountTransferPanel paymentLink={paymentLink} />

@@ -10,8 +10,10 @@ import { useUniversalAccount } from "@/hooks/useUniversalAccount";
 import {
   getPaymentTokenOptions,
   getReceiverForPaymentToken,
-  type PaymentTokenOption,
+  getSettlementTarget,
 } from "@/lib/particlePaymentTokens";
+import { estimateSettlement, type SettlementPreview } from "@/lib/particleSettlement";
+import SettlementPreviewPanel from "@/components/SettlementPreview";
 import { DataRow, Panel, StatusBadge } from "@/components/strategy-ui";
 
 type PublicPaymentLink = {
@@ -21,12 +23,6 @@ type PublicPaymentLink = {
   evmUaAddress: string | null;
   solanaUaAddress: string | null;
   walletReady: boolean;
-};
-
-type RuntimeTransactionDetails = {
-  transactionId?: string;
-  tokenChanges?: unknown;
-  transactionFees?: unknown;
 };
 
 function formatUsd(value: number | null | undefined) {
@@ -50,7 +46,7 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
   const tokenOptions = useMemo(() => getPaymentTokenOptions(), []);
   const { address, isConnected, status: connectionStatus } = useAccount();
   const { setOpen } = useModal();
-  const { primaryAssets, refresh, createTransfer, signAndSend } =
+  const { primaryAssets, eip7702Status, refresh, createSettledTransfer, signAndSend } =
     useUniversalAccount("eip7702-if-supported");
   const createIntent = useMutation(api.payments.createPaymentIntent);
   const markPreviewed = useMutation(api.payments.markPaymentIntentPreviewed);
@@ -60,6 +56,7 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
   const [amount, setAmount] = useState("");
   const [intentId, setIntentId] = useState<Id<"paymentIntents"> | null>(null);
   const [preview, setPreview] = useState<ITransaction | null>(null);
+  const [settlementPreview, setSettlementPreview] = useState<SettlementPreview | null>(null);
   const [busy, setBusy] = useState<"connect" | "preview" | "send" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const connectTriggered = useRef(false);
@@ -69,6 +66,7 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
   const resetPreview = () => {
     setIntentId(null);
     setPreview(null);
+    setSettlementPreview(null);
     setMessage(null);
   };
 
@@ -97,42 +95,63 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
     let workingIntentId = intentId;
     setBusy("preview");
     setMessage(null);
+    setSettlementPreview(null);
     try {
-      const receiverInfo = getReceiverForPaymentToken(selectedToken.token, paymentLink);
+      const settlement = getSettlementTarget();
+      const receiverInfo = getReceiverForPaymentToken(settlement, paymentLink);
+
+      const est = estimateSettlement(
+        selectedToken.token.chainId,
+        selectedToken.token.symbol,
+        amount,
+        primaryAssets,
+      );
+      if (Number(est.estimatedSettlementAmount) <= 0) {
+        throw new Error("Could not estimate an Arbitrum USDC settlement amount from this source asset.");
+      }
+      setSettlementPreview(est);
+
       if (!workingIntentId) {
         const intent = await createIntent({
           slug: paymentLink.slug,
           paymentFlow: "payer_ua",
           payerAddress: address,
-          targetChainId: selectedToken.token.chainId,
-          targetTokenAddress: selectedToken.token.address,
-          targetTokenSymbol: selectedToken.token.symbol,
+          targetChainId: settlement.chainId,
+          targetTokenAddress: settlement.address,
+          targetTokenSymbol: settlement.symbol,
+          sourceChainId: selectedToken.token.chainId,
+          sourceTokenAddress: selectedToken.token.address,
+          sourceTokenSymbol: selectedToken.token.symbol,
           receiver: receiverInfo.receiver,
           receiverKind: receiverInfo.receiverKind,
-          amount,
+          settlementChainId: settlement.chainId,
+          settlementTokenAddress: settlement.address,
+          settlementTokenSymbol: settlement.symbol,
+          settlementAmount: est.estimatedSettlementAmount,
+          amount: amount,
         });
         if (!intent) throw new Error("Could not create a payment intent.");
         workingIntentId = intent._id;
       }
       setIntentId(workingIntentId);
 
-      const transaction = await createTransfer({
-        token: {
-          chainId: selectedToken.token.chainId,
-          address: selectedToken.token.address,
-        },
-        amount,
+      const transaction: ITransaction = await createSettledTransfer({
+        amount: est.estimatedSettlementAmount,
         receiver: receiverInfo.receiver,
       });
+
       setPreview(transaction);
-      const transactionDetails = transaction as unknown as RuntimeTransactionDetails;
+      const transactionDetails = transaction as ITransaction & { tokenChanges?: unknown; transactionFees?: unknown };
       await markPreviewed({
         paymentIntentId: workingIntentId,
         particleTransactionId: transactionDetails.transactionId,
         detailsJson: safeDetails({
           flow: "payer_ua",
-          token: selectedToken.token,
+          settled: true,
+          sourceToken: selectedToken.token,
+          targetToken: settlement,
           receiver: receiverInfo.receiver,
+          settlementPreview: est,
           tokenChanges: transactionDetails.tokenChanges,
           transactionFees: transactionDetails.transactionFees,
         }),
@@ -175,7 +194,7 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
   const canPreview = Boolean(address && selectedToken && Number.isFinite(amountNumber) && amountNumber > 0);
 
   return (
-    <Panel title="From Universal Account" description={`Recipient: ${paymentLink.recipientName}`} tone="sky">
+    <Panel title="Settle to Arbitrum USDC" description={`Recipient: ${paymentLink.recipientName}`} tone="sky">
       <div className="stack-list">
         <div className="two-column-grid">
           <DataRow label="Payer status" value={address ? address : connectionStatus} />
@@ -188,8 +207,25 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
               </StatusBadge>
             }
           />
-          <DataRow label="Mode" value={<StatusBadge tone="info">payer UA</StatusBadge>} />
+          <DataRow
+            label="Mode"
+            value={<StatusBadge tone="positive">UA → Arb USDC</StatusBadge>}
+          />
+          <DataRow
+            label="Account mode"
+            value={
+              <StatusBadge tone={eip7702Status.enabled ? "positive" : "info"}>
+                {eip7702Status.enabled ? "EIP-7702" : "Smart Account"}
+              </StatusBadge>
+            }
+          />
         </div>
+
+        {!eip7702Status.enabled ? (
+          <p className="muted-copy">
+            Smart Account mode is active. JSON-RPC wallets must fund the payer Universal Account before settlement.
+          </p>
+        ) : null}
 
         <div className="settings-grid">
           <label className="field-label">
@@ -202,7 +238,7 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
                 resetPreview();
               }}
             >
-              {tokenOptions.map((option: PaymentTokenOption) => (
+              {tokenOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
                 </option>
@@ -245,6 +281,14 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
             {busy === "send" ? "Sending..." : "Send payment"}
           </button>
         </div>
+
+        {settlementPreview && selectedToken ? (
+          <SettlementPreviewPanel
+            preview={settlementPreview}
+            sourceAmount={amount}
+            sourceSymbol={selectedToken.token.symbol}
+          />
+        ) : null}
 
         {preview ? <p className="muted-copy">Preview ID: {preview.transactionId}</p> : null}
         {message ? <p className="muted-copy">{message}</p> : null}

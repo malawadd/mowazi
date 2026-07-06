@@ -119,11 +119,10 @@ export function getPaymentTokenOptions(): PaymentTokenOption[] {
   const seen = new Set<string>();
   const options: PaymentTokenOption[] = [];
   const particleMetadata = ParticleUa as unknown as {
-    SUPPORTED_TARGET_TOKENS?: ParticleToken[];
+    SUPPORTED_PRIMARY_TOKENS?: ParticleToken[];
   };
-  const supportedTargetTokens = particleMetadata.SUPPORTED_TARGET_TOKENS ?? [];
 
-  for (const token of supportedTargetTokens) {
+  for (const token of particleMetadata.SUPPORTED_PRIMARY_TOKENS ?? []) {
     if (!PRIMARY_TYPES.has(tokenType(token))) continue;
 
     const id = optionId(token);
@@ -149,6 +148,58 @@ export function getPaymentTokenOptions(): PaymentTokenOption[] {
     if (tokenRank !== 0) return tokenRank;
     return a.label.localeCompare(b.label);
   });
+}
+
+// ---- Settlement: force all payer-UA payments to deliver USDC on Arbitrum ----
+
+export const SETTLEMENT_CHAIN_ID = CHAIN.arbitrum;
+export const SETTLEMENT_TOKEN_SYMBOL = "USDC";
+
+export type SettlementTarget = {
+  chainId: number;
+  address: string;
+  symbol: string;
+  decimals: number;
+  realDecimals: number;
+};
+
+/** Returns the canonical USDC-on-Arbitrum token from Particle's supported target tokens. */
+export function getSettlementToken(): ParticleToken | null {
+  const particleMetadata = ParticleUa as unknown as {
+    SUPPORTED_TARGET_TOKENS?: ParticleToken[];
+  };
+  const tokens = particleMetadata.SUPPORTED_TARGET_TOKENS ?? [];
+
+  for (const token of tokens) {
+    const type = (token.type ?? token.assetId ?? "").toLowerCase();
+    if (type === "usdc" && token.chainId === SETTLEMENT_CHAIN_ID) {
+      return token;
+    }
+  }
+  return null;
+}
+
+/** Canonical settlement target getter. Throws if the token is not in Particle's list. */
+export function getSettlementTarget(): SettlementTarget {
+  const token = getSettlementToken();
+  if (!token) {
+    throw new Error("Settlement token (USDC on Arbitrum) not found in SUPPORTED_TARGET_TOKENS.");
+  }
+  return {
+    chainId: token.chainId,
+    address: token.address,
+    symbol: SETTLEMENT_TOKEN_SYMBOL,
+    decimals: token.decimals ?? 6,
+    realDecimals: tokenDecimals(token),
+  };
+}
+
+/** True when the given token is already the settlement target (no conversion needed). */
+export function isSettledToken(token: { chainId: number; symbol?: string }): boolean {
+  return (
+    token.chainId === SETTLEMENT_CHAIN_ID &&
+    (token.symbol ?? "").toUpperCase() === SETTLEMENT_TOKEN_SYMBOL
+  );
 }
 
 export function getEvmPrimaryDepositTokenOptions(): EvmPrimaryDepositTokenOption[] {

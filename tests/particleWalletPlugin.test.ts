@@ -12,7 +12,7 @@ test("Particle wallet plugin options initialize in draggable widget mode", () =>
   assert.equal(options.themeType, "light");
   assert.equal(options.visible, true);
   assert.equal(options.entryPosition, "bottom-right");
-  assert.equal(options.preload, true);
+  assert.equal(options.preload, false);
   assert.equal(options.customStyle?.light?.colorPrimary, "#fffdf5");
   assert.equal(options.customStyle?.light?.colorAccent, "#74b9ff");
   assert.equal(options.customStyle?.dark?.colorPrimary, "#fffdf5");
