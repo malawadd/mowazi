@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useModal } from "@particle-network/connectkit";
 import { useParticleSession } from "@/components/ParticleConnectKitProvider";
+import { useParticleWalletWidgetPreference } from "@/components/ParticleWalletWidgetPreference";
 import { shouldOpenHeaderWalletPopup } from "@/lib/headerWallet";
 
 function shortenAddress(address: string) {
@@ -12,6 +13,8 @@ function shortenAddress(address: string) {
 export default function ParticleAccountButton() {
   const router = useRouter();
   const { session, signOut, status } = useParticleSession();
+  const { toggleWalletWidgetVisible, walletWidgetVisible } =
+    useParticleWalletWidgetPreference();
   const { setOpen } = useModal();
 
   if (status === "loading") {
@@ -20,7 +23,11 @@ export default function ParticleAccountButton() {
 
   if (!session) {
     return (
-      <button className="secondary-button" type="button" onClick={() => router.push("/sign-in")}>
+      <button
+        className="secondary-button"
+        type="button"
+        onClick={() => router.push("/sign-in")}
+      >
         Sign in
       </button>
     );
@@ -34,12 +41,33 @@ export default function ParticleAccountButton() {
         title="Open wallet menu"
         type="button"
         onClick={() => {
-          if (shouldOpenHeaderWalletPopup({ hasSession: Boolean(session), sessionStatus: status })) {
+          if (
+            shouldOpenHeaderWalletPopup({
+              hasSession: Boolean(session),
+              sessionStatus: status,
+            })
+          ) {
             setOpen(true);
           }
         }}
       >
         {shortenAddress(session.walletAddress)}
+      </button>
+      <button
+        aria-label={
+          walletWidgetVisible
+            ? "Hide floating Particle wallet widget"
+            : "Show floating Particle wallet widget"
+        }
+        aria-pressed={walletWidgetVisible}
+        className="wallet-widget-toggle"
+        title={
+          walletWidgetVisible ? "Hide floating wallet" : "Show floating wallet"
+        }
+        type="button"
+        onClick={toggleWalletWidgetVisible}
+      >
+        Widget {walletWidgetVisible ? "On" : "Off"}
       </button>
       <button
         className="secondary-button"
