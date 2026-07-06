@@ -21,10 +21,10 @@ export function parseParticleWalletWidgetPreference(value: string | null) {
 
 const particleWalletLightStyle: NonNullable<WalletCustomStyle["light"]> = {
   colorAccent: "#74b9ff",
-  colorPrimary: "#ffd23f",
+  colorPrimary: "#fffdf5",
   colorOnPrimary: "#111111",
   primaryButtonBackgroundColors: ["#ffd23f", "#ffa552"],
-  primaryIconButtonBackgroundColors: ["#ffd23f", "#fff8e9"],
+  primaryIconButtonBackgroundColors: ["#fff8e9", "#fff1cf"],
   primaryIconTextColor: "#111111",
   primaryButtonTextColor: "#111111",
   cancelButtonBackgroundColor: "#fff8e9",
@@ -32,7 +32,7 @@ const particleWalletLightStyle: NonNullable<WalletCustomStyle["light"]> = {
     "#fffdf5",
     [
       ["#fff8e9", "#eef7ff"],
-      ["#fffdf5", "#fff8e9"],
+      ["#fffdf5", "#fff1cf"],
     ],
   ],
   messageColors: ["#111111", "#3f3f46", "#71717a"],

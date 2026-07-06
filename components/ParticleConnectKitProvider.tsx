@@ -167,6 +167,44 @@ function ParticleWalletWidgetPluginController() {
     };
   }, [walletStatus, walletWidgetVisible]);
 
+  useEffect(() => {
+    const closeOnOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      const walletContent = document.querySelector(
+        ".particle-wallet-entry-container .particle-pwe-iframe-content",
+      );
+      const walletButton = document.querySelector(
+        ".particle-wallet-entry-container .particle-pwe-btn",
+      );
+      if (
+        !walletContent?.classList.contains("particle-pwe-iframe-content-show")
+      ) {
+        return;
+      }
+      if (walletContent.contains(target) || walletButton?.contains(target)) {
+        return;
+      }
+
+      const walletEntryPlugin = (
+        window as typeof window & {
+          walletEntryPlugin?: { closeWallet?: () => void };
+        }
+      ).walletEntryPlugin;
+      walletEntryPlugin?.closeWallet?.();
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointerDown, true);
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        closeOnOutsidePointerDown,
+        true,
+      );
+    };
+  }, []);
+
   return null;
 }
 

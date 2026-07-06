@@ -438,6 +438,14 @@ textarea {
   box-shadow: var(--shadow-md) !important;
 }
 
+.particle-wallet-widget-hidden
+  .particle-wallet-entry-container
+  .particle-pwe-btn {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
 .particle-wallet-entry-container .particle-pwe-btn:hover {
   background: var(--surface-sky) !important;
 }
@@ -451,6 +459,10 @@ textarea {
 
 .particle-wallet-entry-container .particle-pwe-iframe-content-dark,
 .particle-wallet-entry-container .particle-pwe-iframe-content-light {
+  background: var(--surface-paper) !important;
+}
+
+.particle-wallet-entry-container .particle-pwe-iframe-content iframe {
   background: var(--surface-paper) !important;
 }
 

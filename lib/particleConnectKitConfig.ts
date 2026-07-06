@@ -84,7 +84,11 @@ export function applyParticleWalletWidgetVisibility(visible: boolean) {
   const walletPlugin = particleConnectKitConfig.plugins.find(
     (plugin) => plugin.id === "wallet",
   ) as WalletPlugin | undefined;
+  document.documentElement.classList.toggle(
+    "particle-wallet-widget-hidden",
+    !visible,
+  );
   walletPlugin?.overrideWalletOption(
-    createParticleWalletPluginOptions({ visible }),
+    createParticleWalletPluginOptions({ visible: true }),
   );
 }

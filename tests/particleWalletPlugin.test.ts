@@ -13,9 +13,9 @@ test("Particle wallet plugin options initialize in draggable widget mode", () =>
   assert.equal(options.visible, true);
   assert.equal(options.entryPosition, "bottom-right");
   assert.equal(options.preload, true);
-  assert.equal(options.customStyle?.light?.colorPrimary, "#ffd23f");
+  assert.equal(options.customStyle?.light?.colorPrimary, "#fffdf5");
   assert.equal(options.customStyle?.light?.colorAccent, "#74b9ff");
-  assert.equal(options.customStyle?.dark?.colorPrimary, "#ffd23f");
+  assert.equal(options.customStyle?.dark?.colorPrimary, "#fffdf5");
 });
 
 test("Particle wallet plugin options can hide the floating entry on demand", () => {
