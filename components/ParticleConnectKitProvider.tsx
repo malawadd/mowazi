@@ -20,8 +20,10 @@ import {
 } from "@particle-network/connectkit";
 import { authWalletConnectors } from "@particle-network/connectkit/auth";
 import { evmWalletConnectors } from "@particle-network/connectkit/evm";
+import { wallet } from "@particle-network/connectkit/wallet";
 import { PARTICLE_EVM_CHAINS } from "@/lib/particleEvmChains";
 import { shouldClearSessionForWalletDisconnect } from "@/lib/headerWallet";
+import { createParticleWalletPluginOptions } from "@/lib/particleWalletPlugin";
 
 // ---- Buffer polyfill (required by Particle) ----
 const globalWithBuffer = globalThis as typeof globalThis & { Buffer?: typeof Buffer };
@@ -81,6 +83,7 @@ const connectKitConfig = createConfig({
     theme: moeaziConnectTheme,
     collapseWalletList: true,
   },
+  plugins: [wallet(createParticleWalletPluginOptions())],
   walletConnectors: [
     evmWalletConnectors({
       metadata: {
