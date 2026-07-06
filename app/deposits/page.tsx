@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import StrategyShell from "@/components/StrategyShell";
-import { useParticleSession } from "@/components/ParticleAuthProvider";
+import { useParticleSession } from "@/components/ParticleConnectKitProvider";
 import ParticleFundingPanel from "@/components/ParticleFundingPanel";
 import { EmptyState, Panel, StatusBadge } from "@/components/strategy-ui";
 import { api } from "@/convex/_generated/api";

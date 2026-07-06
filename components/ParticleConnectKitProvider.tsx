@@ -10,20 +10,46 @@ import {
   type ReactNode,
 } from "react";
 import { Buffer } from "buffer";
-import { AuthCoreContextProvider } from "@particle-network/authkit";
-import { useConnect } from "@particle-network/authkit/hooks";
-import { arbitrum, mainnet, optimism } from "@particle-network/authkit/chains";
+import { ConnectKitProvider, createConfig, useDisconnect } from "@particle-network/connectkit";
+import { authWalletConnectors } from "@particle-network/connectkit/auth";
+import { evmWalletConnectors } from "@particle-network/connectkit/evm";
+import { mainnet, optimism, arbitrum } from "viem/chains";
 
+// ---- Buffer polyfill (required by Particle) ----
 const globalWithBuffer = globalThis as typeof globalThis & { Buffer?: typeof Buffer };
 if (!globalWithBuffer.Buffer) {
   globalWithBuffer.Buffer = Buffer;
 }
 
+// ---- Constants ----
 const PARTICLE_CHAINS = [mainnet, optimism, arbitrum] as const;
 const PARTICLE_PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID || "missing-particle-project-id";
 const PARTICLE_CLIENT_KEY = process.env.NEXT_PUBLIC_CLIENT_KEY || "missing-particle-client-key";
 const PARTICLE_APP_ID = process.env.NEXT_PUBLIC_APP_ID || "missing-particle-app-id";
 
+// ---- ConnectKit config (created once at module level) ----
+const connectKitConfig = createConfig({
+  projectId: PARTICLE_PROJECT_ID,
+  clientKey: PARTICLE_CLIENT_KEY,
+  appId: PARTICLE_APP_ID,
+  chains: PARTICLE_CHAINS,
+  appearance: {
+    mode: "dark",
+    collapseWalletList: true,
+  },
+  walletConnectors: [
+    evmWalletConnectors({
+      metadata: {
+        name: "Moeazi",
+        description: "Moeazi manages LINK/USDC delta-neutral strategy accounts.",
+        url: "",
+      },
+    }),
+    authWalletConnectors(),
+  ],
+});
+
+// ---- Session types (unchanged) ----
 type ParticleSession = {
   subject: string;
   walletAddress: string;
@@ -39,6 +65,7 @@ type ParticleSessionState = {
   signOut: () => Promise<void>;
 };
 
+// ---- Session context (unchanged from ParticleAuthProvider) ----
 const ParticleSessionContext = createContext<ParticleSessionState | null>(null);
 
 async function readTokenSession() {
@@ -61,7 +88,7 @@ async function readTokenSession() {
 }
 
 function ParticleSessionStateProvider({ children }: { children: ReactNode }) {
-  const { disconnect } = useConnect();
+  const { disconnect } = useDisconnect();
   const [status, setStatus] = useState<ParticleSessionState["status"]>("loading");
   const [session, setSession] = useState<ParticleSession | null>(null);
 
@@ -91,28 +118,19 @@ function ParticleSessionStateProvider({ children }: { children: ReactNode }) {
   return <ParticleSessionContext.Provider value={value}>{children}</ParticleSessionContext.Provider>;
 }
 
-/*
-export function ParticleAuthProvider({ children }: { children: ReactNode }) {
+// ---- Public API (unchanged) ----
+export function ParticleConnectKitProvider({ children }: { children: ReactNode }) {
   return (
-    <AuthCoreContextProvider
-      options={{
-        projectId: PARTICLE_PROJECT_ID,
-        clientKey: PARTICLE_CLIENT_KEY,
-        appId: PARTICLE_APP_ID,
-        chains: PARTICLE_CHAINS,
-        themeType: "dark",
-        supportEIP6963: true,
-      }}
-    >
+    <ConnectKitProvider config={connectKitConfig}>
       <ParticleSessionStateProvider>{children}</ParticleSessionStateProvider>
-    </AuthCoreContextProvider>
+    </ConnectKitProvider>
   );
 }
 
 export function useParticleSession() {
   const context = useContext(ParticleSessionContext);
   if (!context) {
-    throw new Error("useParticleSession must be used inside ParticleAuthProvider.");
+    throw new Error("useParticleSession must be used inside ParticleConnectKitProvider.");
   }
   return context;
 }
@@ -149,7 +167,6 @@ export function useParticleConvexAuth() {
       isAuthenticated: status === "authenticated",
       fetchAccessToken,
     }),
-    [fetchAccessToken, status],
+    [status, fetchAccessToken],
   );
 }
-*/

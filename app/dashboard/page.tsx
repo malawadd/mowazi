@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import StrategyShell from "@/components/StrategyShell";
-import { useParticleSession } from "@/components/ParticleAuthProvider";
+import { useParticleSession } from "@/components/ParticleConnectKitProvider";
 import { DataRow, EmptyState, MetricCard, Panel, StatusBadge } from "@/components/strategy-ui";
 import { api } from "@/convex/_generated/api";
 

@@ -7,7 +7,7 @@ import StrategyShell from "@/components/StrategyShell";
 import AccountWalletPanel from "@/components/AccountWalletPanel";
 import PaymentLinkPanel from "@/components/PaymentLinkPanel";
 import StrategyFundingTransferPanel from "@/components/StrategyFundingTransferPanel";
-import { useParticleSession } from "@/components/ParticleAuthProvider";
+import { useParticleSession } from "@/components/ParticleConnectKitProvider";
 import { EmptyState, Panel } from "@/components/strategy-ui";
 import { api } from "@/convex/_generated/api";
 

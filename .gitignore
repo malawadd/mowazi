@@ -55,3 +55,4 @@ package-lock.json
 .ignored-stuff/dev-tunnels.ps1
 /.data
 .env.local
+.vscode/mcp.json

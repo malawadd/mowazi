@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useParticleSession } from "@/components/ParticleAuthProvider";
+import { useParticleSession } from "@/components/ParticleConnectKitProvider";
 
 function shortenAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;

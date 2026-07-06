@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useConnect, useEthereum } from "@particle-network/authkit/hooks";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAccount, useModal } from "@particle-network/connectkit";
 import type { ITransaction } from "@particle-network/universal-account-sdk";
 import { useMutation } from "convex/react";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -48,8 +48,8 @@ function safeDetails(value: unknown) {
 
 export default function PublicPaymentForm({ paymentLink }: { paymentLink: PublicPaymentLink }) {
   const tokenOptions = useMemo(() => getPaymentTokenOptions(), []);
-  const { connected, connect, connectionStatus } = useConnect();
-  const { address, enable } = useEthereum();
+  const { address, isConnected, status: connectionStatus } = useAccount();
+  const { setOpen } = useModal();
   const { primaryAssets, refresh, createTransfer, signAndSend } = useUniversalAccount();
   const createIntent = useMutation(api.payments.createPaymentIntent);
   const markPreviewed = useMutation(api.payments.markPaymentIntentPreviewed);
@@ -61,6 +61,7 @@ export default function PublicPaymentForm({ paymentLink }: { paymentLink: Public
   const [preview, setPreview] = useState<ITransaction | null>(null);
   const [busy, setBusy] = useState<"connect" | "preview" | "send" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const connectTriggered = useRef(false);
 
   const selectedToken = tokenOptions.find((option) => option.id === tokenId) ?? tokenOptions[0] ?? null;
 
@@ -70,22 +71,26 @@ export default function PublicPaymentForm({ paymentLink }: { paymentLink: Public
     setMessage(null);
   };
 
-  const connectPayer = async () => {
+  // Auto-refresh after wallet connection
+  useEffect(() => {
+    if (isConnected && address && connectTriggered.current) {
+      connectTriggered.current = false;
+      setBusy(null);
+      void refresh();
+    }
+  }, [isConnected, address, refresh]);
+
+  const connectPayer = () => {
     setBusy("connect");
     setMessage(null);
-    try {
-      if (!connected) {
-        await connect();
-      }
-      if (!address) {
-        await enable();
-      }
-      await refresh();
-    } catch (nextError) {
-      setMessage(nextError instanceof Error ? nextError.message : String(nextError));
-    } finally {
-      setBusy(null);
+    if (!isConnected) {
+      connectTriggered.current = true;
+      setOpen(true);
+      return;
     }
+    // Already connected
+    setBusy(null);
+    void refresh();
   };
 
   const previewPayment = async () => {

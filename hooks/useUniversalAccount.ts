@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useEthereum } from "@particle-network/authkit/hooks";
+import { useAccount, useWallets } from "@particle-network/connectkit";
 import {
   UniversalAccount,
   UNIVERSAL_ACCOUNT_VERSION,
@@ -25,11 +25,36 @@ export type UniversalTransferInput = {
 };
 
 export function useUniversalAccount() {
-  const { address, signMessage } = useEthereum();
+  const { address } = useAccount();
+  const [primaryWallet] = useWallets();
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
   const [primaryAssets, setPrimaryAssets] = useState<IAssetsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const signMessage = useCallback(
+    async (message: string): Promise<string> => {
+      const walletClient = primaryWallet?.getWalletClient();
+      if (walletClient?.signMessage) {
+        return await walletClient.signMessage({
+          message,
+          account: address as `0x${string}`,
+        });
+      }
+      // Fallback: Particle-attached global EIP-1193 provider
+      const particleProvider = (window as Record<string, unknown>).particle as
+        | { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<string> } }
+        | undefined;
+      if (particleProvider?.ethereum) {
+        return await particleProvider.ethereum.request({
+          method: "personal_sign",
+          params: [message, address],
+        });
+      }
+      throw new Error("No wallet available for signing.");
+    },
+    [primaryWallet, address],
+  );
 
   const universalAccount = useMemo(() => {
     if (!address) return null;

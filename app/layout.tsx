@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Plus_Jakarta_Sans, Syne } from "next/font/google";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
-import { ParticleAuthProvider } from "@/components/ParticleAuthProvider";
+import { ParticleConnectKitProvider } from "@/components/ParticleConnectKitProvider";
 import "./globals.css";
 
 const syne = Syne({
@@ -38,9 +38,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${syne.variable} ${plusJakartaSans.variable} ${plexMono.variable}`}>
-        <ParticleAuthProvider>
+        <ParticleConnectKitProvider>
           <ConvexClientProvider>{children}</ConvexClientProvider>
-        </ParticleAuthProvider>
+        </ParticleConnectKitProvider>
       </body>
     </html>
   );
