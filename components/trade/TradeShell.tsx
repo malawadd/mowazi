@@ -8,7 +8,7 @@ import styles from "./trade-ui.module.css";
 export default function TradeShell({ children }: { children: ReactNode }) {
   return (
     <main className={styles.shell}>
-      <header className={styles.appbar}>
+      <header className={styles.appbar} data-route-tone="sky">
         <Link className={styles.logoLockup} href="/">
           <span className={styles.kicker}>Perp router</span>
           <strong>Moeazi</strong>
@@ -17,11 +17,8 @@ export default function TradeShell({ children }: { children: ReactNode }) {
           <Link className={styles.navPillActive} href="/trade">
             Trade
           </Link>
-          <Link className={styles.navPill} href="/profile/wallet">
-            Wallet
-          </Link>
           <Link className={styles.navPill} href="/dashboard">
-            Strategy app
+            Agentic Portal
           </Link>
         </nav>
         <ParticleAccountButton />
