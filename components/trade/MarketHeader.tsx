@@ -4,6 +4,11 @@ import { formatNumber, formatUsd } from "@/lib/trade/format";
 import type { PerpMarket, VenueSnapshot } from "@/lib/trade/types";
 import styles from "./trade-ui.module.css";
 
+function marketOptionLabel(market: PerpMarket) {
+  const price = formatNumber(market.markPrice, market.pricePrecision);
+  return `${market.id}  |  $${price}  |  ${market.maxLeverage}x`;
+}
+
 export default function MarketHeader({
   market,
   markets,
@@ -31,7 +36,7 @@ export default function MarketHeader({
         <select className={styles.marketSelect} value={market.id} onChange={(event) => onSelectMarket(event.target.value)}>
           {markets.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.id}
+              {marketOptionLabel(item)}
             </option>
           ))}
         </select>

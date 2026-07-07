@@ -271,7 +271,7 @@ export default function TradeTerminal({ initialCoin }: { initialCoin: string }) 
     <div className={styles.terminal}>
       <MarketHeader market={selectedMarket} markets={markets} snapshot={feed.snapshot} status={feed.status} onSelectMarket={(coin) => router.push(tradePathForCoin(coin))} />
       <div className={styles.terminalGrid}>
-        <MarketPanel markets={markets} selectedMarket={selectedMarket} onSelectMarket={(coin) => router.push(tradePathForCoin(coin))} />
+        {/* <MarketPanel markets={markets} selectedMarket={selectedMarket} onSelectMarket={(coin) => router.push(tradePathForCoin(coin))} /> */}
         <div className={styles.chartColumn}>
           <LiveChart candles={feed.candles} interval={interval} onIntervalChange={setInterval} onLoadMore={feed.loadMoreCandles} />
           <BestExecutionTable quote={quote} />
