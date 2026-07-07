@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { formatNumber } from "@/lib/trade/format";
 import type { PerpMarket, VenueLevel, VenueSnapshot } from "@/lib/trade/types";
 import type { LiveTrade } from "./useHyperliquidFeed";
 import styles from "./trade-ui.module.css";
+
+type Tab = "book" | "trades";
 
 export default function OrderFlowPanel({
   market,
@@ -14,42 +17,52 @@ export default function OrderFlowPanel({
   snapshot: VenueSnapshot | null;
   trades: LiveTrade[];
 }) {
+  const [active, setActive] = useState<Tab>("book");
+
   return (
     <section className={styles.flowPanel}>
-      <div className={styles.panelHeaderCompact}>
-        <div>
-          <span className={styles.kicker}>Order book</span>
-          <p>Hyperliquid live depth</p>
-        </div>
-      </div>
-      <div className={styles.bookTable}>
-        <DepthRows rows={(snapshot?.asks ?? []).slice(0, 9).reverse()} side="ask" precision={market.pricePrecision} />
-        <div className={styles.spreadRow}>
-          <strong>{formatNumber(snapshot?.midPrice, market.pricePrecision)}</strong>
-          <span>mid</span>
-        </div>
-        <DepthRows rows={(snapshot?.bids ?? []).slice(0, 9)} side="bid" precision={market.pricePrecision} />
+      <div className={styles.tabBar}>
+        <button aria-pressed={active === "book"} type="button" onClick={() => setActive("book")}>
+          Order Book
+        </button>
+        <button aria-pressed={active === "trades"} type="button" onClick={() => setActive("trades")}>
+          Trades
+        </button>
       </div>
 
-      <div className={styles.panelHeaderCompact}>
-        <div>
-          <span className={styles.kicker}>Trades</span>
-          <p>Latest prints</p>
-        </div>
-      </div>
-      <div className={styles.tradesTape}>
-        {trades.length === 0 ? (
-          <p className={styles.emptyText}>Waiting for prints...</p>
-        ) : (
-          trades.slice(-16).reverse().map((trade) => (
-            <div key={trade.id} className={styles.tradeRow}>
-              <strong className={trade.side === "buy" ? styles.bidText : styles.askText}>
-                {formatNumber(trade.price, market.pricePrecision)}
-              </strong>
-              <span>{formatNumber(trade.size, 4)}</span>
-              <time>{new Date(trade.time).toLocaleTimeString()}</time>
+      <div className={styles.tabBody}>
+        {active === "book" ? (
+          <div className={styles.bookTable}>
+            <DepthRows
+              rows={(snapshot?.asks ?? []).slice(0, 9).reverse()}
+              side="ask"
+              precision={market.pricePrecision}
+            />
+            <div className={styles.spreadRow}>
+              <strong>{formatNumber(snapshot?.midPrice, market.pricePrecision)}</strong>
+              <span>mid</span>
             </div>
-          ))
+            <DepthRows rows={(snapshot?.bids ?? []).slice(0, 9)} side="bid" precision={market.pricePrecision} />
+          </div>
+        ) : (
+          <div className={styles.tradesTape}>
+            {trades.length === 0 ? (
+              <p className={styles.emptyText}>Waiting for prints...</p>
+            ) : (
+              trades
+                .slice(-16)
+                .reverse()
+                .map((trade) => (
+                  <div key={trade.id} className={styles.tradeRow}>
+                    <strong className={trade.side === "buy" ? styles.bidText : styles.askText}>
+                      {formatNumber(trade.price, market.pricePrecision)}
+                    </strong>
+                    <span>{formatNumber(trade.size, 4)}</span>
+                    <time>{new Date(trade.time).toLocaleTimeString()}</time>
+                  </div>
+                ))
+            )}
+          </div>
         )}
       </div>
     </section>

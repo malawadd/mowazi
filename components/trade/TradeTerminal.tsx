@@ -22,7 +22,6 @@ import type { BestExecutionQuote, TradeSettings } from "@/lib/trade/types";
 import BestExecutionTable from "./BestExecutionTable";
 import LiveChart from "./LiveChart";
 import MarketHeader from "./MarketHeader";
-import MarketPanel from "./MarketPanel";
 import OrderFlowPanel from "./OrderFlowPanel";
 import TerminalTabs from "./TerminalTabs";
 import TradeTicket, { type TicketState } from "./TradeTicket";
@@ -224,23 +223,9 @@ export default function TradeTerminal() {
         }}
       />
       <div className={styles.terminalGrid}>
-        <MarketPanel
-          markets={markets}
-          selectedMarket={selectedMarket}
-          onSelectMarket={(marketId) => {
-            setSelectedMarketId(marketId);
-            setQuote(null);
-          }}
-        />
         <div className={styles.chartColumn}>
-          <LiveChart candles={feed.candles} interval={interval} onIntervalChange={setInterval} />
+          <LiveChart candles={feed.candles} interval={interval} onIntervalChange={setInterval} onLoadMore={feed.loadMoreCandles} />
           <BestExecutionTable quote={quote} />
-          <TerminalTabs
-            signedIn={Boolean(session)}
-            accountWallet={dashboard?.accountWallet ?? null}
-            settings={settings}
-            intents={dashboard?.queuedIntents ?? []}
-          />
         </div>
         <OrderFlowPanel market={selectedMarket} snapshot={feed.snapshot} trades={feed.trades} />
         <TradeTicket
@@ -258,6 +243,12 @@ export default function TradeTerminal() {
           onSaveDefaults={saveDefaults}
         />
       </div>
+      <TerminalTabs
+        signedIn={Boolean(session)}
+        accountWallet={dashboard?.accountWallet ?? null}
+        settings={settings}
+        intents={dashboard?.queuedIntents ?? []}
+      />
     </div>
   );
 }

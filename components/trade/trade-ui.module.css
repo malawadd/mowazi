@@ -8,7 +8,7 @@
 .navPill,.navPillActive { padding: 10px 12px; }
 .navPillActive,.primaryAction,.timeframeButton[aria-pressed="true"],.tabBar button[aria-pressed="true"] { background: var(--surface-yellow); }
 .terminal { display: grid; gap: 10px; }
-.terminalGrid { display: grid; grid-template-columns: minmax(208px,0.62fr) minmax(520px,1.75fr) minmax(250px,0.8fr) minmax(286px,0.9fr); gap: 10px; align-items: start; }
+.terminalGrid { display: grid; grid-template-columns: minmax(520px,2.2fr) minmax(250px,0.8fr) minmax(286px,0.9fr); gap: 10px; align-items: stretch; }
 .marketHeader { min-height: 72px; display: grid; grid-template-columns: minmax(320px,1.35fr) repeat(6,minmax(120px,1fr)); gap: 8px; padding: 8px; }
 .pairBlock,.headerMetric,.ticketStats,.routeWinner,.tableLike > div,.historyRow { border: var(--border-width) solid var(--line); background: var(--surface-paper-alt); box-shadow: var(--shadow-sm); }
 .pairBlock { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 8px; background: var(--surface-sky-tint); }

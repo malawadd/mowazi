@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   HYPERLIQUID_WS_URL,
   coinForHyperliquidMarket,
@@ -48,20 +48,58 @@ const EMPTY: FeedState = {
 export function useHyperliquidFeed(market: PerpMarket, interval: string) {
   const [state, setState] = useState<FeedState>(EMPTY);
   const snapshotRef = useRef<VenueSnapshot | null>(null);
+  const oldestRef = useRef<number | null>(null);
+  const loadingMoreRef = useRef(false);
+  const cancelledRef = useRef(false);
+  const liveCoinRef = useRef<string | null>(null);
   const coin = useMemo(() => coinForHyperliquidMarket(market.id), [market.id]);
+
+  const loadMoreCandles = useCallback(async () => {
+    const liveCoin = liveCoinRef.current;
+    if (loadingMoreRef.current || !oldestRef.current || !liveCoin || cancelledRef.current) return;
+    loadingMoreRef.current = true;
+    try {
+      const endTime = oldestRef.current;
+      const startTime = endTime - historyWindowMs(interval);
+      const candles = await postHyperliquidInfo<Array<Record<string, unknown>>>({
+        type: "candleSnapshot",
+        req: { coin: liveCoin, interval, startTime, endTime },
+      }).catch(() => []);
+      if (cancelledRef.current) return;
+      const normalized = candles.map(normalizeCandle).filter(Boolean) as TradeCandle[];
+      if (normalized.length === 0) return;
+      oldestRef.current = normalized[0].time;
+      setState((current) => {
+        const merged = [...normalized, ...current.candles];
+        const seen = new Set<number>();
+        const deduped = merged.filter((c) => {
+          if (seen.has(c.time)) return false;
+          seen.add(c.time);
+          return true;
+        });
+        deduped.sort((a, b) => a.time - b.time);
+        return { ...current, candles: deduped, status: "live", error: null, lastUpdate: Date.now() };
+      });
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  }, [interval]);
 
   useEffect(() => {
     if (!coin || !market.venues.includes("hyperliquid")) {
       snapshotRef.current = null;
+      cancelledRef.current = true;
       setState({ ...EMPTY, status: "unsupported", error: "Hyperliquid does not list this market yet." });
       return;
     }
     const liveCoin = coin;
+    liveCoinRef.current = liveCoin;
 
-    let cancelled = false;
+    cancelledRef.current = false;
     let ws: WebSocket | null = null;
 
     snapshotRef.current = null;
+    oldestRef.current = null;
     setState({ ...EMPTY, status: "connecting" });
 
     const markLive = (patch: Partial<FeedState>) => {
@@ -77,7 +115,7 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
 
     async function loadRest() {
       const endTime = Date.now();
-      const startTime = endTime - 1000 * 60 * 60 * 24;
+      const startTime = endTime - historyWindowMs(interval);
       const [snapshot, candles] = await Promise.all([
         readHyperliquidRestSnapshot(market, endTime),
         postHyperliquidInfo<Array<Record<string, unknown>>>({
@@ -85,8 +123,10 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
           req: { coin: liveCoin, interval, startTime, endTime },
         }).catch(() => []),
       ]);
-      if (!cancelled) {
-        markLive({ snapshot, candles: candles.map(normalizeCandle).filter(Boolean) as TradeCandle[] });
+      if (!cancelledRef.current) {
+        const normalized = candles.map(normalizeCandle).filter(Boolean) as TradeCandle[];
+        if (normalized.length > 0) oldestRef.current = normalized[0].time;
+        markLive({ snapshot, candles: normalized });
       }
     }
 
@@ -106,7 +146,7 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
       ws.onmessage = (event) => handleMessage(event.data);
       ws.onerror = () => setState((current) => ({ ...current, status: "offline", error: "Live feed error." }));
       ws.onclose = () => {
-        if (!cancelled) {
+        if (!cancelledRef.current) {
           setState((current) => ({ ...current, status: "offline" }));
           window.setTimeout(connect, 1800);
         }
@@ -149,13 +189,17 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
       if (channel === "candle") {
         const candle = normalizeCandle(data);
         if (candle) {
-          setState((current) => ({
-            ...current,
-            candles: upsertCandle(current.candles, candle).slice(-160),
-            status: "live",
-            error: null,
-            lastUpdate: Date.now(),
-          }));
+          setState((current) => {
+            const next = upsertCandle(current.candles, candle);
+            if (next.length > 0 && oldestRef.current === null) oldestRef.current = next[0].time;
+            return {
+              ...current,
+              candles: next,
+              status: "live",
+              error: null,
+              lastUpdate: Date.now(),
+            };
+          });
         }
       }
       if (channel === "activeAssetCtx") {
@@ -171,7 +215,7 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
     }
 
     void loadRest().catch((error) => {
-      if (!cancelled) setState((current) => ({ ...current, status: "offline", error: String(error) }));
+      if (!cancelledRef.current) setState((current) => ({ ...current, status: "offline", error: String(error) }));
     });
     connect();
     const staleTimer = window.setInterval(() => {
@@ -181,13 +225,24 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
     }, 2000);
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
       window.clearInterval(staleTimer);
       ws?.close();
     };
   }, [coin, interval, market]);
 
-  return state;
+  return { ...state, loadMoreCandles };
+}
+
+function historyWindowMs(interval: string) {
+  switch (interval) {
+    case "1m":  return 1000 * 60 * 60 * 6;       // 6 hours
+    case "5m":  return 1000 * 60 * 60 * 24;      // 1 day
+    case "15m": return 1000 * 60 * 60 * 24 * 3;  // 3 days
+    case "1h":  return 1000 * 60 * 60 * 24 * 7;  // 7 days
+    case "1d":  return 1000 * 60 * 60 * 24 * 90; // 90 days
+    default:    return 1000 * 60 * 60 * 24;
+  }
 }
 
 function mergeSnapshot(current: VenueSnapshot | null, marketId: string, patch: Partial<VenueSnapshot>) {
@@ -221,13 +276,15 @@ function normalizeCandle(value: unknown): TradeCandle | null {
   return [time, open, high, low, close].every(Number.isFinite) ? { time, open, high, low, close, volume } : null;
 }
 
+let _tradeSeq = 0;
 function normalizeTrade(value: unknown): LiveTrade | null {
   const row = asRecord(value);
   const price = Number(row.px ?? row.price);
   const size = Number(row.sz ?? row.size);
   const time = Number(row.time ?? Date.now());
   if (!Number.isFinite(price) || !Number.isFinite(size)) return null;
-  return { id: `${time}-${price}-${size}`, price, size, side: row.side === "A" ? "sell" : "buy", time };
+  _tradeSeq += 1;
+  return { id: `${time}-${price}-${size}-${_tradeSeq}`, price, size, side: row.side === "A" ? "sell" : "buy", time };
 }
 
 function upsertCandle(rows: TradeCandle[], next: TradeCandle) {

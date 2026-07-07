@@ -17,20 +17,26 @@ export default function LiveChart({
   candles,
   interval,
   onIntervalChange,
+  onLoadMore,
 }: {
   candles: TradeCandle[];
   interval: string;
   onIntervalChange: (interval: string) => void;
+  onLoadMore?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const candlesRef = useRef(candles);
+  candlesRef.current = candles;
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const chart = createChart(container, {
-      autoSize: true,
+      width: container.clientWidth,
+      height: container.clientHeight,
       layout: { background: { color: "#fffdf5" }, textColor: "#111111", fontFamily: "IBM Plex Mono" },
       grid: { vertLines: { color: "#efe5c9" }, horzLines: { color: "#efe5c9" } },
       rightPriceScale: { borderColor: "#111111" },
@@ -50,8 +56,36 @@ export default function LiveChart({
       priceScaleId: "",
       color: "#74b9ff",
     });
+    chartRef.current = chart;
     chart.priceScale("").applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
-    return () => chart.remove();
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) chart.resize(width, height);
+      }
+    });
+    observer.observe(container);
+
+    if (onLoadMore) {
+      chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+        if (!range) return;
+        const current = candlesRef.current;
+        if (current.length === 0) return;
+        const oldestVisible = (range.from as number) * 1000;
+        const oldestLoaded = current[0].time;
+        const visibleSpan = (range.to as number) - (range.from as number);
+        if (oldestVisible - oldestLoaded < visibleSpan * 0.2) {
+          onLoadMore();
+        }
+      });
+    }
+
+    return () => {
+      observer.disconnect();
+      chart.remove();
+      chartRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
