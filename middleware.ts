@@ -3,6 +3,7 @@ import { PARTICLE_SESSION_COOKIE } from "@/lib/particleAuthConstants";
 
 const protectedRoutePrefixes = [
   "/dashboard(.*)",
+  "/trade(.*)",
   "/deposits(.*)",
   "/withdrawals(.*)",
   "/positions(.*)",

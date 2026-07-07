@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import ParticleAccountButton from "@/components/ParticleAccountButton";
 
 const navItems = [
+  { href: "/trade", label: "Trade" },
   { href: "/dashboard", label: "Overview" },
   { href: "/profile/wallet", label: "Wallet" },
   { href: "/deposits", label: "Deposits" },

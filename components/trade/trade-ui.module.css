@@ -1,0 +1,352 @@
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+  padding: 20px;
+  background: var(--bg);
+}
+
+.sidebar,
+.topbar,
+.panel,
+.ticket,
+.tableWrap {
+  border: var(--border-width-lg) solid var(--line);
+  background: var(--surface-paper);
+  box-shadow: var(--shadow-lg);
+}
+
+.sidebar {
+  min-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  background: var(--surface-mint);
+  container-type: inline-size;
+  overflow: hidden;
+}
+
+.brand {
+  min-width: 0;
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+}
+
+.brandTitle {
+  margin-top: 12px;
+  display: block;
+  max-inline-size: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: var(--font-syne), sans-serif;
+  font-size: clamp(1.9rem, 15.5cqi, 3.1rem);
+  font-weight: 800;
+  line-height: 0.85;
+  letter-spacing: -0.05em;
+}
+
+.nav,
+.stack,
+.ticketForm,
+.marketList,
+.intentList {
+  display: grid;
+  gap: 12px;
+}
+
+.navItem,
+.marketButton,
+.sideButton,
+.tinyButton {
+  border: var(--border-width) solid var(--line);
+  background: var(--surface-cream);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--font-plex-mono), monospace;
+  font-weight: 800;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-sm);
+}
+
+.navItem {
+  padding: 12px 14px;
+  background: var(--surface-cream);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  box-shadow: var(--shadow-md);
+}
+
+.activeNav,
+.marketButton[aria-pressed="true"],
+.sideButton[aria-pressed="true"] {
+  background: var(--surface-pink);
+  color: white;
+}
+
+.sidebarNote {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: var(--border-width) solid var(--line);
+  color: var(--muted);
+}
+
+.main {
+  min-width: 0;
+  display: grid;
+  gap: 20px;
+}
+
+.topbar {
+  min-height: 150px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 22px 24px 20px;
+  overflow: hidden;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: clamp(240px, 32vw, 420px);
+  background: var(--surface-sky);
+  border-right: var(--border-width-lg) solid var(--line);
+}
+
+.topbar > * {
+  position: relative;
+  z-index: 1;
+}
+
+.title {
+  margin-top: 10px;
+  max-width: 14ch;
+  font-family: var(--font-syne), sans-serif;
+  font-size: clamp(2.15rem, 4.2vw, 4rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.75fr) minmax(420px, 1.7fr) minmax(300px, 0.95fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.middle {
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.panel,
+.ticket,
+.tableWrap {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: var(--border-width-lg) solid var(--line);
+  background: var(--surface-yellow);
+}
+
+.panelBody {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.kicker,
+.metricLabel {
+  display: inline-flex;
+  width: fit-content;
+  padding: 5px 8px;
+  border: var(--border-width) solid var(--line);
+  background: var(--surface-paper);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.marketButton {
+  width: 100%;
+  padding: 11px;
+  text-align: left;
+  text-transform: none;
+}
+
+.marketButton span,
+.muted,
+.cellMuted {
+  color: var(--muted);
+}
+
+.chart {
+  height: 260px;
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  padding: 12px;
+  border: var(--border-width) solid var(--line);
+  background: var(--surface-sky-tint);
+  box-shadow: var(--shadow-sm);
+}
+
+.bar {
+  flex: 1;
+  min-width: 4px;
+  border: 2px solid var(--line);
+  background: var(--surface-mint);
+}
+
+.barDown {
+  background: var(--surface-rose);
+}
+
+.bookGrid,
+.metricsGrid,
+.sideGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bookRow,
+.metric,
+.intentCard {
+  border: var(--border-width) solid var(--line);
+  background: var(--surface-paper-alt);
+  padding: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.bookRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.82rem;
+}
+
+.ticket {
+  position: sticky;
+  top: 18px;
+}
+
+.input,
+.select {
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 12px;
+  border: var(--border-width) solid var(--line);
+  background: var(--surface-paper);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.sideButton,
+.tinyButton {
+  min-height: 42px;
+  padding: 9px 10px;
+}
+
+.tinyButton {
+  background: var(--surface-paper);
+  font-size: 0.75rem;
+}
+
+.costTable {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.costTable th,
+.costTable td {
+  padding: 10px;
+  border-bottom: var(--border-width) solid var(--line);
+  text-align: left;
+}
+
+.costTable th {
+  background: var(--surface-cream);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.status {
+  display: inline-flex;
+  padding: 5px 8px;
+  border: var(--border-width) solid var(--line);
+  background: var(--surface-paper);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.positive {
+  background: var(--surface-mint);
+}
+
+.warning {
+  background: var(--surface-orange);
+}
+
+.danger {
+  background: var(--surface-rose);
+}
+
+@media (max-width: 1180px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket {
+    position: static;
+  }
+}
+
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .sidebar {
+    min-height: auto;
+  }
+}

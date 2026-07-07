@@ -171,6 +171,64 @@ export default defineSchema({
     .index("by_strategyAccountId", ["strategyAccountId"])
     .index("by_ownerAddress", ["ownerAddress"]),
 
+  tradeSettings: defineTable({
+    userId: v.id("users"),
+    defaultMarketId: v.string(),
+    defaultLeverage: v.number(),
+    defaultMarginUsd: v.number(),
+    slippageCapBps: v.number(),
+    expectedHoldHours: v.optional(v.number()),
+    requireConfirmation: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_userId", ["userId"]),
+
+  tradeIntents: defineTable({
+    userId: v.id("users"),
+    accountWalletId: v.optional(v.id("accountWallets")),
+    marketId: v.string(),
+    side: v.union(v.literal("long"), v.literal("short")),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("cancelled"),
+      v.literal("executing"),
+      v.literal("failed"),
+      v.literal("filled"),
+    ),
+    marginUsd: v.number(),
+    leverage: v.number(),
+    notionalUsd: v.number(),
+    slippageCapBps: v.number(),
+    expectedHoldHours: v.optional(v.number()),
+    selectedVenue: v.optional(
+      v.union(
+        v.literal("hyperliquid"),
+        v.literal("lighter"),
+        v.literal("orderly"),
+        v.literal("gmx"),
+        v.literal("ostium"),
+      ),
+    ),
+    benchmarkVenue: v.optional(
+      v.union(
+        v.literal("hyperliquid"),
+        v.literal("lighter"),
+        v.literal("orderly"),
+        v.literal("gmx"),
+        v.literal("ostium"),
+      ),
+    ),
+    quoteJson: v.string(),
+    quoteCreatedAt: v.number(),
+    queuedAt: v.number(),
+    cancelledAt: v.optional(v.number()),
+    cancelReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_status", ["userId", "status"]),
+
   paymentLinks: defineTable({
     userId: v.id("users"),
     strategyAccountId: v.optional(v.id("strategyAccounts")),
