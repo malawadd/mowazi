@@ -100,7 +100,7 @@ export function useHyperliquidFeed(market: PerpMarket | null, interval: string) 
 
     snapshotRef.current = null;
     oldestRef.current = null;
-    setState({ ...EMPTY, status: "connecting" });
+    setState((current) => ({ ...current, status: "connecting", error: null }));
 
     const markLive = (patch: Partial<FeedState>) => {
       if (genRef.current !== gen) return;

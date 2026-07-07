@@ -269,7 +269,7 @@ export default function TradeTerminal({ initialCoin }: { initialCoin: string }) 
 
   return (
     <div className={styles.terminal}>
-      <MarketHeader market={selectedMarket} markets={markets} snapshot={feed.snapshot} status={feed.status} onSelectMarket={(coin) => router.push(tradePathForCoin(coin))} />
+      <MarketHeader market={selectedMarket} markets={markets} snapshot={feed.snapshot} status={feed.status} onSelectMarket={(coin) => { setSelectedCoin(canonicalHyperliquidCoin(coin)); window.history.replaceState(null, "", tradePathForCoin(coin)); }} />
       <div className={styles.terminalGrid}>
         {/* <MarketPanel markets={markets} selectedMarket={selectedMarket} onSelectMarket={(coin) => router.push(tradePathForCoin(coin))} /> */}
         <div className={styles.chartColumn}>

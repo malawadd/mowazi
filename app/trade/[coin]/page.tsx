@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import TradeShell from "@/components/trade/TradeShell";
 import TradeTerminal from "@/components/trade/TradeTerminal";
 import {
   canonicalHyperliquidCoin,
@@ -14,9 +13,5 @@ export default async function TradeCoinPage({
 }) {
   const { coin } = await params;
   if (!isCanonicalTradePathCoin(coin)) redirect(tradePathForCoin(coin));
-  return (
-    <TradeShell>
-      <TradeTerminal initialCoin={canonicalHyperliquidCoin(coin)} />
-    </TradeShell>
-  );
+  return <TradeTerminal initialCoin={canonicalHyperliquidCoin(coin)} />;
 }
