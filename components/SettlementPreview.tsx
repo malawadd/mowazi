@@ -13,19 +13,31 @@ function formatUsd(value: number | null | undefined) {
 
 type Props = {
   preview: SettlementPreview;
-  sourceSymbol: string;
-  sourceAmount: string;
+  sourceAmount?: string;
+  sourceLabel?: string;
+  sourceSymbol?: string;
+  sourceValue?: string;
 };
 
-export default function SettlementPreviewPanel({ preview, sourceSymbol, sourceAmount }: Props) {
+export default function SettlementPreviewPanel({
+  preview,
+  sourceAmount,
+  sourceLabel = "Source",
+  sourceSymbol,
+  sourceValue,
+}: Props) {
   const settlementLabel = `${preview.settlement.symbol} on Arbitrum`;
   const usdFormatted = formatUsd(preview.sourceAmountUsd);
+  const fallbackSource =
+    sourceAmount && sourceSymbol
+      ? `${sourceAmount} ${sourceSymbol}${usdFormatted ? ` (${usdFormatted})` : ""}`
+      : "Payment account funds";
 
   return (
     <div className="settlement-preview stack-list" style={{ marginTop: 8 }}>
       <DataRow
-        label="Source"
-        value={`${sourceAmount} ${sourceSymbol}${usdFormatted ? ` (${usdFormatted})` : ""}`}
+        label={sourceLabel}
+        value={sourceValue ?? fallbackSource}
       />
       <DataRow
         label="Settlement"

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import ConnectedWalletDepositPanel from "@/components/ConnectedWalletDepositPanel";
 import UniversalAccountTransferPanel from "@/components/UniversalAccountTransferPanel";
 import { DataRow, Panel, StatusBadge } from "@/components/strategy-ui";
+import { getPublicRecipientName } from "@/lib/payReadiness";
 
 type PublicPaymentLink = {
   slug: string;
@@ -23,6 +24,7 @@ export default function PublicPaymentForm({ paymentLink }: { paymentLink: Public
     paymentLink.eoaDirectAllowed ??
     paymentLink.depositPolicy !== "ua_settlement_only";
   const [mode, setMode] = useState<PaymentMode>("payer_ua");
+  const recipientLabel = getPublicRecipientName(paymentLink.recipientName, paymentLink.strategyLabel);
 
   useEffect(() => {
     if (!directAllowed && mode === "eoa_direct") setMode("payer_ua");
@@ -30,7 +32,7 @@ export default function PublicPaymentForm({ paymentLink }: { paymentLink: Public
 
   return (
     <div className="stack-list">
-      <Panel title="Deposit to account" description={`Recipient: ${paymentLink.recipientName}`} tone="paper">
+      <Panel title="Deposit to account" description={`Recipient: ${recipientLabel}`} tone="paper">
         <div className="stack-list">
           <div className="two-column-grid">
             <DataRow label="Account" value={paymentLink.strategyLabel} />
@@ -47,7 +49,7 @@ export default function PublicPaymentForm({ paymentLink }: { paymentLink: Public
               value={<StatusBadge tone="positive">Arbitrum USDC</StatusBadge>}
             />
             <DataRow
-              label="Direct EOA"
+              label="Direct wallet deposits"
               value={
                 <StatusBadge tone={directAllowed ? "warning" : "info"}>
                   {directAllowed ? "allowed" : "off"}
@@ -79,13 +81,18 @@ export default function PublicPaymentForm({ paymentLink }: { paymentLink: Public
       {mode === "eoa_direct" ? (
         <ConnectedWalletDepositPanel
           receiverAddress={paymentLink.evmUaAddress}
-          recipientLabel={paymentLink.recipientName}
+          recipientLabel={recipientLabel}
           paymentLinkSlug={paymentLink.slug}
           title="Direct EOA deposit"
           description="Plain transfer into the receiver Universal Account; no automatic USDC settlement."
         />
       ) : (
-        <UniversalAccountTransferPanel paymentLink={paymentLink} />
+        <UniversalAccountTransferPanel
+          directAllowed={directAllowed}
+          onUseDirectDeposit={() => setMode("eoa_direct")}
+          paymentLink={paymentLink}
+          recipientLabel={recipientLabel}
+        />
       )}
     </div>
   );

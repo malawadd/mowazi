@@ -7,14 +7,22 @@ import { useMutation } from "convex/react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
 import { useUniversalAccount } from "@/hooks/useUniversalAccount";
+import { getReceiverForPaymentToken, getSettlementTarget } from "@/lib/particlePaymentTokens";
+import type { SettlementPreview } from "@/lib/particleSettlement";
+import { getPaymentAccountAssetOptions, getPaymentAccountBreakdown } from "@/lib/paymentAccountAssets";
 import {
-  getPaymentTokenOptions,
-  getReceiverForPaymentToken,
-  getSettlementTarget,
-} from "@/lib/particlePaymentTokens";
-import { estimateSettlement, type SettlementPreview } from "@/lib/particleSettlement";
+  buildPaymentSettlementPreview,
+  canCoverSettlementAmount,
+  formatMaxSettlementAmount,
+  safeJsonDetails,
+} from "@/lib/paymentSettlementPreview";
+import { friendlyPaymentError, getPayReadiness } from "@/lib/payReadiness";
 import SettlementPreviewPanel from "@/components/SettlementPreview";
-import { DataRow, Panel, StatusBadge } from "@/components/strategy-ui";
+import { Panel } from "@/components/strategy-ui";
+import PaymentAccountFundingPanel from "@/components/PaymentAccountFundingPanel";
+import PaymentReadinessGate from "@/components/PaymentReadinessGate";
+import PaymentSettlementForm from "@/components/PaymentSettlementForm";
+import PaymentStatusGrid from "@/components/PaymentStatusGrid";
 
 type PublicPaymentLink = {
   slug: string;
@@ -25,28 +33,22 @@ type PublicPaymentLink = {
   walletReady: boolean;
 };
 
-function formatUsd(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "N/A";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  }).format(value);
-}
+type Props = {
+  paymentLink: PublicPaymentLink;
+  directAllowed: boolean;
+  recipientLabel: string;
+  onUseDirectDeposit: () => void;
+};
 
-function safeDetails(value: unknown) {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
-}
-
-export default function UniversalAccountTransferPanel({ paymentLink }: { paymentLink: PublicPaymentLink }) {
-  const tokenOptions = useMemo(() => getPaymentTokenOptions(), []);
+export default function UniversalAccountTransferPanel({
+  directAllowed,
+  onUseDirectDeposit,
+  paymentLink,
+  recipientLabel,
+}: Props) {
   const { address, isConnected, status: connectionStatus } = useAccount();
   const { setOpen } = useModal();
-  const { primaryAssets, eip7702Status, refresh, createSettledTransfer, signAndSend } =
+  const { accountInfo, primaryAssets, eip7702Status, refresh, createSettledTransfer, signAndSend } =
     useUniversalAccount("eip7702-if-supported");
   const createIntent = useMutation(api.payments.createPaymentIntent);
   const markPreviewed = useMutation(api.payments.markPaymentIntentPreviewed);
@@ -59,9 +61,22 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
   const [settlementPreview, setSettlementPreview] = useState<SettlementPreview | null>(null);
   const [busy, setBusy] = useState<"connect" | "preview" | "send" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [fundingTarget, setFundingTarget] = useState<string | null>(null);
+  const [fundingOwner, setFundingOwner] = useState<string | null>(null);
   const connectTriggered = useRef(false);
 
-  const selectedToken = tokenOptions.find((option) => option.id === tokenId) ?? tokenOptions[0] ?? null;
+  const tokenOptions = useMemo(() => getPaymentAccountAssetOptions(primaryAssets), [primaryAssets]);
+  const fundedTokenOptions = useMemo(() => tokenOptions.filter((option) => option.hasBalance), [tokenOptions]);
+  const balanceBreakdown = useMemo(() => getPaymentAccountBreakdown(primaryAssets), [primaryAssets]);
+  const selectedToken = tokenOptions.find((option) => option.id === tokenId) ?? fundedTokenOptions[0] ?? null;
+  const paymentAccountAddress = accountInfo?.evmSmartAccount || null;
+  const readiness = getPayReadiness({
+    isConnected,
+    walletReady: paymentLink.walletReady,
+    paymentAccountBalanceUsd: primaryAssets?.totalAmountInUSD,
+    canPayInPlace: eip7702Status.enabled,
+    directAllowed,
+  });
 
   const resetPreview = () => {
     setIntentId(null);
@@ -69,6 +84,11 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
     setSettlementPreview(null);
     setMessage(null);
   };
+
+  useEffect(() => {
+    if (selectedToken?.id === tokenId) return;
+    setTokenId(fundedTokenOptions[0]?.id ?? "");
+  }, [fundedTokenOptions, selectedToken?.id, tokenId]);
 
   useEffect(() => {
     if (isConnected && address && connectTriggered.current) {
@@ -90,6 +110,16 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
     void refresh();
   };
 
+  const startFunding = () => {
+    if (!paymentAccountAddress) {
+      setOpen(true);
+      return;
+    }
+    setFundingTarget(paymentAccountAddress);
+    setFundingOwner(address ?? null);
+    setMessage(null);
+  };
+
   const previewPayment = async () => {
     if (!selectedToken || !address) return;
     let workingIntentId = intentId;
@@ -99,16 +129,17 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
     try {
       const settlement = getSettlementTarget();
       const receiverInfo = getReceiverForPaymentToken(settlement, paymentLink);
-
-      const est = estimateSettlement(
-        selectedToken.token.chainId,
-        selectedToken.token.symbol,
-        amount,
-        primaryAssets,
-      );
-      if (Number(est.estimatedSettlementAmount) <= 0) {
-        throw new Error("Could not estimate an Arbitrum USDC settlement amount from this source asset.");
+      const amountNumber = Number(amount);
+      if (!selectedToken.hasBalance) {
+        throw new Error("No supported funds were found in this payment account yet.");
       }
+      if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+        throw new Error("Enter a USDC amount greater than zero.");
+      }
+      if (!canCoverSettlementAmount(selectedToken, amountNumber)) {
+        throw new Error("The selected payment account balance is too small for this USDC amount.");
+      }
+      const est = buildPaymentSettlementPreview(selectedToken, settlement, amount, amountNumber);
       setSettlementPreview(est);
 
       if (!workingIntentId) {
@@ -127,7 +158,7 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
           settlementChainId: settlement.chainId,
           settlementTokenAddress: settlement.address,
           settlementTokenSymbol: settlement.symbol,
-          settlementAmount: est.estimatedSettlementAmount,
+          settlementAmount: amount,
           amount: amount,
         });
         if (!intent) throw new Error("Could not create a payment intent.");
@@ -136,7 +167,7 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
       setIntentId(workingIntentId);
 
       const transaction: ITransaction = await createSettledTransfer({
-        amount: est.estimatedSettlementAmount,
+        amount,
         receiver: receiverInfo.receiver,
       });
 
@@ -145,10 +176,10 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
       await markPreviewed({
         paymentIntentId: workingIntentId,
         particleTransactionId: transactionDetails.transactionId,
-        detailsJson: safeDetails({
+        detailsJson: safeJsonDetails({
           flow: "payer_ua",
           settled: true,
-          sourceToken: selectedToken.token,
+          sourceBalance: selectedToken,
           targetToken: settlement,
           receiver: receiverInfo.receiver,
           settlementPreview: est,
@@ -158,7 +189,7 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
       });
       setMessage("Payment preview is ready.");
     } catch (nextError) {
-      const errorMessage = nextError instanceof Error ? nextError.message : String(nextError);
+      const errorMessage = friendlyPaymentError(nextError);
       if (workingIntentId) {
         await markFailed({ paymentIntentId: workingIntentId, errorMessage }).catch(() => undefined);
       }
@@ -177,12 +208,12 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
       await markSubmitted({
         paymentIntentId: intentId,
         particleTransactionId: result?.transactionId ?? preview.transactionId,
-        detailsJson: safeDetails(result),
+        detailsJson: safeJsonDetails(result),
       });
       await refresh();
       setMessage(`Payment submitted. UniversalX activity ID: ${result?.transactionId ?? preview.transactionId}`);
     } catch (nextError) {
-      const errorMessage = nextError instanceof Error ? nextError.message : String(nextError);
+      const errorMessage = friendlyPaymentError(nextError);
       await markFailed({ paymentIntentId: intentId, errorMessage }).catch(() => undefined);
       setMessage(errorMessage);
     } finally {
@@ -191,102 +222,84 @@ export default function UniversalAccountTransferPanel({ paymentLink }: { payment
   };
 
   const amountNumber = Number(amount);
-  const canPreview = Boolean(address && selectedToken && Number.isFinite(amountNumber) && amountNumber > 0);
+  const canPreview = Boolean(
+    readiness.canUseUaSettlement &&
+      address &&
+      selectedToken?.hasBalance &&
+      Number.isFinite(amountNumber) &&
+      canCoverSettlementAmount(selectedToken, amountNumber),
+  );
+
+  const setMaxAmount = () => {
+    if (!selectedToken?.hasBalance) return;
+    setAmount(formatMaxSettlementAmount(selectedToken.amountUsd));
+    resetPreview();
+  };
 
   return (
-    <Panel title="Settle to Arbitrum USDC" description={`Recipient: ${paymentLink.recipientName}`} tone="sky">
+    <Panel title="Settle to Arbitrum USDC" description={`Recipient: ${recipientLabel}`} tone="sky">
       <div className="stack-list">
-        <div className="two-column-grid">
-          <DataRow label="Payer status" value={address ? address : connectionStatus} />
-          <DataRow label="Payer unified balance" value={formatUsd(primaryAssets?.totalAmountInUSD)} />
-          <DataRow
-            label="Recipient wallet"
-            value={
-              <StatusBadge tone={paymentLink.walletReady ? "positive" : "danger"}>
-                {paymentLink.walletReady ? "ready" : "not ready"}
-              </StatusBadge>
-            }
-          />
-          <DataRow
-            label="Mode"
-            value={<StatusBadge tone="positive">UA → Arb USDC</StatusBadge>}
-          />
-          <DataRow
-            label="Account mode"
-            value={
-              <StatusBadge tone={eip7702Status.enabled ? "positive" : "info"}>
-                {eip7702Status.enabled ? "EIP-7702" : "Smart Account"}
-              </StatusBadge>
-            }
-          />
-        </div>
+        <PaymentStatusGrid
+          address={address}
+          balanceBreakdown={balanceBreakdown}
+          connectionStatus={connectionStatus}
+          directAllowed={directAllowed}
+          paymentAccountAddress={paymentAccountAddress}
+          paymentFundsUsd={primaryAssets?.totalAmountInUSD}
+          readiness={readiness}
+          walletReady={paymentLink.walletReady}
+        />
 
-        {!eip7702Status.enabled ? (
-          <p className="muted-copy">
-            Smart Account mode is active. JSON-RPC wallets must fund the payer Universal Account before settlement.
-          </p>
+        {readiness.canUseUaSettlement ? (
+          <PaymentSettlementForm
+            address={address}
+            amount={amount}
+            busy={busy}
+            canPreview={canPreview}
+            hasPreview={Boolean(preview && intentId)}
+            selectedTokenId={selectedToken?.id ?? ""}
+            tokenOptions={tokenOptions}
+            walletReady={paymentLink.walletReady}
+            onAmountChange={(value) => {
+              setAmount(value);
+              resetPreview();
+            }}
+            onMaxAmount={setMaxAmount}
+            onPreview={previewPayment}
+            onRefresh={connectPayer}
+            onSend={sendPayment}
+            onTokenChange={(value) => {
+              setTokenId(value);
+              resetPreview();
+            }}
+          />
+        ) : (
+          <PaymentReadinessGate
+            address={address}
+            busy={busy !== null}
+            directAllowed={directAllowed}
+            readiness={readiness}
+            onChangeWallet={() => setOpen(true)}
+            onRefresh={connectPayer}
+            onStartFunding={startFunding}
+            onUseDirectDeposit={onUseDirectDeposit}
+          />
+        )}
+
+        {fundingTarget ? (
+          <PaymentAccountFundingPanel
+            currentAddress={address}
+            originalAddress={fundingOwner}
+            receiverAddress={fundingTarget}
+            onSubmitted={() => void refresh()}
+          />
         ) : null}
-
-        <div className="settings-grid">
-          <label className="field-label">
-            Asset
-            <select
-              className="field-input"
-              value={selectedToken?.id ?? ""}
-              onChange={(event) => {
-                setTokenId(event.target.value);
-                resetPreview();
-              }}
-            >
-              {tokenOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field-label">
-            Amount
-            <input
-              className="field-input"
-              value={amount}
-              onChange={(event) => {
-                setAmount(event.target.value);
-                resetPreview();
-              }}
-              placeholder="0.00"
-              inputMode="decimal"
-            />
-          </label>
-        </div>
-
-        <div className="inline-actions">
-          <button className="secondary-button" type="button" disabled={busy !== null} onClick={connectPayer}>
-            {busy === "connect" ? "Connecting..." : address ? "Refresh payer UA" : "Connect wallet"}
-          </button>
-          <button
-            className="primary-button"
-            type="button"
-            disabled={!paymentLink.walletReady || !canPreview || busy !== null}
-            onClick={previewPayment}
-          >
-            {busy === "preview" ? "Previewing..." : "Preview payment"}
-          </button>
-          <button
-            className="primary-button"
-            type="button"
-            disabled={!preview || !intentId || busy !== null}
-            onClick={sendPayment}
-          >
-            {busy === "send" ? "Sending..." : "Send payment"}
-          </button>
-        </div>
 
         {settlementPreview && selectedToken ? (
           <SettlementPreviewPanel
             preview={settlementPreview}
-            sourceAmount={amount}
-            sourceSymbol={selectedToken.token.symbol}
+            sourceLabel="Selected payment balance"
+            sourceValue={`${selectedToken.label} · ${selectedToken.formattedAmount} · ${selectedToken.formattedUsd}`}
           />
         ) : null}
 

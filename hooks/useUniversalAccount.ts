@@ -17,6 +17,7 @@ import {
   type UniversalAccountMode,
 } from "@/lib/eip7702";
 import { buildArbitrumUsdcSettlementTransaction } from "@/lib/universalAccountSettlement";
+import { signUniversalAccountRootHash } from "@/lib/universalAccountSigning";
 
 type AccountInfo = {
   ownerAddress: string;
@@ -97,30 +98,6 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
   const walletClient = useMemo(() => primaryWallet?.getWalletClient(), [primaryWallet]);
   const eip7702Capability = useMemo(() => detectEip7702Capability(walletClient), [walletClient]);
   const useEIP7702 = mode === "eip7702-if-supported" && eip7702Capability.supported;
-
-  const signMessage = useCallback(
-    async (message: string): Promise<string> => {
-      const walletClient = primaryWallet?.getWalletClient();
-      if (walletClient?.signMessage) {
-        return await walletClient.signMessage({
-          message,
-          account: address as `0x${string}`,
-        });
-      }
-      // Fallback: Particle-attached global EIP-1193 provider
-      const particleProvider = (window as unknown as Record<string, unknown>).particle as
-        | { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<string> } }
-        | undefined;
-      if (particleProvider?.ethereum) {
-        return await particleProvider.ethereum.request({
-          method: "personal_sign",
-          params: [message, address],
-        });
-      }
-      throw new Error("No wallet available for signing.");
-    },
-    [primaryWallet, address],
-  );
 
   const universalAccount = useMemo(() => {
     if (!address) return null;
@@ -204,7 +181,15 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
       if (!universalAccount) {
         throw new Error("Universal Account is not ready.");
       }
-      const signature = await signMessage(transaction.rootHash);
+      const particleProvider = (window as unknown as Record<string, unknown>).particle as
+        | { ethereum?: { request: (args: { method: "personal_sign"; params: unknown[] }) => Promise<string> } }
+        | undefined;
+      const signature = await signUniversalAccountRootHash({
+        account: address,
+        rootHash: transaction.rootHash,
+        walletClient,
+        personalSignProvider: particleProvider?.ethereum,
+      });
       const authorizations: EIP7702Authorization[] = [];
       const nonceMap = new Map<string, string>();
       if (useEIP7702) {
@@ -237,7 +222,7 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
         authorizations.length > 0 ? authorizations : undefined,
       );
     },
-    [signMessage, universalAccount, useEIP7702, walletClient],
+    [address, universalAccount, useEIP7702, walletClient],
   );
 
   return {

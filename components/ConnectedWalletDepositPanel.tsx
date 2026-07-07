@@ -17,6 +17,8 @@ type Props = {
   paymentLinkSlug?: string;
   title?: string;
   description?: string;
+  modeLabel?: string;
+  submittedMessage?: string;
   onSubmitted?: () => Promise<void> | void;
 };
 
@@ -45,6 +47,8 @@ export default function ConnectedWalletDepositPanel({
   paymentLinkSlug,
   title = "From connected wallet",
   description = "Deposit supported Particle primary assets directly from an EOA wallet.",
+  modeLabel = "EOA direct",
+  submittedMessage,
   onSubmitted,
 }: Props) {
   const {
@@ -165,7 +169,7 @@ export default function ConnectedWalletDepositPanel({
         });
       }
       await onSubmitted?.();
-      setMessage(`Transfer submitted: ${shortAddress(txHash)}`);
+      setMessage(submittedMessage ?? `Transfer submitted: ${shortAddress(txHash)}`);
     } catch (nextError) {
       const errorMessage = nextError instanceof Error ? nextError.message : String(nextError);
       if (intentId) {
@@ -197,7 +201,7 @@ export default function ConnectedWalletDepositPanel({
             label="Supported balances"
             value={`${depositableBalances.length} detected / ${scannedCount || balances.length} scanned`}
           />
-          <DataRow label="Mode" value={<StatusBadge tone="info">EOA direct</StatusBadge>} />
+          <DataRow label="Mode" value={<StatusBadge tone="info">{modeLabel}</StatusBadge>} />
         </div>
 
         {!isConnected ? (

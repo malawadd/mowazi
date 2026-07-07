@@ -20,6 +20,13 @@ import {
 } from "../lib/particlePaymentTokens";
 import { detectEip7702Capability, getEip7702Status } from "../lib/eip7702";
 import { buildArbitrumUsdcSettlementTransaction } from "../lib/universalAccountSettlement";
+import { getPaymentAccountAssetOptions } from "../lib/paymentAccountAssets";
+import { signUniversalAccountRootHash } from "../lib/universalAccountSigning";
+import {
+  friendlyPaymentError,
+  getPayReadiness,
+  getPublicRecipientName,
+} from "../lib/payReadiness";
 
 const OPTIMISM_MAINNET = 10;
 const SOLANA_MAINNET = 101;
@@ -68,6 +75,62 @@ test("payment intent transitions stop final states from changing", () => {
   assert.equal(
     canTransitionPaymentIntent(PAYMENT_INTENT_STATUS.failed, PAYMENT_INTENT_STATUS.submitted),
     false,
+  );
+});
+
+test("pay readiness blocks UA-only connected wallets with empty payment accounts", () => {
+  const readiness = getPayReadiness({
+    isConnected: true,
+    walletReady: true,
+    paymentAccountBalanceUsd: 0,
+    canPayInPlace: false,
+    directAllowed: false,
+  });
+
+  assert.equal(readiness.status, "needs_payment_account_funds");
+  assert.equal(readiness.canUseUaSettlement, false);
+  assert.equal(readiness.recommendedFallback, "fund_payment_account");
+});
+
+test("pay readiness allows funded payment accounts", () => {
+  const readiness = getPayReadiness({
+    isConnected: true,
+    walletReady: true,
+    paymentAccountBalanceUsd: 12.5,
+    canPayInPlace: false,
+    directAllowed: false,
+  });
+
+  assert.equal(readiness.status, "ready_to_pay");
+  assert.equal(readiness.canUseUaSettlement, true);
+});
+
+test("pay readiness recommends direct deposit when recipient allows it", () => {
+  const readiness = getPayReadiness({
+    isConnected: true,
+    walletReady: true,
+    paymentAccountBalanceUsd: 0,
+    canPayInPlace: false,
+    directAllowed: true,
+  });
+
+  assert.equal(readiness.status, "direct_deposit_available");
+  assert.equal(readiness.recommendedFallback, "direct_deposit");
+});
+
+test("payment UX helpers hide blank names and technical provider errors", () => {
+  assert.equal(getPublicRecipientName("  ", "Strategy A"), "Strategy A");
+  assert.equal(
+    friendlyPaymentError(new Error('Account type "json-rpc" is not supported by signAuthorization')),
+    "This wallet cannot pay this link directly. Add funds to its payment account or choose another wallet.",
+  );
+  assert.equal(
+    friendlyPaymentError(new Error("Could not estimate an Arbitrum USDC settlement amount from this source asset.")),
+    "Moeazi could not build a settlement preview from the current balance. Add funds, refresh, or choose another wallet.",
+  );
+  assert.equal(
+    friendlyPaymentError(new Error("AA24 signature error")),
+    "The payment signature was rejected by the account contract. Refresh the payment preview and sign again. If it happens again, reconnect the wallet that owns this payment account.",
   );
 });
 
@@ -124,6 +187,64 @@ test("public payment token options are sourced from Particle primary metadata", 
   assert.equal(options.some((option) => option.token.symbol === "BTC"), false);
 });
 
+test("payment account balances are extracted and sorted by funded USD value", () => {
+  const options = getPaymentAccountAssetOptions({
+    totalAmountInUSD: 2.05,
+    assets: [
+      {
+        tokenType: "usdt",
+        price: 1,
+        amount: 0.05,
+        amountInUSD: 0.05,
+        chainAggregation: [
+          {
+            token: {
+              chainId: 56,
+              address: "0x55d398326f99059ff775485246999027b3197955",
+              decimals: 18,
+              realDecimals: 18,
+              symbol: "USDT",
+              type: "usdt" as any,
+              price: 1,
+            },
+            amount: 0.05,
+            amountInUSD: 0.05,
+            rawAmount: 50000000000000000,
+          },
+        ],
+      },
+      {
+        tokenType: "eth",
+        price: 2000,
+        amount: 0.001,
+        amountInUSD: 2,
+        chainAggregation: [
+          {
+            token: {
+              chainId: 1,
+              address: "0x0000000000000000000000000000000000000000",
+              decimals: 18,
+              realDecimals: 18,
+              symbol: "ETH",
+              type: "eth" as any,
+              price: 2000,
+            },
+            amount: 0.001,
+            amountInUSD: 2,
+            rawAmount: 1000000000000000,
+          },
+        ],
+      },
+    ],
+  });
+  const funded = options.filter((option) => option.hasBalance);
+
+  assert.equal(funded[0].label, "ETH on Ethereum");
+  assert.equal(funded[0].formattedUsd, "$2.00");
+  assert.ok(funded.some((option) => option.label === "USDT on BNB Chain" && option.formattedUsd === "$0.05"));
+  assert.ok(options.some((option) => !option.hasBalance));
+});
+
 test("EOA direct deposit options are Particle primary EVM tokens only", () => {
   const options = getEvmPrimaryDepositTokenOptions();
 
@@ -146,4 +267,24 @@ test("UA settlement transaction targets Arbitrum USDC and transfers to receiver"
   assert.equal(transaction.transactions.length, 1);
   assert.equal((transaction.transactions[0] as any).to, settlement.address);
   assert.match((transaction.transactions[0] as any).data, /^0xa9059cbb/);
+});
+
+test("UA root hash signing uses viem raw message payload", async () => {
+  let payload: unknown;
+  const signature = await signUniversalAccountRootHash({
+    account: "0x1111111111111111111111111111111111111111",
+    rootHash: "0x1234",
+    walletClient: {
+      signMessage: async (args: unknown) => {
+        payload = args;
+        return "0xsig";
+      },
+    },
+  });
+
+  assert.equal(signature, "0xsig");
+  assert.deepEqual(payload, {
+    account: "0x1111111111111111111111111111111111111111",
+    message: { raw: "0x1234" },
+  });
 });
