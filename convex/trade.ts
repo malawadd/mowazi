@@ -1,11 +1,21 @@
 import { action, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { getUserByAuthSubject } from "./model";
-import { DEFAULT_TRADE_SETTINGS, PERP_MARKETS } from "../lib/trade/markets";
+import { DEFAULT_TRADE_SETTINGS } from "../lib/trade/markets";
+import {
+  canonicalHyperliquidCoin,
+  getLiveHyperliquidMarket,
+  getLiveHyperliquidMarkets,
+} from "../lib/trade/hyperliquidMarkets";
 import { assertCanCancelTradeIntent, normalizeOptionalHours } from "../lib/trade/intents";
-import { getVenueSnapshotsWithFallback } from "../lib/trade/publicQuotes";
+import { getPublicVenueSnapshots } from "../lib/trade/publicQuotes";
 import { routeBestExecution, validateTradeSettings } from "../lib/trade/routing";
-import type { BestExecutionQuote, TradeSettings } from "../lib/trade/types";
+import type { BestExecutionQuote, PerpMarket } from "../lib/trade/types";
+import {
+  getViewerUser,
+  insertTradeIntent,
+  requireViewerUser,
+  toTradeSettings,
+} from "./tradeHelpers";
 
 const sideValidator = v.union(v.literal("long"), v.literal("short"));
 const venueValidator = v.union(
@@ -17,58 +27,17 @@ const venueValidator = v.union(
 );
 const tradeIntentArgs = {
   marketId: v.string(),
+  coin: v.optional(v.string()),
+  assetIndex: v.optional(v.number()),
   side: sideValidator,
   marginUsd: v.number(),
   leverage: v.number(),
   expectedHoldHours: v.optional(v.number()),
   slippageCapBps: v.number(),
   selectedVenue: venueValidator,
+  marketMetadataJson: v.optional(v.string()),
   quoteJson: v.string(),
 };
-
-async function getViewerUser(ctx: { auth: any; db: any }) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) return { identity: null, user: null };
-  return { identity, user: await getUserByAuthSubject(ctx, identity.subject) };
-}
-
-async function requireViewerUser(ctx: { auth: any; db: any }) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new Error("Unauthorized");
-  const now = Date.now();
-  const existing = await getUserByAuthSubject(ctx, identity.subject);
-  if (existing) return existing;
-
-  const userId = await ctx.db.insert("users", {
-    authSubject: identity.subject,
-    authProvider: String(identity.authProvider ?? "particle"),
-    particleWalletAddress:
-      typeof identity.particleWalletAddress === "string" ? identity.particleWalletAddress : undefined,
-    particleUuid: typeof identity.particleUuid === "string" ? identity.particleUuid : undefined,
-    email: typeof identity.email === "string" ? identity.email : undefined,
-    displayName:
-      identity.name ??
-      [identity.givenName, identity.familyName].filter(Boolean).join(" ") ??
-      identity.nickname,
-    createdAt: now,
-    updatedAt: now,
-  });
-  const user = await ctx.db.get(userId);
-  if (!user) throw new Error("Could not create user.");
-  return user;
-}
-
-function toSettings(row: any): TradeSettings {
-  if (!row) return DEFAULT_TRADE_SETTINGS;
-  return {
-    defaultMarketId: row.defaultMarketId,
-    defaultLeverage: row.defaultLeverage,
-    defaultMarginUsd: row.defaultMarginUsd,
-    slippageCapBps: row.slippageCapBps,
-    expectedHoldHours: row.expectedHoldHours ?? null,
-    requireConfirmation: row.requireConfirmation,
-  };
-}
 
 export const getTradeDashboard = query({
   args: {},
@@ -77,7 +46,6 @@ export const getTradeDashboard = query({
     if (!identity || !user) {
       return {
         signedIn: Boolean(identity),
-        markets: PERP_MARKETS,
         settings: DEFAULT_TRADE_SETTINGS,
         accountWallet: null,
         queuedIntents: [],
@@ -92,8 +60,7 @@ export const getTradeDashboard = query({
 
     return {
       signedIn: true,
-      markets: PERP_MARKETS,
-      settings: toSettings(settings),
+      settings: toTradeSettings(settings),
       accountWallet: accountWallet
         ? {
             id: accountWallet._id,
@@ -107,6 +74,8 @@ export const getTradeDashboard = query({
       queuedIntents: intents.map((intent) => ({
         id: intent._id,
         marketId: intent.marketId,
+        coin: intent.coin ?? intent.marketId,
+        assetIndex: intent.assetIndex,
         side: intent.side,
         status: intent.status,
         marginUsd: intent.marginUsd,
@@ -125,23 +94,36 @@ export const getTradeDashboard = query({
 export const getPublicTradeConfig = query({
   args: {},
   handler: async () => ({
-    markets: PERP_MARKETS,
+    settings: DEFAULT_TRADE_SETTINGS,
+  }),
+});
+
+export const getHyperliquidMarkets = action({
+  args: {},
+  handler: async () => ({
+    markets: await getLiveHyperliquidMarkets(),
     settings: DEFAULT_TRADE_SETTINGS,
   }),
 });
 
 export const previewPerpRoute = action({
   args: {
-    marketId: v.string(),
+    coin: v.optional(v.string()),
+    marketId: v.optional(v.string()),
     side: sideValidator,
     marginUsd: v.number(),
     leverage: v.number(),
     expectedHoldHours: v.optional(v.number()),
     slippageCapBps: v.number(),
+    marketMetadataJson: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<BestExecutionQuote> => {
+    const coin = canonicalHyperliquidCoin(args.coin ?? args.marketId);
+    const market = await getLiveHyperliquidMarket(coin).catch(() => parseRecentMarket(args.marketMetadataJson, coin));
+    if (!market) throw new Error(`Hyperliquid does not list ${coin}.`);
     const input = {
-      marketId: args.marketId,
+      marketId: market.id,
+      coin: market.id,
       side: args.side,
       marginUsd: args.marginUsd,
       leverage: args.leverage,
@@ -149,10 +131,23 @@ export const previewPerpRoute = action({
       slippageCapBps: args.slippageCapBps,
       now: Date.now(),
     };
-    const snapshots = await getVenueSnapshotsWithFallback(input);
-    return routeBestExecution(input, snapshots);
+    const snapshots = await getPublicVenueSnapshots(input, market);
+    return routeBestExecution(input, snapshots, market);
   },
 });
+
+function parseRecentMarket(raw: string | undefined, coin: string): PerpMarket | null {
+  if (!raw) return null;
+  try {
+    const market = JSON.parse(raw) as PerpMarket;
+    const fresh = typeof market.fetchedAt === "number" && Date.now() - market.fetchedAt < 180_000;
+    const listed = canonicalHyperliquidCoin(market.id) === coin && market.venues?.includes("hyperliquid");
+    const precise = Number.isFinite(market.assetIndex) && Number.isFinite(market.szDecimals) && Number.isFinite(market.maxLeverage);
+    return fresh && listed && precise && !market.isDelisted ? market : null;
+  } catch {
+    return null;
+  }
+}
 
 export const setTradeSettings = mutation({
   args: {
@@ -185,49 +180,6 @@ export const setTradeSettings = mutation({
     return await ctx.db.get(settingsId);
   },
 });
-
-async function insertTradeIntent(ctx: any, args: {
-  marketId: string;
-  side: "long" | "short";
-  marginUsd: number;
-  leverage: number;
-  expectedHoldHours?: number;
-  slippageCapBps: number;
-  selectedVenue: "hyperliquid" | "lighter" | "orderly" | "gmx" | "ostium";
-  quoteJson: string;
-}) {
-  const user = await requireViewerUser(ctx);
-  const parsed = JSON.parse(args.quoteJson) as BestExecutionQuote;
-  if (parsed.winningVenue !== args.selectedVenue) {
-    throw new Error("Only the current best-execution venue can be recorded.");
-  }
-  const accountWallet = await ctx.db
-    .query("accountWallets")
-    .withIndex("by_userId", (q: any) => q.eq("userId", user._id))
-    .first();
-  const expectedHoldHours = normalizeOptionalHours(args.expectedHoldHours);
-  const now = Date.now();
-  const intentId = await ctx.db.insert("tradeIntents", {
-    userId: user._id,
-    accountWalletId: accountWallet?._id,
-    marketId: args.marketId,
-    side: args.side,
-    status: "quoted",
-    marginUsd: args.marginUsd,
-    leverage: args.leverage,
-    notionalUsd: Number((args.marginUsd * args.leverage).toFixed(2)),
-    slippageCapBps: args.slippageCapBps,
-    expectedHoldHours: expectedHoldHours ?? undefined,
-    selectedVenue: args.selectedVenue,
-    benchmarkVenue: parsed.benchmarkVenue ?? undefined,
-    quoteJson: args.quoteJson,
-    quoteCreatedAt: parsed.createdAt,
-    queuedAt: now,
-    createdAt: now,
-    updatedAt: now,
-  });
-  return await ctx.db.get(intentId);
-}
 
 export const recordTradeIntent = mutation({
   args: tradeIntentArgs,

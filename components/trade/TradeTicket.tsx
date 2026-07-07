@@ -1,6 +1,7 @@
 "use client";
 
 import { formatUsd } from "@/lib/trade/format";
+import type { TradeTicketLimits } from "@/lib/trade/ticketLimits";
 import type { BestExecutionQuote, PerpMarket, TradeSide } from "@/lib/trade/types";
 import styles from "./trade-ui.module.css";
 
@@ -21,6 +22,7 @@ export default function TradeTicket({
   submitting,
   saving,
   message,
+  limits,
   onChange,
   onPreview,
   onSubmit,
@@ -34,6 +36,7 @@ export default function TradeTicket({
   submitting: boolean;
   saving: boolean;
   message: string | null;
+  limits: TradeTicketLimits;
   onChange: (patch: Partial<TicketState>) => void;
   onPreview: () => void;
   onSubmit: () => void;
@@ -60,9 +63,31 @@ export default function TradeTicket({
             Short
           </button>
         </div>
-        <Field label="Margin USDC" value={state.marginUsd} onChange={(value) => onChange({ marginUsd: value })} />
-        <Field label="Leverage" value={state.leverage} onChange={(value) => onChange({ leverage: value })} />
-        <Field label="Slippage bps" value={state.slippageCapBps} onChange={(value) => onChange({ slippageCapBps: value })} />
+        <RangeField
+          label="Margin USDC"
+          value={state.marginUsd}
+          min={0}
+          max={Math.max(limits.maxMarginUsd, Number(state.marginUsd) || 1)}
+          step={1}
+          onChange={(value) => onChange({ marginUsd: value })}
+        />
+        <RangeField
+          label="Leverage"
+          value={state.leverage}
+          min={1}
+          max={limits.maxLeverage}
+          step={1}
+          suffix="x"
+          onChange={(value) => onChange({ leverage: value })}
+        />
+        <RangeField
+          label="Slippage bps"
+          value={state.slippageCapBps}
+          min={0}
+          max={500}
+          step={5}
+          onChange={(value) => onChange({ slippageCapBps: value })}
+        />
         <Field
           label="Hold hours"
           value={state.expectedHoldHours}
@@ -72,9 +97,14 @@ export default function TradeTicket({
         <div className={styles.ticketStats}>
           <span>Notional</span>
           <strong>{formatUsd(notional)}</strong>
-          <span>Market cap</span>
+          <span>Depth max</span>
+          <strong>{formatUsd(limits.maxMarginByDepthUsd)}</strong>
+          <span>Account cap</span>
+          <strong>{limits.maxMarginByAccountUsd === null ? "Preview" : formatUsd(limits.maxMarginByAccountUsd)}</strong>
+          <span>Leverage cap</span>
           <strong>{market.maxLeverage}x</strong>
         </div>
+        {limits.reason ? <p className={styles.ticketMessage}>{limits.reason}</p> : null}
         {winner ? (
           <div className={styles.routeWinner}>
             <span>Best venue</span>
@@ -86,7 +116,7 @@ export default function TradeTicket({
         <button className={styles.primaryAction} type="button" disabled={previewing} onClick={onPreview}>
           {previewing ? "Previewing..." : "Preview route"}
         </button>
-        <button className={styles.longAction} type="button" disabled={submitting || !liveWinner} onClick={onSubmit}>
+        <button className={styles.longAction} type="button" disabled={submitting || !liveWinner || limits.maxMarginUsd <= 0} onClick={onSubmit}>
           {submitting ? "Submitting..." : signedIn ? "Submit trade" : "Sign in to trade"}
         </button>
         <button className={styles.ghostAction} type="button" disabled={saving || !signedIn} onClick={onSaveDefaults}>
@@ -94,6 +124,51 @@ export default function TradeTicket({
         </button>
       </div>
     </section>
+  );
+}
+
+function RangeField({
+  label,
+  value,
+  min,
+  max,
+  step,
+  suffix = "",
+  onChange,
+}: {
+  label: string;
+  value: string;
+  min: number;
+  max: number;
+  step: number;
+  suffix?: string;
+  onChange: (value: string) => void;
+}) {
+  const numeric = Number(value || 0);
+  const safeMax = Math.max(min, max);
+  const safeValue = Math.min(Math.max(Number.isFinite(numeric) ? numeric : min, min), safeMax);
+  const commit = (next: string) => onChange(next);
+  return (
+    <label className={styles.field}>
+      <span>
+        {label}
+        <em>{formatValue(safeValue, suffix)}</em>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={safeMax}
+        step={step}
+        value={safeValue}
+        onChange={(event) => commit(event.target.value)}
+      />
+      <input
+        inputMode="decimal"
+        value={value}
+        onChange={(event) => commit(event.target.value)}
+        onBlur={() => commit(String(safeValue))}
+      />
+    </label>
   );
 }
 
@@ -114,4 +189,8 @@ function Field({
       <input inputMode="decimal" placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
+}
+
+function formatValue(value: number, suffix: string) {
+  return `${Number.isInteger(value) ? value : value.toFixed(2)}${suffix}`;
 }

@@ -14,49 +14,33 @@ export type HyperliquidBook = {
 export type HyperliquidAccountState = {
   accountValueUsd: number;
   withdrawableUsd: number;
+  positions: Array<Record<string, unknown>>;
   raw: unknown;
 };
 
 export function coinForHyperliquidMarket(marketId: string) {
-  return marketId.endsWith("-PERP") ? marketId.replace("-PERP", "") : null;
+  const coin = marketId.trim().replace(/-PERP$/i, "");
+  if (!coin || coin.includes("/") || /\s/.test(coin)) return null;
+  return coin;
 }
 
 export async function postHyperliquidInfo<T>(body: unknown): Promise<T> {
-  const response = await fetch(`${HYPERLIQUID_API_URL}/info`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Hyperliquid info failed (${response.status}): ${text.slice(0, 240)}`);
-  }
-  return (await response.json()) as T;
+  return await postJsonWithRetry<T>(`${HYPERLIQUID_API_URL}/info`, body, "info");
 }
 
 export async function postHyperliquidExchange(body: unknown): Promise<unknown> {
-  const response = await fetch(`${HYPERLIQUID_API_URL}/exchange`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Hyperliquid exchange failed (${response.status}): ${text.slice(0, 240)}`);
-  }
-  return await response.json();
+  return await postJsonWithRetry<unknown>(`${HYPERLIQUID_API_URL}/exchange`, body, "exchange");
 }
 
 export async function readHyperliquidRestSnapshot(market: PerpMarket, now = Date.now()) {
   const coin = coinForHyperliquidMarket(market.id);
   if (!coin) return null;
-  const [mids, book, ctxs] = await Promise.all([
+  const [mids, book] = await Promise.all([
     postHyperliquidInfo<Record<string, string>>({ type: "allMids" }),
     postHyperliquidInfo<{ levels?: Array<Array<{ px: string; sz: string }>>; time?: number }>({
       type: "l2Book",
       coin,
     }),
-    postHyperliquidInfo<[unknown, Array<Record<string, unknown>>]>({ type: "metaAndAssetCtxs" }).catch(() => null),
   ]);
   const mid = Number(mids[coin]);
   const bids = normalizeLevels(book.levels?.[0]);
@@ -65,20 +49,33 @@ export async function readHyperliquidRestSnapshot(market: PerpMarket, now = Date
   const ask = asks[0]?.price ?? mid;
   if (!Number.isFinite(mid) || !Number.isFinite(bid) || !Number.isFinite(ask)) return null;
 
-  const assetCtx = assetContextForCoin(ctxs, coin);
+  const mark = market.markPrice ?? mid;
+  const oracle = market.oraclePrice ?? undefined;
+  const prev = market.prevDayPrice ?? undefined;
+  const dayChangePct =
+    mark && prev && prev > 0 ? ((mark - prev) / prev) * 100 : market.dayChangePct ?? undefined;
   return {
     venue: "hyperliquid",
     marketId: market.id,
+    coin,
+    assetIndex: market.assetIndex,
+    szDecimals: market.szDecimals,
+    maxLeverage: market.maxLeverage,
     midPrice: mid,
+    markPrice: mark,
+    oraclePrice: oracle,
+    prevDayPrice: prev,
+    dayChangePct,
     bidPrice: bid,
     askPrice: ask,
     bids,
     asks,
     entryImpactBps: 0,
     exitImpactBps: 0,
-    fundingRateHourly: Number(assetCtx?.funding ?? 0),
-    openInterestUsd: Number(assetCtx?.openInterest ?? 0) * mid,
-    volume24hUsd: Number(assetCtx?.dayNtlVlm ?? 0),
+    fundingRateHourly: Number(market.fundingRateHourly ?? 0),
+    dayBaseVolume: market.dayBaseVolume ?? undefined,
+    openInterestUsd: market.openInterestUsd ?? 0,
+    volume24hUsd: Number(market.volume24hUsd ?? 0),
     fetchedAt: book.time ?? now,
     source: "public",
   } satisfies VenueSnapshot;
@@ -90,6 +87,9 @@ export async function readHyperliquidAccountState(user: string): Promise<Hyperli
   return {
     accountValueUsd: Number(margin.accountValue ?? 0),
     withdrawableUsd: Number(raw.withdrawable ?? margin.accountValue ?? 0),
+    positions: Array.isArray(raw.assetPositions)
+      ? (raw.assetPositions as Array<Record<string, unknown>>)
+      : [],
     raw,
   };
 }
@@ -100,7 +100,7 @@ export async function waitForHyperliquidCredit(user: string, minAccountValueUsd:
   while (Date.now() - startedAt < timeoutMs) {
     last = await readHyperliquidAccountState(user);
     if (last.accountValueUsd >= minAccountValueUsd) return last;
-    await new Promise((resolve) => window.setTimeout(resolve, 4_000));
+    await new Promise((resolve) => setTimeout(resolve, 4_000));
   }
   throw new Error(
     `Hyperliquid deposit is not credited yet. Last account value: ${last?.accountValueUsd ?? 0} USDC.`,
@@ -113,12 +113,25 @@ export function normalizeLevels(levels: Array<{ px: string; sz: string }> | unde
     .filter((level) => Number.isFinite(level.price) && Number.isFinite(level.size) && level.size > 0);
 }
 
-function assetContextForCoin(ctxs: [unknown, Array<Record<string, unknown>>] | null, coin: string) {
-  const universe = asRecord(ctxs?.[0]).universe as Array<{ name?: string }> | undefined;
-  const index = universe?.findIndex((item) => item.name === coin) ?? -1;
-  return index >= 0 ? ctxs?.[1]?.[index] : null;
-}
-
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+async function postJsonWithRetry<T>(url: string, body: unknown, label: string) {
+  let lastError = "";
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (response.ok) return (await response.json()) as T;
+    const text = await response.text();
+    lastError = `Hyperliquid ${label} failed (${response.status}): ${text.slice(0, 240)}`;
+    if (![429, 500, 502, 503, 504].includes(response.status)) break;
+    const retryAfter = Number(response.headers.get("retry-after"));
+    const delayMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : Math.min(6000, 600 * 2 ** attempt);
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  throw new Error(lastError);
 }

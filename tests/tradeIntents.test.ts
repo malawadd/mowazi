@@ -7,6 +7,7 @@ import {
 } from "../lib/trade/intents";
 
 test("trade intents can be cancelled before order submission starts", () => {
+  assert.equal(canCancelTradeIntent("queued"), true);
   assert.equal(canCancelTradeIntent("quoted"), true);
   assert.equal(canCancelTradeIntent("funding_submitted"), true);
   assert.equal(canCancelTradeIntent("order_submitting"), false);

@@ -17,9 +17,12 @@ export default function MarketHeader({
   status: string;
   onSelectMarket: (marketId: string) => void;
 }) {
-  const mark = snapshot?.midPrice ?? null;
-  const oracle = mark ? mark * 0.99994 : null;
-  const fundingPct = snapshot ? snapshot.fundingRateHourly * 100 : null;
+  const mark = snapshot?.markPrice ?? market.markPrice ?? null;
+  const oracle = snapshot?.oraclePrice ?? market.oraclePrice ?? null;
+  const change = snapshot?.dayChangePct ?? market.dayChangePct ?? null;
+  const funding = snapshot?.fundingRateHourly ?? market.fundingRateHourly ?? null;
+  const fundingPct = funding === null ? null : funding * 100;
+  const positive = change !== null && change >= 0;
 
   return (
     <section className={styles.marketHeader}>
@@ -32,13 +35,18 @@ export default function MarketHeader({
             </option>
           ))}
         </select>
-        <span className={styles.leverageChip}>{market.maxLeverage}x</span>
+        <span className={styles.leverageChip}>{market.maxLeverage}x max</span>
       </div>
       <HeaderMetric label="Feed" value={status} tone={status === "live" ? "positive" : "warning"} />
       <HeaderMetric label="Mark" value={formatNumber(mark, market.pricePrecision)} />
       <HeaderMetric label="Oracle" value={formatNumber(oracle, market.pricePrecision)} />
-      <HeaderMetric label="24h Volume" value={formatUsd(snapshot?.volume24hUsd, 0)} />
-      <HeaderMetric label="Open Interest" value={formatUsd(snapshot?.openInterestUsd, 0)} />
+      <HeaderMetric
+        label="24h Change"
+        value={change === null ? "N/A" : `${positive ? "+" : ""}${formatNumber(change, 2)}%`}
+        tone={positive ? "positive" : "warning"}
+      />
+      <HeaderMetric label="24h Volume" value={formatUsd(snapshot?.volume24hUsd ?? market.volume24hUsd, 0)} />
+      <HeaderMetric label="Open Interest" value={formatUsd(snapshot?.openInterestUsd ?? market.openInterestUsd, 0)} />
       <HeaderMetric label="Funding" value={fundingPct === null ? "N/A" : `${formatNumber(fundingPct, 4)}% / h`} />
     </section>
   );

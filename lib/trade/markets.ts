@@ -97,7 +97,7 @@ export const PERP_MARKETS: PerpMarket[] = [
 ];
 
 export const DEFAULT_TRADE_SETTINGS: TradeSettings = {
-  defaultMarketId: "BTC-PERP",
+  defaultMarketId: "BTC",
   defaultLeverage: 5,
   defaultMarginUsd: 100,
   slippageCapBps: 75,

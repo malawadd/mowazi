@@ -29,9 +29,11 @@ export default function LiveChart({
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const candlesRef = useRef(candles);
+  const onLoadMoreRef = useRef(onLoadMore);
   const prevLenRef = useRef(0);
   const firstTimeRef = useRef<number | null>(null);
   candlesRef.current = candles;
+  onLoadMoreRef.current = onLoadMore;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -75,8 +77,9 @@ export default function LiveChart({
     });
     observer.observe(container);
 
-    if (onLoadMore) {
-      chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+    chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      const loadMore = onLoadMoreRef.current;
+      if (loadMore) {
         if (!range) return;
         const current = candlesRef.current;
         if (current.length === 0) return;
@@ -84,10 +87,10 @@ export default function LiveChart({
         const oldestLoaded = current[0].time;
         const visibleSpan = (range.to as number) - (range.from as number);
         if (oldestVisible - oldestLoaded < visibleSpan * 0.2) {
-          onLoadMore();
+          loadMore();
         }
-      });
-    }
+      }
+    });
 
     return () => {
       observer.disconnect();

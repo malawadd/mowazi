@@ -14,7 +14,7 @@ export default function TradeShell({ children }: { children: ReactNode }) {
           <strong>Moeazi</strong>
         </Link>
         <nav className={styles.topNav} aria-label="Moeazi">
-          <Link className={styles.navPillActive} href="/trade">
+          <Link className={styles.navPillActive} href="/trade/BTC">
             Trade
           </Link>
           <Link className={styles.navPill} href="/dashboard">

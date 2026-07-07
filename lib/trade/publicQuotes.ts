@@ -1,19 +1,12 @@
 import { readHyperliquidRestSnapshot } from "./hyperliquidApi";
-import { getPerpMarket, TRADE_VENUE_PRIORITY } from "./markets";
-import type { RouteInput, TradeVenueId, VenueSnapshot } from "./types";
+import { TRADE_VENUE_PRIORITY } from "./markets";
+import type { PerpMarket, RouteInput, TradeVenueId, VenueSnapshot } from "./types";
 
-export async function getVenueSnapshotsWithFallback(input: RouteInput) {
-  return await getPublicVenueSnapshots(input);
-}
-
-export async function getPublicVenueSnapshots(input: RouteInput) {
+export async function getPublicVenueSnapshots(input: RouteInput, market: PerpMarket) {
   const now = input.now ?? Date.now();
-  const market = getPerpMarket(input.marketId);
-  if (!market) return [];
-
   const results = await Promise.allSettled(
     TRADE_VENUE_PRIORITY.filter((venue) => market.venues.includes(venue)).map((venue) =>
-      readPublicSnapshot(venue, input.marketId, now),
+      readPublicSnapshot(venue, market, now),
     ),
   );
 
@@ -22,10 +15,9 @@ export async function getPublicVenueSnapshots(input: RouteInput) {
     .filter(Boolean) as VenueSnapshot[];
 }
 
-async function readPublicSnapshot(venue: TradeVenueId, marketId: string, now: number) {
+async function readPublicSnapshot(venue: TradeVenueId, market: PerpMarket, now: number) {
   if (venue === "hyperliquid") {
-    const market = getPerpMarket(marketId);
-    return market ? await readHyperliquidRestSnapshot(market, now) : null;
+    return await readHyperliquidRestSnapshot(market, now);
   }
   return null;
 }

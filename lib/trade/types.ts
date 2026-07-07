@@ -27,6 +27,19 @@ export type PerpMarket = {
   category: MarketCategory;
   pricePrecision: number;
   maxLeverage: number;
+  szDecimals?: number;
+  assetIndex?: number;
+  onlyIsolated?: boolean;
+  isDelisted?: boolean;
+  markPrice?: number | null;
+  oraclePrice?: number | null;
+  prevDayPrice?: number | null;
+  dayChangePct?: number | null;
+  dayBaseVolume?: number | null;
+  openInterestUsd?: number | null;
+  volume24hUsd?: number | null;
+  fundingRateHourly?: number | null;
+  fetchedAt?: number;
   venues: TradeVenueId[];
 };
 
@@ -44,7 +57,15 @@ export type VenueCapabilities = {
 export type VenueSnapshot = {
   venue: TradeVenueId;
   marketId: string;
+  coin?: string;
+  assetIndex?: number;
+  szDecimals?: number;
+  maxLeverage?: number;
   midPrice: number;
+  markPrice?: number;
+  oraclePrice?: number;
+  prevDayPrice?: number;
+  dayChangePct?: number;
   bidPrice: number;
   askPrice: number;
   bids?: VenueLevel[];
@@ -52,6 +73,7 @@ export type VenueSnapshot = {
   entryImpactBps: number;
   exitImpactBps: number;
   fundingRateHourly: number;
+  dayBaseVolume?: number;
   openInterestUsd: number;
   volume24hUsd: number;
   fetchedAt: number;
@@ -60,6 +82,7 @@ export type VenueSnapshot = {
 
 export type RouteInput = {
   marketId: string;
+  coin?: string;
   side: TradeSide;
   marginUsd: number;
   leverage: number;
@@ -81,6 +104,7 @@ export type VenueQuote = {
   notionalUsd: number;
   marginUsd: number;
   maxLeverage: number;
+  availableDepthUsd?: number | null;
   feeRateBps: number;
   freshnessMs: number | null;
   costs: CostBreakdown;
@@ -106,6 +130,7 @@ export type TradeSettings = {
 };
 
 export type TradeIntentStatus =
+  | "queued"
   | "quoted"
   | "funding_submitted"
   | "funding_confirmed"

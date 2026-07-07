@@ -10,7 +10,7 @@
 .navPill,.navPillActive { padding: 10px 12px; }
 .navPillActive,.primaryAction,.timeframeButton[aria-pressed="true"],.tabBar button[aria-pressed="true"] { background: var(--surface-yellow); }
 .terminal { display: grid; gap: 10px; }
-.terminalGrid { display: grid; grid-template-columns: minmax(520px,2.2fr) minmax(250px,0.8fr) minmax(286px,0.9fr); gap: 10px; align-items: stretch; }
+.terminalGrid { display: grid; grid-template-columns: minmax(210px,0.55fr) minmax(480px,1.8fr) minmax(250px,0.8fr) minmax(286px,0.9fr); gap: 10px; align-items: stretch; }
 .marketHeader { min-height: 72px; display: grid; grid-template-columns: minmax(320px,1.35fr) repeat(6,minmax(120px,1fr)); gap: 8px; padding: 8px; }
 .pairBlock,.headerMetric,.ticketStats,.routeWinner,.tableLike > div,.historyRow { border: var(--border-width) solid var(--line); background: var(--surface-paper-alt); box-shadow: var(--shadow-sm); }
 .pairBlock { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 8px; background: var(--surface-sky-tint); }
@@ -19,12 +19,15 @@
 .leverageChip,.kicker { display: inline-flex; width: fit-content; border: var(--border-width) solid var(--line); background: var(--surface-paper); box-shadow: var(--shadow-sm); padding: 5px 7px; font-family: var(--font-plex-mono), monospace; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
 .headerMetric { display: grid; align-content: center; gap: 4px; padding: 8px; min-width: 0; }
 .headerMetric span,.field span,.routeWinner span,.ticketStats span,.tableLike span { color: var(--muted); font-family: var(--font-plex-mono), monospace; font-size: 0.68rem; text-transform: uppercase; }
+.field span { display: flex; justify-content: space-between; gap: 8px; }
+.field span em { color: var(--ink); font-style: normal; }
 .headerMetric strong,.ticketStats strong,.tableLike strong { overflow: hidden; text-overflow: ellipsis; }
 .metricPositive { background: var(--surface-mint-tint); }
 .metricWarning { background: var(--surface-orange-tint); }
 .panelHeaderCompact { min-height: 54px; display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 8px; border-bottom: var(--border-width-lg) solid var(--line); background: var(--surface-yellow); }
 .panelHeaderCompact p,.muted,.cellMuted,.emptyText { color: var(--muted); margin: 4px 0 0; font-size: 0.82rem; }
 .marketList,.ticketBody,.tradesTape,.tabBody,.historyList { display: grid; gap: 8px; padding: 8px; }
+.marketList { max-height: 712px; overflow: auto; align-content: start; }
 .marketButton { width: 100%; display: flex; justify-content: space-between; gap: 6px; padding: 9px; text-align: left; background: var(--surface-cream); text-transform: none; }
 .marketButton[aria-pressed="true"] { background: var(--surface-pink); }
 .marketButton span { display: grid; gap: 2px; }
@@ -44,11 +47,12 @@
 .ticket { position: sticky; top: 10px; }
 .field { display: grid; gap: 5px; }
 .field input { min-height: 42px; padding: 9px; }
+.field input[type="range"] { min-height: 24px; padding: 0; box-shadow: none; accent-color: var(--surface-pink); }
 .sideGrid { display: grid; grid-template-columns: 1fr 1fr; }
 .sideGrid button { min-height: 42px; }
 .sideGrid button:first-child[aria-pressed="true"],.longAction { background: var(--surface-mint); }
 .sideGrid button:last-child[aria-pressed="true"] { background: var(--surface-pink); }
-.ticketStats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; }
+.ticketStats { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 8px; }
 .routeWinner { display: grid; gap: 3px; padding: 9px; background: var(--surface-sky-tint); }
 .routeWinner em,.ticketMessage { color: var(--muted); font-style: normal; font-size: 0.82rem; }
 .primaryAction,.longAction,.ghostAction { width: 100%; min-height: 44px; }

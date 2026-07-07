@@ -1,12 +1,11 @@
-import { getFixtureVenueSnapshots } from "./fixtures";
 import {
-  getPerpMarket,
   TRADE_VENUE_PRIORITY,
   VENUE_CAPABILITIES,
 } from "./markets";
 import type {
   BestExecutionQuote,
   CostBreakdown,
+  PerpMarket,
   RouteInput,
   TradeSide,
   TradeVenueId,
@@ -20,10 +19,10 @@ const TIE_EPSILON_USD = 0.01;
 
 export function routeBestExecution(
   input: RouteInput,
-  snapshots = getFixtureVenueSnapshots(input.marketId, input.now),
+  snapshots: VenueSnapshot[],
+  market: PerpMarket,
 ): BestExecutionQuote {
   const now = input.now ?? Date.now();
-  const market = getPerpMarket(input.marketId);
   if (!market) {
     throw new Error(`Unsupported market: ${input.marketId}`);
   }
@@ -31,7 +30,7 @@ export function routeBestExecution(
 
   const notionalUsd = roundUsd(input.marginUsd * input.leverage);
   const byVenue = new Map(snapshots.map((snapshot) => [snapshot.venue, snapshot]));
-  const benchmarkVenue = pickBenchmarkVenue(input, snapshots, notionalUsd);
+  const benchmarkVenue = pickBenchmarkVenue(input, snapshots, market, notionalUsd);
   const benchmark = benchmarkVenue ? byVenue.get(benchmarkVenue) ?? null : null;
   const quotes = TRADE_VENUE_PRIORITY.map((venue) =>
     buildVenueQuote({
@@ -40,6 +39,7 @@ export function routeBestExecution(
       snapshot: byVenue.get(venue) ?? null,
       benchmark,
       now,
+      market,
       marketVenues: market.venues,
       notionalUsd,
     }),
@@ -65,13 +65,14 @@ export function validateTradeSettings(args: {
   defaultMarginUsd: number;
   slippageCapBps: number;
   expectedHoldHours?: number | null;
+  market?: PerpMarket | null;
 }) {
-  const market = getPerpMarket(args.defaultMarketId);
-  if (!market) throw new Error("Choose a supported market.");
+  if (!args.defaultMarketId.trim()) throw new Error("Choose a supported market.");
   if (!Number.isFinite(args.defaultLeverage) || args.defaultLeverage <= 0) {
     throw new Error("Default leverage must be greater than zero.");
   }
-  if (args.defaultLeverage > market.maxLeverage) {
+  const market = args.market ?? null;
+  if (market && args.defaultLeverage > market.maxLeverage) {
     throw new Error(`Default leverage exceeds the ${market.label} cap.`);
   }
   if (!Number.isFinite(args.defaultMarginUsd) || args.defaultMarginUsd <= 0) {
@@ -93,10 +94,12 @@ function buildVenueQuote(args: {
   snapshot: VenueSnapshot | null;
   benchmark: VenueSnapshot | null;
   now: number;
+  market: PerpMarket;
   marketVenues: TradeVenueId[];
   notionalUsd: number;
 }): VenueQuote {
   const capabilities = VENUE_CAPABILITIES[args.venue];
+  const maxLeverage = args.snapshot?.maxLeverage ?? args.market.maxLeverage ?? capabilities.maxLeverage;
   const base = {
     venue: args.venue,
     venueLabel: capabilities.label,
@@ -107,7 +110,8 @@ function buildVenueQuote(args: {
     estimatedExitPrice: null,
     notionalUsd: args.notionalUsd,
     marginUsd: args.input.marginUsd,
-    maxLeverage: capabilities.maxLeverage,
+    maxLeverage,
+    availableDepthUsd: args.snapshot ? depthUsd(args.snapshot, args.input.side) : null,
     feeRateBps: capabilities.takerFeeBps,
     freshnessMs: args.snapshot ? args.now - args.snapshot.fetchedAt : null,
     costs: zeroCosts(),
@@ -160,7 +164,8 @@ function getExclusionReason(
 ) {
   if (!args.marketVenues.includes(args.venue)) return "Market is not listed on this venue.";
   if (!args.snapshot) return "No fresh quote source is available.";
-  if (args.input.leverage > capabilities.maxLeverage) return "Requested leverage is above this venue cap.";
+  const maxLeverage = args.snapshot?.maxLeverage ?? capabilities.maxLeverage;
+  if (args.input.leverage > maxLeverage) return "Requested leverage is above this venue cap.";
   if (args.notionalUsd < capabilities.minNotionalUsd) return "Trade size is below this venue minimum.";
   if (args.now - args.snapshot.fetchedAt > MAX_QUOTE_FRESHNESS_MS) return "Quote is stale.";
   if (ownImpactBps(args.snapshot, args.input, args.notionalUsd) > args.input.slippageCapBps) {
@@ -169,10 +174,8 @@ function getExclusionReason(
   return null;
 }
 
-function pickBenchmarkVenue(input: RouteInput, snapshots: VenueSnapshot[], notionalUsd: number) {
-  const market = getPerpMarket(input.marketId);
-  if (!market) return null;
-  const candidates = snapshots.filter((snapshot) => market.venues.includes(snapshot.venue));
+function pickBenchmarkVenue(input: RouteInput, snapshots: VenueSnapshot[], market: PerpMarket, notionalUsd: number) {
+  const candidates = snapshots.filter((snapshot) => snapshot.marketId === input.marketId && market.venues.includes(snapshot.venue));
   if (candidates.length === 0) return null;
   return [...candidates].sort((left, right) => {
     const impactDiff = ownImpactBps(left, input, notionalUsd) - ownImpactBps(right, input, notionalUsd);
@@ -241,6 +244,13 @@ function sweepBook(levels: VenueLevel[] | undefined, quantity: number) {
     if (remaining <= 1e-12) return notional / quantity;
   }
   return null;
+}
+
+function depthUsd(snapshot: VenueSnapshot, side: TradeSide) {
+  const levels = side === "long" ? snapshot.asks : snapshot.bids;
+  if (!levels?.length) return null;
+  const total = levels.reduce((sum, level) => sum + level.price * level.size, 0);
+  return Number.isFinite(total) ? roundUsd(total) : null;
 }
 
 function priceImpactBps(side: TradeSide, fill: number, mid: number) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatNumber } from "@/lib/trade/format";
 import type { PerpMarket } from "@/lib/trade/types";
 import styles from "./trade-ui.module.css";
 
@@ -17,12 +18,11 @@ export default function MarketPanel({
       <div className={styles.panelHeaderCompact}>
         <div>
           <span className={styles.kicker}>Markets</span>
-          <p>Crypto and RWA coverage</p>
+          <p>Hyperliquid default USDC perps</p>
         </div>
       </div>
       <div className={styles.marketList}>
         {markets.map((market) => {
-          const live = market.venues.includes("hyperliquid") && market.category === "crypto";
           return (
             <button
               key={market.id}
@@ -33,9 +33,9 @@ export default function MarketPanel({
             >
               <span>
                 <strong>{market.id}</strong>
-                <small>{market.category.toUpperCase()}</small>
+                <small>{formatNumber(market.markPrice, market.pricePrecision)} mark</small>
               </span>
-              <em>{live ? "HL live" : "venue pending"}</em>
+              <em>{market.maxLeverage}x max</em>
             </button>
           );
         })}

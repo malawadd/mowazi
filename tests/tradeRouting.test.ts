@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { routeBestExecution, validateTradeSettings } from "../lib/trade/routing";
-import type { RouteInput, VenueSnapshot } from "../lib/trade/types";
+import type { PerpMarket, RouteInput, TradeVenueId, VenueSnapshot } from "../lib/trade/types";
 
 const baseInput: RouteInput = {
-  marketId: "BTC-PERP",
+  marketId: "BTC",
   side: "long",
   marginUsd: 100,
   leverage: 5,
@@ -12,13 +12,27 @@ const baseInput: RouteInput = {
   now: 1_000_000,
 };
 
+function market(venues: TradeVenueId[] = ["hyperliquid"], overrides: Partial<PerpMarket> = {}): PerpMarket {
+  return {
+    id: "BTC",
+    label: "BTC Perp",
+    baseSymbol: "BTC",
+    quoteSymbol: "USDC",
+    category: "crypto",
+    pricePrecision: 1,
+    maxLeverage: 40,
+    venues,
+    ...overrides,
+  };
+}
+
 function snapshot(
   venue: VenueSnapshot["venue"],
   overrides: Partial<VenueSnapshot> = {},
 ): VenueSnapshot {
   return {
     venue,
-    marketId: "BTC-PERP",
+    marketId: "BTC",
     midPrice: 100,
     bidPrice: 99.95,
     askPrice: 100.05,
@@ -33,23 +47,24 @@ function snapshot(
   };
 }
 
-test("routing excludes unsupported markets and venue leverage caps", () => {
+test("routing excludes unlisted venues and live venue leverage caps", () => {
   const quote = routeBestExecution(
-    { ...baseInput, marketId: "US100", leverage: 120 },
+    { ...baseInput, leverage: 45 },
     [
-      snapshot("hyperliquid", { marketId: "US100" }),
-      snapshot("lighter", { marketId: "US100" }),
-      snapshot("ostium", { marketId: "US100" }),
+      snapshot("hyperliquid", { maxLeverage: 40 }),
+      snapshot("lighter", { maxLeverage: 100 }),
     ],
+    market(["hyperliquid"]),
   );
 
   const hyperliquid = quote.quotes.find((item) => item.venue === "hyperliquid");
-  const ostium = quote.quotes.find((item) => item.venue === "ostium");
+  const lighter = quote.quotes.find((item) => item.venue === "lighter");
 
   assert.equal(hyperliquid?.eligible, false);
-  assert.match(hyperliquid?.reason ?? "", /not listed/i);
-  assert.equal(ostium?.eligible, true);
-  assert.equal(quote.winningVenue, "ostium");
+  assert.match(hyperliquid?.reason ?? "", /leverage/i);
+  assert.equal(lighter?.eligible, false);
+  assert.match(lighter?.reason ?? "", /not listed/i);
+  assert.equal(quote.winningVenue, null);
 });
 
 test("routing uses a shared slippage benchmark instead of each venue mid", () => {
@@ -68,7 +83,7 @@ test("routing uses a shared slippage benchmark instead of each venue mid", () =>
       entryImpactBps: 0,
       exitImpactBps: 0,
     }),
-  ]);
+  ], market(["hyperliquid", "lighter"]));
 
   const hyperliquid = quote.quotes.find((item) => item.venue === "hyperliquid");
   const lighter = quote.quotes.find((item) => item.venue === "lighter");
@@ -79,8 +94,9 @@ test("routing uses a shared slippage benchmark instead of each venue mid", () =>
 });
 
 test("funding is optional and exit fees are modeled from entry notional", () => {
-  const withoutFunding = routeBestExecution(baseInput, [snapshot("lighter")]);
-  const withFunding = routeBestExecution({ ...baseInput, holdTimeHours: 10 }, [snapshot("lighter")]);
+  const lighterMarket = market(["lighter"], { maxLeverage: 100 });
+  const withoutFunding = routeBestExecution(baseInput, [snapshot("lighter")], lighterMarket);
+  const withFunding = routeBestExecution({ ...baseInput, holdTimeHours: 10 }, [snapshot("lighter")], lighterMarket);
   const baseQuote = withoutFunding.quotes.find((item) => item.venue === "lighter");
   const fundedQuote = withFunding.quotes.find((item) => item.venue === "lighter");
 
@@ -91,14 +107,14 @@ test("funding is optional and exit fees are modeled from entry notional", () => 
 });
 
 test("routing excludes non-live venues when only Hyperliquid has a public quote", () => {
-  const quote = routeBestExecution(baseInput, [snapshot("hyperliquid", { source: "public" })]);
+  const quote = routeBestExecution(baseInput, [snapshot("hyperliquid", { source: "public" })], market(["hyperliquid"]));
   const hyperliquid = quote.quotes.find((item) => item.venue === "hyperliquid");
   const lighter = quote.quotes.find((item) => item.venue === "lighter");
 
   assert.equal(hyperliquid?.eligible, true);
   assert.equal(hyperliquid?.source, "public");
   assert.equal(lighter?.eligible, false);
-  assert.match(lighter?.reason ?? "", /No fresh quote/i);
+  assert.match(lighter?.reason ?? "", /not listed/i);
 });
 
 test("routing sweeps live order book levels for entry and exit estimates", () => {
@@ -118,7 +134,7 @@ test("routing sweeps live order book levels for entry and exit estimates", () =>
       entryImpactBps: 100,
       exitImpactBps: 100,
     }),
-  ]);
+  ], market());
   const row = quote.quotes.find((item) => item.venue === "hyperliquid");
 
   assert.equal(row?.estimatedEntryPrice, 101.2);
@@ -141,7 +157,7 @@ test("ties prefer lower entry slippage and then static venue priority", () => {
       entryImpactBps: 0,
       exitImpactBps: 0,
     }),
-  ]);
+  ], market(["hyperliquid", "lighter"]));
 
   assert.equal(quote.winningVenue, "lighter");
 });
@@ -150,19 +166,21 @@ test("trade settings validation rejects invalid defaults", () => {
   assert.throws(
     () =>
       validateTradeSettings({
-        defaultMarketId: "BTC-PERP",
+        defaultMarketId: "BTC",
         defaultLeverage: 250,
         defaultMarginUsd: 100,
         slippageCapBps: 50,
+        market: market(),
       }),
     /cap/i,
   );
   assert.doesNotThrow(() =>
     validateTradeSettings({
-      defaultMarketId: "BTC-PERP",
+      defaultMarketId: "BTC",
       defaultLeverage: 5,
       defaultMarginUsd: 100,
       slippageCapBps: 50,
+      market: market(),
     }),
   );
 });

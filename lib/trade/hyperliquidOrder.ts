@@ -41,9 +41,18 @@ export type HyperliquidOrderPlan = {
 export async function buildHyperliquidOrderPlan(input: Omit<HyperliquidOrderInput, "walletClient" | "account">) {
   const coin = coinForHyperliquidMarket(input.market.id);
   if (!coin) throw new Error("Hyperliquid only supports listed crypto perps in this release.");
-  const { asset, sizeDecimals, mid } = await readHyperliquidMarketInfo(coin);
+  if (!Number.isInteger(input.leverage)) throw new Error("Hyperliquid leverage must be a whole number.");
+  if (input.leverage > input.market.maxLeverage) {
+    throw new Error(`Requested leverage exceeds the live ${coin} cap.`);
+  }
+  if (input.market.assetIndex === undefined || input.market.szDecimals === undefined) {
+    throw new Error("Live Hyperliquid asset metadata is required before submitting.");
+  }
+  const { mid } = await readHyperliquidMarketInfo(coin);
+  const asset = input.market.assetIndex;
+  const sizeDecimals = input.market.szDecimals;
   const notionalUsd = input.marginUsd * input.leverage;
-  let size = roundTo(notionalUsd / mid, sizeDecimals);
+  let size = formatHyperliquidSize(notionalUsd / mid, sizeDecimals);
   if (size * mid < 10) size = Math.ceil((10 / mid) * 10 ** sizeDecimals) / 10 ** sizeDecimals;
   if (size <= 0) throw new Error("Hyperliquid order size rounds to zero.");
   const isBuy = input.side === "long";
@@ -70,6 +79,7 @@ export function buildHyperliquidOrderActions(args: {
   leverage: number;
   reduceOnly: boolean;
 }) {
+  if (!Number.isInteger(args.leverage)) throw new Error("Hyperliquid leverage must be a whole number.");
   const aggressivePrice = buildAggressivePrice(args.mid, args.isBuy, args.slippageCapBps / 10_000, args.sizeDecimals);
   return {
     aggressivePrice,
@@ -80,14 +90,14 @@ export function buildHyperliquidOrderActions(args: {
           a: args.asset,
           b: args.isBuy,
           p: floatToWire(aggressivePrice),
-          s: floatToWire(args.size),
+          s: floatToWire(formatHyperliquidSize(args.size, args.sizeDecimals)),
           r: args.reduceOnly,
           t: { limit: { tif: "Ioc" } },
         },
       ],
       grouping: "na",
     },
-    leverageAction: { type: "updateLeverage", asset: args.asset, isCross: false, leverage: Math.trunc(args.leverage) },
+    leverageAction: { type: "updateLeverage", asset: args.asset, isCross: false, leverage: args.leverage },
   };
 }
 
@@ -147,6 +157,17 @@ async function readHyperliquidMarketInfo(coin: string) {
   return { asset, sizeDecimals: meta.universe[asset]?.szDecimals ?? 0, mid };
 }
 
+export function formatHyperliquidPrice(value: number, szDecimals: number) {
+  if (!Number.isFinite(value) || value <= 0) throw new Error("Invalid Hyperliquid price.");
+  if (Number.isInteger(value)) return value;
+  return roundTo(Number(value.toPrecision(5)), Math.max(0, 6 - szDecimals));
+}
+
+export function formatHyperliquidSize(value: number, szDecimals: number) {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return roundTo(value, szDecimals);
+}
+
 function hyperliquidActionHash(action: unknown, nonce: number) {
   const parts = [pack(action), getBytes(zeroPadValue(toBeHex(nonce), 8)), Uint8Array.from([0])];
   return keccak256(concat(parts));
@@ -164,6 +185,5 @@ function floatToWire(value: number) {
 }
 
 function buildAggressivePrice(mid: number, isBuy: boolean, slippage: number, sizeDecimals: number) {
-  const precisionPrice = Number((mid * (isBuy ? 1 + slippage : 1 - slippage)).toPrecision(5));
-  return roundTo(precisionPrice, Math.max(0, 6 - sizeDecimals));
+  return formatHyperliquidPrice(mid * (isBuy ? 1 + slippage : 1 - slippage), sizeDecimals);
 }

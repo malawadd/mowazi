@@ -1,10 +1,6 @@
-import TradeShell from "@/components/trade/TradeShell";
-import TradeTerminal from "@/components/trade/TradeTerminal";
+import { redirect } from "next/navigation";
+import { tradePathForCoin } from "@/lib/trade/hyperliquidMarkets";
 
-export default function TradePage() {
-  return (
-    <TradeShell>
-      <TradeTerminal />
-    </TradeShell>
-  );
+export default function TradeIndexPage() {
+  redirect(tradePathForCoin("BTC"));
 }
