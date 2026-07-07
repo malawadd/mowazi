@@ -15,6 +15,16 @@ const venueValidator = v.union(
   v.literal("gmx"),
   v.literal("ostium"),
 );
+const tradeIntentArgs = {
+  marketId: v.string(),
+  side: sideValidator,
+  marginUsd: v.number(),
+  leverage: v.number(),
+  expectedHoldHours: v.optional(v.number()),
+  slippageCapBps: v.number(),
+  selectedVenue: venueValidator,
+  quoteJson: v.string(),
+};
 
 async function getViewerUser(ctx: { auth: any; db: any }) {
   const identity = await ctx.auth.getUserIdentity();
@@ -112,6 +122,14 @@ export const getTradeDashboard = query({
   },
 });
 
+export const getPublicTradeConfig = query({
+  args: {},
+  handler: async () => ({
+    markets: PERP_MARKETS,
+    settings: DEFAULT_TRADE_SETTINGS,
+  }),
+});
+
 export const previewPerpRoute = action({
   args: {
     marketId: v.string(),
@@ -122,8 +140,6 @@ export const previewPerpRoute = action({
     slippageCapBps: v.number(),
   },
   handler: async (ctx, args): Promise<BestExecutionQuote> => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Unauthorized");
     const input = {
       marketId: args.marketId,
       side: args.side,
@@ -170,49 +186,103 @@ export const setTradeSettings = mutation({
   },
 });
 
+async function insertTradeIntent(ctx: any, args: {
+  marketId: string;
+  side: "long" | "short";
+  marginUsd: number;
+  leverage: number;
+  expectedHoldHours?: number;
+  slippageCapBps: number;
+  selectedVenue: "hyperliquid" | "lighter" | "orderly" | "gmx" | "ostium";
+  quoteJson: string;
+}) {
+  const user = await requireViewerUser(ctx);
+  const parsed = JSON.parse(args.quoteJson) as BestExecutionQuote;
+  if (parsed.winningVenue !== args.selectedVenue) {
+    throw new Error("Only the current best-execution venue can be recorded.");
+  }
+  const accountWallet = await ctx.db
+    .query("accountWallets")
+    .withIndex("by_userId", (q: any) => q.eq("userId", user._id))
+    .first();
+  const expectedHoldHours = normalizeOptionalHours(args.expectedHoldHours);
+  const now = Date.now();
+  const intentId = await ctx.db.insert("tradeIntents", {
+    userId: user._id,
+    accountWalletId: accountWallet?._id,
+    marketId: args.marketId,
+    side: args.side,
+    status: "quoted",
+    marginUsd: args.marginUsd,
+    leverage: args.leverage,
+    notionalUsd: Number((args.marginUsd * args.leverage).toFixed(2)),
+    slippageCapBps: args.slippageCapBps,
+    expectedHoldHours: expectedHoldHours ?? undefined,
+    selectedVenue: args.selectedVenue,
+    benchmarkVenue: parsed.benchmarkVenue ?? undefined,
+    quoteJson: args.quoteJson,
+    quoteCreatedAt: parsed.createdAt,
+    queuedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return await ctx.db.get(intentId);
+}
+
+export const recordTradeIntent = mutation({
+  args: tradeIntentArgs,
+  handler: async (ctx, args) => {
+    return await insertTradeIntent(ctx, args);
+  },
+});
+
 export const queueTradeIntent = mutation({
+  args: tradeIntentArgs,
+  handler: async (ctx, args) => await insertTradeIntent(ctx, args),
+});
+
+export const recordVenueFunding = mutation({
   args: {
-    marketId: v.string(),
-    side: sideValidator,
-    marginUsd: v.number(),
-    leverage: v.number(),
-    expectedHoldHours: v.optional(v.number()),
-    slippageCapBps: v.number(),
-    selectedVenue: venueValidator,
-    quoteJson: v.string(),
+    intentId: v.id("tradeIntents"),
+    amountUsd: v.number(),
+    particleTransactionId: v.optional(v.string()),
+    detailsJson: v.optional(v.string()),
+    confirmed: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await requireViewerUser(ctx);
-    const parsed = JSON.parse(args.quoteJson) as BestExecutionQuote;
-    if (parsed.winningVenue !== args.selectedVenue) {
-      throw new Error("Only the current best-execution venue can be queued.");
-    }
-    const accountWallet = await ctx.db
-      .query("accountWallets")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .first();
-    const expectedHoldHours = normalizeOptionalHours(args.expectedHoldHours);
+    const intent = await ctx.db.get(args.intentId);
+    if (!intent || intent.userId !== user._id) throw new Error("Trade intent not found.");
     const now = Date.now();
-    const intentId = await ctx.db.insert("tradeIntents", {
-      userId: user._id,
-      accountWalletId: accountWallet?._id,
-      marketId: args.marketId,
-      side: args.side,
-      status: "queued",
-      marginUsd: args.marginUsd,
-      leverage: args.leverage,
-      notionalUsd: Number((args.marginUsd * args.leverage).toFixed(2)),
-      slippageCapBps: args.slippageCapBps,
-      expectedHoldHours: expectedHoldHours ?? undefined,
-      selectedVenue: args.selectedVenue,
-      benchmarkVenue: parsed.benchmarkVenue ?? undefined,
-      quoteJson: args.quoteJson,
-      quoteCreatedAt: parsed.createdAt,
-      queuedAt: now,
-      createdAt: now,
+    await ctx.db.patch(args.intentId, {
+      status: args.confirmed ? "funding_confirmed" : "funding_submitted",
+      fundingAmountUsd: args.amountUsd,
+      fundingTransactionId: args.particleTransactionId,
+      fundingJson: args.detailsJson,
       updatedAt: now,
     });
-    return await ctx.db.get(intentId);
+    return await ctx.db.get(args.intentId);
+  },
+});
+
+export const recordTradeExecution = mutation({
+  args: {
+    intentId: v.id("tradeIntents"),
+    status: v.union(v.literal("order_submitting"), v.literal("open"), v.literal("failed"), v.literal("closed")),
+    executionJson: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireViewerUser(ctx);
+    const intent = await ctx.db.get(args.intentId);
+    if (!intent || intent.userId !== user._id) throw new Error("Trade intent not found.");
+    await ctx.db.patch(args.intentId, {
+      status: args.status,
+      executionJson: args.executionJson,
+      errorMessage: args.errorMessage,
+      updatedAt: Date.now(),
+    });
+    return await ctx.db.get(args.intentId);
   },
 });
 

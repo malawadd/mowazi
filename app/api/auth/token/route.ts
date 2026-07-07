@@ -10,7 +10,7 @@ export async function GET() {
   const token = cookieStore.get(PARTICLE_SESSION_COOKIE)?.value;
 
   if (!token) {
-    return NextResponse.json({ error: "No active Particle session." }, { status: 401 });
+    return NextResponse.json({ token: null, session: null });
   }
 
   try {
@@ -26,8 +26,16 @@ export async function GET() {
       },
     });
   } catch {
-    const response = NextResponse.json({ error: "Particle session expired." }, { status: 401 });
-    response.cookies.set({ name: PARTICLE_SESSION_COOKIE, value: "", path: "/", maxAge: 0 });
+    const response = NextResponse.json(
+      { error: "Particle session expired." },
+      { status: 401 },
+    );
+    response.cookies.set({
+      name: PARTICLE_SESSION_COOKIE,
+      value: "",
+      path: "/",
+      maxAge: 0,
+    });
     return response;
   }
 }

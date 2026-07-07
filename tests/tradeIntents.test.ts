@@ -6,12 +6,13 @@ import {
   normalizeOptionalHours,
 } from "../lib/trade/intents";
 
-test("queued trade intents can be cancelled before execution starts", () => {
-  assert.equal(canCancelTradeIntent("queued"), true);
-  assert.equal(canCancelTradeIntent("executing"), false);
-  assert.equal(canCancelTradeIntent("filled"), false);
-  assert.doesNotThrow(() => assertCanCancelTradeIntent("queued"));
-  assert.throws(() => assertCanCancelTradeIntent("executing"), /queued/i);
+test("trade intents can be cancelled before order submission starts", () => {
+  assert.equal(canCancelTradeIntent("quoted"), true);
+  assert.equal(canCancelTradeIntent("funding_submitted"), true);
+  assert.equal(canCancelTradeIntent("order_submitting"), false);
+  assert.equal(canCancelTradeIntent("open"), false);
+  assert.doesNotThrow(() => assertCanCancelTradeIntent("quoted"));
+  assert.throws(() => assertCanCancelTradeIntent("order_submitting"), /quoted/i);
 });
 
 test("optional hold time normalizes empty values and rejects negative input", () => {

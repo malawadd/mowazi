@@ -4,8 +4,13 @@ import path from "node:path";
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["mowazitest.kiyan.finance"],
   webpack(config, { isServer }) {
+    config.resolve ??= {};
+    config.resolve.alias = {
+      ...(config.resolve.alias ?? {}),
+      "pino-pretty": false,
+    };
+
     if (!isServer) {
-      config.resolve ??= {};
       config.resolve.alias = {
         ...(config.resolve.alias ?? {}),
         "@aws-sdk/credential-providers$": path.join(

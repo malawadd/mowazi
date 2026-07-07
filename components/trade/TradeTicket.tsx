@@ -16,137 +16,102 @@ export default function TradeTicket({
   market,
   state,
   quote,
+  signedIn,
   previewing,
-  queueing,
+  submitting,
   saving,
   message,
   onChange,
   onPreview,
-  onQueue,
+  onSubmit,
   onSaveDefaults,
 }: {
   market: PerpMarket;
   state: TicketState;
   quote: BestExecutionQuote | null;
+  signedIn: boolean;
   previewing: boolean;
-  queueing: boolean;
+  submitting: boolean;
   saving: boolean;
   message: string | null;
   onChange: (patch: Partial<TicketState>) => void;
   onPreview: () => void;
-  onQueue: () => void;
+  onSubmit: () => void;
   onSaveDefaults: () => void;
 }) {
   const notional = Number(state.marginUsd || 0) * Number(state.leverage || 0);
   const winner = quote?.quotes.find((item) => item.venue === quote.winningVenue);
+  const liveWinner = winner?.venue === "hyperliquid" && winner.eligible;
 
   return (
     <section className={styles.ticket}>
-      <div className={styles.panelHeader}>
+      <div className={styles.panelHeaderCompact}>
         <div>
-          <p className={styles.kicker}>Ticket</p>
-          <p className={styles.muted}>Market order intent</p>
+          <span className={styles.kicker}>Ticket</span>
+          <p>Market execution intent</p>
         </div>
       </div>
-      <div className={styles.panelBody}>
-        <div className={styles.ticketForm}>
-          <div className={styles.sideGrid}>
-            <button
-              aria-pressed={state.side === "long"}
-              className={styles.sideButton}
-              type="button"
-              onClick={() => onChange({ side: "long" })}
-            >
-              Long
-            </button>
-            <button
-              aria-pressed={state.side === "short"}
-              className={styles.sideButton}
-              type="button"
-              onClick={() => onChange({ side: "short" })}
-            >
-              Short
-            </button>
-          </div>
-
-          <label className={styles.field}>
-            <span className={styles.metricLabel}>Margin USDC</span>
-            <input
-              className={styles.input}
-              inputMode="decimal"
-              value={state.marginUsd}
-              onChange={(event) => onChange({ marginUsd: event.target.value })}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.metricLabel}>Leverage</span>
-            <input
-              className={styles.input}
-              inputMode="decimal"
-              value={state.leverage}
-              onChange={(event) => onChange({ leverage: event.target.value })}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.metricLabel}>Slippage cap bps</span>
-            <input
-              className={styles.input}
-              inputMode="decimal"
-              value={state.slippageCapBps}
-              onChange={(event) => onChange({ slippageCapBps: event.target.value })}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.metricLabel}>Hold time hours</span>
-            <input
-              className={styles.input}
-              inputMode="decimal"
-              placeholder="Optional"
-              value={state.expectedHoldHours}
-              onChange={(event) => onChange({ expectedHoldHours: event.target.value })}
-            />
-          </label>
-
-          <div className={styles.metricsGrid}>
-            <div className={styles.metric}>
-              <span className={styles.metricLabel}>Notional</span>
-              <strong>{formatUsd(notional)}</strong>
-            </div>
-            <div className={styles.metric}>
-              <span className={styles.metricLabel}>Market cap</span>
-              <strong>{market.maxLeverage}x</strong>
-            </div>
-          </div>
-
-          {winner ? (
-            <div className={styles.intentCard}>
-              <span className={styles.metricLabel}>Best venue</span>
-              <h3>{winner.venueLabel}</h3>
-              <p className={styles.muted}>Estimated cost {formatUsd(winner.costs.totalCostUsd)}</p>
-            </div>
-          ) : null}
-
-          {message ? <p className={styles.muted}>{message}</p> : null}
-
-          <button className="primary-button" type="button" disabled={previewing} onClick={onPreview}>
-            {previewing ? "Previewing..." : "Preview route"}
+      <div className={styles.ticketBody}>
+        <div className={styles.sideGrid}>
+          <button aria-pressed={state.side === "long"} type="button" onClick={() => onChange({ side: "long" })}>
+            Long
           </button>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={!quote?.winningVenue || queueing}
-            onClick={onQueue}
-          >
-            {queueing ? "Queueing..." : "Queue intent"}
-          </button>
-          <button className={styles.tinyButton} type="button" disabled={saving} onClick={onSaveDefaults}>
-            {saving ? "Saving defaults" : "Save defaults"}
+          <button aria-pressed={state.side === "short"} type="button" onClick={() => onChange({ side: "short" })}>
+            Short
           </button>
         </div>
+        <Field label="Margin USDC" value={state.marginUsd} onChange={(value) => onChange({ marginUsd: value })} />
+        <Field label="Leverage" value={state.leverage} onChange={(value) => onChange({ leverage: value })} />
+        <Field label="Slippage bps" value={state.slippageCapBps} onChange={(value) => onChange({ slippageCapBps: value })} />
+        <Field
+          label="Hold hours"
+          value={state.expectedHoldHours}
+          placeholder="Optional"
+          onChange={(value) => onChange({ expectedHoldHours: value })}
+        />
+        <div className={styles.ticketStats}>
+          <span>Notional</span>
+          <strong>{formatUsd(notional)}</strong>
+          <span>Market cap</span>
+          <strong>{market.maxLeverage}x</strong>
+        </div>
+        {winner ? (
+          <div className={styles.routeWinner}>
+            <span>Best venue</span>
+            <strong>{winner.venueLabel}</strong>
+            <em>{formatUsd(winner.costs.totalCostUsd)} all-in cost</em>
+          </div>
+        ) : null}
+        {message ? <p className={styles.ticketMessage}>{message}</p> : null}
+        <button className={styles.primaryAction} type="button" disabled={previewing} onClick={onPreview}>
+          {previewing ? "Previewing..." : "Preview route"}
+        </button>
+        <button className={styles.longAction} type="button" disabled={submitting || !liveWinner} onClick={onSubmit}>
+          {submitting ? "Submitting..." : signedIn ? "Submit trade" : "Sign in to trade"}
+        </button>
+        <button className={styles.ghostAction} type="button" disabled={saving || !signedIn} onClick={onSaveDefaults}>
+          {saving ? "Saving..." : "Save defaults"}
+        </button>
       </div>
     </section>
+  );
+}
+
+function Field({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className={styles.field}>
+      <span>{label}</span>
+      <input inputMode="decimal" placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
   );
 }

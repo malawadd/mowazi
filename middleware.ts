@@ -3,7 +3,6 @@ import { PARTICLE_SESSION_COOKIE } from "@/lib/particleAuthConstants";
 
 const protectedRoutePrefixes = [
   "/dashboard(.*)",
-  "/trade(.*)",
   "/deposits(.*)",
   "/withdrawals(.*)",
   "/positions(.*)",
@@ -14,7 +13,7 @@ const protectedRoutePrefixes = [
   "/kill(.*)",
 ].map((pattern) => pattern.replace("(.*)", ""));
 
-function isProtectedRoute(pathname: string) {
+export function isProtectedRoute(pathname: string) {
   return protectedRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 

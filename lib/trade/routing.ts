@@ -10,6 +10,7 @@ import type {
   RouteInput,
   TradeSide,
   TradeVenueId,
+  VenueLevel,
   VenueQuote,
   VenueSnapshot,
 } from "./types";
@@ -30,7 +31,7 @@ export function routeBestExecution(
 
   const notionalUsd = roundUsd(input.marginUsd * input.leverage);
   const byVenue = new Map(snapshots.map((snapshot) => [snapshot.venue, snapshot]));
-  const benchmarkVenue = pickBenchmarkVenue(input, snapshots);
+  const benchmarkVenue = pickBenchmarkVenue(input, snapshots, notionalUsd);
   const benchmark = benchmarkVenue ? byVenue.get(benchmarkVenue) ?? null : null;
   const quotes = TRADE_VENUE_PRIORITY.map((venue) =>
     buildVenueQuote({
@@ -100,7 +101,7 @@ function buildVenueQuote(args: {
     venue: args.venue,
     venueLabel: capabilities.label,
     kind: capabilities.kind,
-    source: args.snapshot?.source ?? "fixture",
+    source: args.snapshot?.source ?? "none",
     midPrice: args.snapshot?.midPrice ?? null,
     estimatedEntryPrice: null,
     estimatedExitPrice: null,
@@ -120,8 +121,8 @@ function buildVenueQuote(args: {
   const snapshot = args.snapshot!;
   const benchmark = args.benchmark ?? snapshot;
   const quantity = args.notionalUsd / snapshot.midPrice;
-  const entryPrice = fillPrice(snapshot, args.input.side, "entry");
-  const exitPrice = fillPrice(snapshot, args.input.side === "long" ? "short" : "long", "exit");
+  const entryPrice = fillPrice(snapshot, args.input.side, "entry", quantity);
+  const exitPrice = fillPrice(snapshot, args.input.side === "long" ? "short" : "long", "exit", quantity);
   const entrySlippageUsd = slippageUsd(args.input.side, entryPrice, benchmark.midPrice, quantity);
   const exitSide = args.input.side === "long" ? "short" : "long";
   const exitSlippageUsd = slippageUsd(exitSide, exitPrice, benchmark.midPrice, quantity);
@@ -162,17 +163,19 @@ function getExclusionReason(
   if (args.input.leverage > capabilities.maxLeverage) return "Requested leverage is above this venue cap.";
   if (args.notionalUsd < capabilities.minNotionalUsd) return "Trade size is below this venue minimum.";
   if (args.now - args.snapshot.fetchedAt > MAX_QUOTE_FRESHNESS_MS) return "Quote is stale.";
-  if (ownImpactBps(args.snapshot) > args.input.slippageCapBps) return "Estimated impact exceeds slippage cap.";
+  if (ownImpactBps(args.snapshot, args.input, args.notionalUsd) > args.input.slippageCapBps) {
+    return "Estimated impact exceeds slippage cap.";
+  }
   return null;
 }
 
-function pickBenchmarkVenue(input: RouteInput, snapshots: VenueSnapshot[]) {
+function pickBenchmarkVenue(input: RouteInput, snapshots: VenueSnapshot[], notionalUsd: number) {
   const market = getPerpMarket(input.marketId);
   if (!market) return null;
   const candidates = snapshots.filter((snapshot) => market.venues.includes(snapshot.venue));
   if (candidates.length === 0) return null;
   return [...candidates].sort((left, right) => {
-    const impactDiff = ownImpactBps(left) - ownImpactBps(right);
+    const impactDiff = ownImpactBps(left, input, notionalUsd) - ownImpactBps(right, input, notionalUsd);
     if (Math.abs(impactDiff) > 0.0001) return impactDiff;
     return TRADE_VENUE_PRIORITY.indexOf(left.venue) - TRADE_VENUE_PRIORITY.indexOf(right.venue);
   })[0].venue;
@@ -201,7 +204,11 @@ function validateRouteInput(input: RouteInput) {
   }
 }
 
-function fillPrice(snapshot: VenueSnapshot, side: TradeSide, phase: "entry" | "exit") {
+function fillPrice(snapshot: VenueSnapshot, side: TradeSide, phase: "entry" | "exit", quantity: number) {
+  const levels = side === "long" ? snapshot.asks : snapshot.bids;
+  const swept = sweepBook(levels, quantity);
+  if (swept !== null) return swept;
+
   const impactBps = phase === "entry" ? snapshot.entryImpactBps : snapshot.exitImpactBps;
   const impact = snapshot.midPrice * (impactBps / 10_000);
   return side === "long" ? snapshot.askPrice + impact : snapshot.bidPrice - impact;
@@ -212,8 +219,34 @@ function slippageUsd(side: TradeSide, fill: number, benchmarkMid: number, quanti
   return roundUsd(Math.max(0, priceDiff * quantity));
 }
 
-function ownImpactBps(snapshot: VenueSnapshot) {
-  return snapshot.entryImpactBps + snapshot.exitImpactBps;
+function ownImpactBps(snapshot: VenueSnapshot, input: RouteInput, notionalUsd: number) {
+  const quantity = notionalUsd / snapshot.midPrice;
+  const entry = fillPrice(snapshot, input.side, "entry", quantity);
+  const exitSide = input.side === "long" ? "short" : "long";
+  const exit = fillPrice(snapshot, exitSide, "exit", quantity);
+  const entryImpact = priceImpactBps(input.side, entry, snapshot.midPrice);
+  const exitImpact = priceImpactBps(exitSide, exit, snapshot.midPrice);
+  return entryImpact + exitImpact;
+}
+
+function sweepBook(levels: VenueLevel[] | undefined, quantity: number) {
+  if (!levels?.length || !Number.isFinite(quantity) || quantity <= 0) return null;
+  let remaining = quantity;
+  let notional = 0;
+  for (const level of levels) {
+    if (!Number.isFinite(level.price) || !Number.isFinite(level.size) || level.size <= 0) continue;
+    const fillSize = Math.min(remaining, level.size);
+    notional += fillSize * level.price;
+    remaining -= fillSize;
+    if (remaining <= 1e-12) return notional / quantity;
+  }
+  return null;
+}
+
+function priceImpactBps(side: TradeSide, fill: number, mid: number) {
+  if (!Number.isFinite(fill) || !Number.isFinite(mid) || mid <= 0) return Infinity;
+  const diff = side === "long" ? fill - mid : mid - fill;
+  return Math.max(0, (diff / mid) * 10_000);
 }
 
 function feeUsd(notionalUsd: number, feeBps: number) {

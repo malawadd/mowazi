@@ -53,7 +53,7 @@ test("routing excludes unsupported markets and venue leverage caps", () => {
 });
 
 test("routing uses a shared slippage benchmark instead of each venue mid", () => {
-  const quote = routeBestExecution(baseInput, [
+  const quote = routeBestExecution({ ...baseInput, slippageCapBps: 500 }, [
     snapshot("hyperliquid", {
       midPrice: 100,
       bidPrice: 99,
@@ -63,8 +63,8 @@ test("routing uses a shared slippage benchmark instead of each venue mid", () =>
     }),
     snapshot("lighter", {
       midPrice: 102.5,
-      bidPrice: 102,
-      askPrice: 103,
+      bidPrice: 100,
+      askPrice: 105,
       entryImpactBps: 0,
       exitImpactBps: 0,
     }),
@@ -75,7 +75,7 @@ test("routing uses a shared slippage benchmark instead of each venue mid", () =>
 
   assert.equal(quote.benchmarkVenue, "hyperliquid");
   assert.equal(hyperliquid?.costs.entrySlippageUsd, 5);
-  assert.equal(lighter?.costs.entrySlippageUsd, 14.63);
+  assert.equal(lighter?.costs.entrySlippageUsd, 24.39);
 });
 
 test("funding is optional and exit fees are modeled from entry notional", () => {
@@ -90,13 +90,39 @@ test("funding is optional and exit fees are modeled from entry notional", () => 
   assert.equal(fundedQuote?.costs.exitFeeUsd, 0);
 });
 
-test("freshness and fixture fallback keep unavailable public venues routable", () => {
-  const quote = routeBestExecution(baseInput);
-  const eligible = quote.quotes.filter((item) => item.eligible);
+test("routing excludes non-live venues when only Hyperliquid has a public quote", () => {
+  const quote = routeBestExecution(baseInput, [snapshot("hyperliquid", { source: "public" })]);
+  const hyperliquid = quote.quotes.find((item) => item.venue === "hyperliquid");
+  const lighter = quote.quotes.find((item) => item.venue === "lighter");
 
-  assert.ok(eligible.length > 0);
-  assert.ok(eligible.every((item) => item.source === "fixture"));
-  assert.ok(eligible.every((item) => item.freshnessMs === 0));
+  assert.equal(hyperliquid?.eligible, true);
+  assert.equal(hyperliquid?.source, "public");
+  assert.equal(lighter?.eligible, false);
+  assert.match(lighter?.reason ?? "", /No fresh quote/i);
+});
+
+test("routing sweeps live order book levels for entry and exit estimates", () => {
+  const quote = routeBestExecution({ ...baseInput, slippageCapBps: 500 }, [
+    snapshot("hyperliquid", {
+      midPrice: 100,
+      bidPrice: 99.9,
+      askPrice: 100.1,
+      asks: [
+        { price: 100, size: 2 },
+        { price: 102, size: 3 },
+      ],
+      bids: [
+        { price: 99, size: 2 },
+        { price: 97, size: 3 },
+      ],
+      entryImpactBps: 100,
+      exitImpactBps: 100,
+    }),
+  ]);
+  const row = quote.quotes.find((item) => item.venue === "hyperliquid");
+
+  assert.equal(row?.estimatedEntryPrice, 101.2);
+  assert.equal(row?.estimatedExitPrice, 97.8);
 });
 
 test("ties prefer lower entry slippage and then static venue priority", () => {

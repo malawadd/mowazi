@@ -1,352 +1,77 @@
-.shell {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 20px;
-  padding: 20px;
-  background: var(--bg);
+.shell { min-height: 100vh; padding: 10px; background: var(--bg); }
+.appbar,.marketHeader,.marketRail,.chartPanel,.flowPanel,.ticket,.tableWrap,.tabsPanel { border: var(--border-width-lg) solid var(--line); background: var(--surface-paper); box-shadow: var(--shadow-md); }
+.appbar { min-height: 66px; display: grid; grid-template-columns: minmax(170px,240px) 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; margin-bottom: 10px; }
+.logoLockup { display: grid; gap: 2px; color: var(--ink); }
+.logoLockup strong { font-family: var(--font-syne), sans-serif; font-size: 2rem; line-height: 0.9; }
+.topNav,.timeframeRow,.tabBar,.sideGrid { display: flex; gap: 6px; flex-wrap: wrap; }
+.navPill,.navPillActive,.timeframeButton,.tabBar button,.sideGrid button,.primaryAction,.longAction,.ghostAction,.marketButton { border: var(--border-width) solid var(--line); background: var(--surface-paper); color: var(--ink); box-shadow: var(--shadow-sm); cursor: pointer; font-family: var(--font-plex-mono), monospace; font-size: 0.74rem; font-weight: 800; text-transform: uppercase; }
+.navPill,.navPillActive { padding: 10px 12px; }
+.navPillActive,.primaryAction,.timeframeButton[aria-pressed="true"],.tabBar button[aria-pressed="true"] { background: var(--surface-yellow); }
+.terminal { display: grid; gap: 10px; }
+.terminalGrid { display: grid; grid-template-columns: minmax(208px,0.62fr) minmax(520px,1.75fr) minmax(250px,0.8fr) minmax(286px,0.9fr); gap: 10px; align-items: start; }
+.marketHeader { min-height: 72px; display: grid; grid-template-columns: minmax(320px,1.35fr) repeat(6,minmax(120px,1fr)); gap: 8px; padding: 8px; }
+.pairBlock,.headerMetric,.ticketStats,.routeWinner,.tableLike > div,.historyRow { border: var(--border-width) solid var(--line); background: var(--surface-paper-alt); box-shadow: var(--shadow-sm); }
+.pairBlock { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 8px; background: var(--surface-sky-tint); }
+.marketSelect,.field input { width: 100%; min-width: 0; border: var(--border-width) solid var(--line); background: var(--surface-paper); color: var(--ink); font: inherit; font-family: var(--font-plex-mono), monospace; font-weight: 800; box-shadow: var(--shadow-sm); }
+.marketSelect { min-height: 38px; min-width: 132px; padding: 7px; }
+.leverageChip,.kicker { display: inline-flex; width: fit-content; border: var(--border-width) solid var(--line); background: var(--surface-paper); box-shadow: var(--shadow-sm); padding: 5px 7px; font-family: var(--font-plex-mono), monospace; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.headerMetric { display: grid; align-content: center; gap: 4px; padding: 8px; min-width: 0; }
+.headerMetric span,.field span,.routeWinner span,.ticketStats span,.tableLike span { color: var(--muted); font-family: var(--font-plex-mono), monospace; font-size: 0.68rem; text-transform: uppercase; }
+.headerMetric strong,.ticketStats strong,.tableLike strong { overflow: hidden; text-overflow: ellipsis; }
+.metricPositive { background: var(--surface-mint-tint); }
+.metricWarning { background: var(--surface-orange-tint); }
+.panelHeaderCompact { min-height: 54px; display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 8px; border-bottom: var(--border-width-lg) solid var(--line); background: var(--surface-yellow); }
+.panelHeaderCompact p,.muted,.cellMuted,.emptyText { color: var(--muted); margin: 4px 0 0; font-size: 0.82rem; }
+.marketList,.ticketBody,.tradesTape,.tabBody,.historyList { display: grid; gap: 8px; padding: 8px; }
+.marketButton { width: 100%; display: flex; justify-content: space-between; gap: 6px; padding: 9px; text-align: left; background: var(--surface-cream); text-transform: none; }
+.marketButton[aria-pressed="true"] { background: var(--surface-pink); }
+.marketButton span { display: grid; gap: 2px; }
+.marketButton em { max-width: 8ch; font-style: normal; color: var(--muted); text-align: right; }
+.chartColumn { min-width: 0; display: grid; gap: 10px; }
+.chartCanvas { position: relative; height: 390px; }
+.emptyText { padding: 10px; }
+.bookTable { display: grid; padding: 8px; gap: 2px; }
+.depthRow,.spreadRow,.tradeRow { position: relative; min-height: 27px; display: grid; grid-template-columns: 1fr 0.8fr 0.9fr; align-items: center; gap: 6px; padding: 4px 6px; overflow: hidden; border: 1px solid rgba(17,17,17,0.15); font-family: var(--font-plex-mono), monospace; font-size: 0.74rem; }
+.depthBar { position: absolute; inset: 0 0 0 auto; opacity: 0.42; z-index: 0; }
+.depthRow > * { position: relative; z-index: 1; }
+.ask .depthBar { background: var(--surface-rose); }
+.bid .depthBar { background: var(--surface-mint); }
+.askText { color: #ba2453; }
+.bidText { color: #236e37; }
+.spreadRow { grid-template-columns: 1fr auto; margin: 4px 0; background: var(--surface-sky-tint); border: var(--border-width) solid var(--line); }
+.ticket { position: sticky; top: 10px; }
+.field { display: grid; gap: 5px; }
+.field input { min-height: 42px; padding: 9px; }
+.sideGrid { display: grid; grid-template-columns: 1fr 1fr; }
+.sideGrid button { min-height: 42px; }
+.sideGrid button:first-child[aria-pressed="true"],.longAction { background: var(--surface-mint); }
+.sideGrid button:last-child[aria-pressed="true"] { background: var(--surface-pink); }
+.ticketStats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; }
+.routeWinner { display: grid; gap: 3px; padding: 9px; background: var(--surface-sky-tint); }
+.routeWinner em,.ticketMessage { color: var(--muted); font-style: normal; font-size: 0.82rem; }
+.primaryAction,.longAction,.ghostAction { width: 100%; min-height: 44px; }
+.primaryAction:disabled,.longAction:disabled,.ghostAction:disabled { opacity: 0.56; cursor: not-allowed; }
+.panelHeader,.panelBody { padding: 8px; }
+.costTable { width: 100%; min-width: 780px; border-collapse: collapse; font-size: 0.78rem; }
+.costTable th,.costTable td { padding: 8px; border-bottom: var(--border-width) solid var(--line); text-align: left; }
+.costTable th { background: var(--surface-cream); font-family: var(--font-plex-mono), monospace; text-transform: uppercase; }
+.tableScroll { overflow-x: auto; }
+.status { display: inline-flex; padding: 4px 6px; border: var(--border-width) solid var(--line); background: var(--surface-paper); font-family: var(--font-plex-mono), monospace; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; }
+.positive { background: var(--surface-mint); }
+.warning { background: var(--surface-orange); }
+.danger { background: var(--surface-rose); }
+.tabBar { padding: 8px; border-bottom: var(--border-width-lg) solid var(--line); background: var(--surface-yellow); }
+.tabBar button { padding: 8px 10px; }
+.tableLike,.historyList { display: grid; gap: 7px; }
+.tableLike > div,.historyRow { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 8px; }
+.historyRow { grid-template-columns: minmax(120px,1fr) auto auto auto; }
+@media (max-width: 1280px) {
+  .terminalGrid,.marketHeader,.appbar { grid-template-columns: 1fr; }
+  .ticket { position: static; }
 }
-
-.sidebar,
-.topbar,
-.panel,
-.ticket,
-.tableWrap {
-  border: var(--border-width-lg) solid var(--line);
-  background: var(--surface-paper);
-  box-shadow: var(--shadow-lg);
-}
-
-.sidebar {
-  min-height: calc(100vh - 40px);
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 24px;
-  background: var(--surface-mint);
-  container-type: inline-size;
-  overflow: hidden;
-}
-
-.brand {
-  min-width: 0;
-  display: grid;
-  gap: 0;
-  overflow: hidden;
-}
-
-.brandTitle {
-  margin-top: 12px;
-  display: block;
-  max-inline-size: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  font-family: var(--font-syne), sans-serif;
-  font-size: clamp(1.9rem, 15.5cqi, 3.1rem);
-  font-weight: 800;
-  line-height: 0.85;
-  letter-spacing: -0.05em;
-}
-
-.nav,
-.stack,
-.ticketForm,
-.marketList,
-.intentList {
-  display: grid;
-  gap: 12px;
-}
-
-.navItem,
-.marketButton,
-.sideButton,
-.tinyButton {
-  border: var(--border-width) solid var(--line);
-  background: var(--surface-cream);
-  color: var(--ink);
-  cursor: pointer;
-  font: inherit;
-  font-family: var(--font-plex-mono), monospace;
-  font-weight: 800;
-  text-transform: uppercase;
-  box-shadow: var(--shadow-sm);
-}
-
-.navItem {
-  padding: 12px 14px;
-  background: var(--surface-cream);
-  font-family: var(--font-plex-mono), monospace;
-  font-size: 0.86rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  box-shadow: var(--shadow-md);
-}
-
-.activeNav,
-.marketButton[aria-pressed="true"],
-.sideButton[aria-pressed="true"] {
-  background: var(--surface-pink);
-  color: white;
-}
-
-.sidebarNote {
-  margin-top: auto;
-  padding-top: 14px;
-  border-top: var(--border-width) solid var(--line);
-  color: var(--muted);
-}
-
-.main {
-  min-width: 0;
-  display: grid;
-  gap: 20px;
-}
-
-.topbar {
-  min-height: 150px;
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: flex-start;
-  padding: 22px 24px 20px;
-  overflow: hidden;
-  position: relative;
-  flex-wrap: wrap;
-}
-
-.topbar::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: clamp(240px, 32vw, 420px);
-  background: var(--surface-sky);
-  border-right: var(--border-width-lg) solid var(--line);
-}
-
-.topbar > * {
-  position: relative;
-  z-index: 1;
-}
-
-.title {
-  margin-top: 10px;
-  max-width: 14ch;
-  font-family: var(--font-syne), sans-serif;
-  font-size: clamp(2.15rem, 4.2vw, 4rem);
-  font-weight: 800;
-  line-height: 0.95;
-  letter-spacing: -0.05em;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: minmax(210px, 0.75fr) minmax(420px, 1.7fr) minmax(300px, 0.95fr);
-  gap: 18px;
-  align-items: start;
-}
-
-.middle {
-  min-width: 0;
-  display: grid;
-  gap: 18px;
-}
-
-.panel,
-.ticket,
-.tableWrap {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.panelHeader {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border-bottom: var(--border-width-lg) solid var(--line);
-  background: var(--surface-yellow);
-}
-
-.panelBody {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-}
-
-.kicker,
-.metricLabel {
-  display: inline-flex;
-  width: fit-content;
-  padding: 5px 8px;
-  border: var(--border-width) solid var(--line);
-  background: var(--surface-paper);
-  box-shadow: var(--shadow-sm);
-  font-family: var(--font-plex-mono), monospace;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.marketButton {
-  width: 100%;
-  padding: 11px;
-  text-align: left;
-  text-transform: none;
-}
-
-.marketButton span,
-.muted,
-.cellMuted {
-  color: var(--muted);
-}
-
-.chart {
-  height: 260px;
-  display: flex;
-  align-items: end;
-  gap: 4px;
-  padding: 12px;
-  border: var(--border-width) solid var(--line);
-  background: var(--surface-sky-tint);
-  box-shadow: var(--shadow-sm);
-}
-
-.bar {
-  flex: 1;
-  min-width: 4px;
-  border: 2px solid var(--line);
-  background: var(--surface-mint);
-}
-
-.barDown {
-  background: var(--surface-rose);
-}
-
-.bookGrid,
-.metricsGrid,
-.sideGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.bookRow,
-.metric,
-.intentCard {
-  border: var(--border-width) solid var(--line);
-  background: var(--surface-paper-alt);
-  padding: 10px;
-  box-shadow: var(--shadow-sm);
-}
-
-.bookRow {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-family: var(--font-plex-mono), monospace;
-  font-size: 0.82rem;
-}
-
-.ticket {
-  position: sticky;
-  top: 18px;
-}
-
-.input,
-.select {
-  width: 100%;
-  min-height: 48px;
-  padding: 11px 12px;
-  border: var(--border-width) solid var(--line);
-  background: var(--surface-paper);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 800;
-  box-shadow: var(--shadow-sm);
-}
-
-.field {
-  display: grid;
-  gap: 7px;
-}
-
-.sideButton,
-.tinyButton {
-  min-height: 42px;
-  padding: 9px 10px;
-}
-
-.tinyButton {
-  background: var(--surface-paper);
-  font-size: 0.75rem;
-}
-
-.costTable {
-  width: 100%;
-  min-width: 760px;
-  border-collapse: collapse;
-  font-size: 0.86rem;
-}
-
-.costTable th,
-.costTable td {
-  padding: 10px;
-  border-bottom: var(--border-width) solid var(--line);
-  text-align: left;
-}
-
-.costTable th {
-  background: var(--surface-cream);
-  font-family: var(--font-plex-mono), monospace;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-}
-
-.tableScroll {
-  overflow-x: auto;
-}
-
-.status {
-  display: inline-flex;
-  padding: 5px 8px;
-  border: var(--border-width) solid var(--line);
-  background: var(--surface-paper);
-  font-family: var(--font-plex-mono), monospace;
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.positive {
-  background: var(--surface-mint);
-}
-
-.warning {
-  background: var(--surface-orange);
-}
-
-.danger {
-  background: var(--surface-rose);
-}
-
-@media (max-width: 1180px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
-  .ticket {
-    position: static;
-  }
-}
-
-@media (max-width: 860px) {
-  .shell {
-    grid-template-columns: 1fr;
-    padding: 14px;
-  }
-
-  .sidebar {
-    min-height: auto;
-  }
+@media (max-width: 760px) {
+  .shell { padding: 6px; }
+  .terminalGrid { gap: 8px; }
+  .chartCanvas { height: 300px; }
+  .historyRow { grid-template-columns: 1fr; }
 }

@@ -14,6 +14,11 @@ export type CostBreakdown = {
   totalCostUsd: number;
 };
 
+export type VenueLevel = {
+  price: number;
+  size: number;
+};
+
 export type PerpMarket = {
   id: string;
   label: string;
@@ -42,6 +47,8 @@ export type VenueSnapshot = {
   midPrice: number;
   bidPrice: number;
   askPrice: number;
+  bids?: VenueLevel[];
+  asks?: VenueLevel[];
   entryImpactBps: number;
   exitImpactBps: number;
   fundingRateHourly: number;
@@ -67,7 +74,7 @@ export type VenueQuote = {
   kind: "clob" | "onchain";
   eligible: boolean;
   reason?: string;
-  source: "public" | "fixture";
+  source: "public" | "fixture" | "none";
   midPrice: number | null;
   estimatedEntryPrice: number | null;
   estimatedExitPrice: number | null;
@@ -97,6 +104,17 @@ export type TradeSettings = {
   expectedHoldHours: number | null;
   requireConfirmation: boolean;
 };
+
+export type TradeIntentStatus =
+  | "quoted"
+  | "funding_submitted"
+  | "funding_confirmed"
+  | "order_submitting"
+  | "open"
+  | "close_submitting"
+  | "closed"
+  | "failed"
+  | "cancelled";
 
 export type PerpVenueAdapter = {
   venue: TradeVenueId;

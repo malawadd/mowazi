@@ -1,12 +1,12 @@
-export type TradeIntentStatus = "queued" | "cancelled" | "executing" | "failed" | "filled";
+import type { TradeIntentStatus } from "./types";
 
 export function canCancelTradeIntent(status: TradeIntentStatus) {
-  return status === "queued";
+  return status === "quoted" || status === "funding_submitted";
 }
 
 export function assertCanCancelTradeIntent(status: TradeIntentStatus) {
   if (!canCancelTradeIntent(status)) {
-    throw new Error("Only queued trade intents can be cancelled.");
+    throw new Error("Only quoted or funding-submitted trade intents can be cancelled.");
   }
 }
 
