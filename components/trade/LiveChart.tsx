@@ -29,6 +29,8 @@ export default function LiveChart({
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const candlesRef = useRef(candles);
+  const prevLenRef = useRef(0);
+  const firstTimeRef = useRef<number | null>(null);
   candlesRef.current = candles;
 
   useEffect(() => {
@@ -43,6 +45,7 @@ export default function LiveChart({
       timeScale: { borderColor: "#111111", timeVisible: true, secondsVisible: false },
       crosshair: { mode: 1 },
     });
+    chartRef.current = chart;
     candleSeriesRef.current = chart.addSeries(CandlestickSeries, {
       upColor: "#88d498",
       downColor: "#ff7ba5",
@@ -56,13 +59,18 @@ export default function LiveChart({
       priceScaleId: "",
       color: "#74b9ff",
     });
-    chartRef.current = chart;
     chart.priceScale("").applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
 
+    let lastW = container.clientWidth;
+    let lastH = container.clientHeight;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0) chart.resize(width, height);
+        if (width > 0 && height > 0 && (width !== lastW || height !== lastH)) {
+          lastW = width;
+          lastH = height;
+          chart.resize(width, height);
+        }
       }
     });
     observer.observe(container);
@@ -89,6 +97,10 @@ export default function LiveChart({
   }, []);
 
   useEffect(() => {
+    const candleSeries = candleSeriesRef.current;
+    const volumeSeries = volumeSeriesRef.current;
+    if (!candleSeries || !volumeSeries) return;
+
     const candleData: CandlestickData[] = candles.map((candle) => ({
       time: Math.floor(candle.time / 1000) as Time,
       open: candle.open,
@@ -101,8 +113,27 @@ export default function LiveChart({
       value: candle.volume,
       color: candle.close >= candle.open ? "#88d498" : "#ff7ba5",
     }));
-    candleSeriesRef.current?.setData(candleData);
-    volumeSeriesRef.current?.setData(volumeData);
+
+    const prevLen = prevLenRef.current;
+    const prevFirst = firstTimeRef.current;
+    const currFirst = candles.length > 0 ? candles[0].time : null;
+    const isPrepend = prevFirst !== null && currFirst !== null && currFirst < prevFirst;
+
+    // Full reset when data shrinks, first load, or historical data was prepended
+    if (candles.length === 0 || prevLen === 0 || candles.length < prevLen || isPrepend) {
+      candleSeries.setData(candleData);
+      volumeSeries.setData(volumeData);
+    } else if (candles.length > prevLen) {
+      // Append: update only new candles (live feed)
+      for (let i = prevLen; i < candleData.length; i++) candleSeries.update(candleData[i]);
+      for (let i = prevLen; i < volumeData.length; i++) volumeSeries.update(volumeData[i]);
+    } else {
+      // Same length: update last candle in place (live tick)
+      candleSeries.update(candleData[candleData.length - 1]);
+      volumeSeries.update(volumeData[volumeData.length - 1]);
+    }
+    prevLenRef.current = candles.length;
+    firstTimeRef.current = currFirst;
   }, [candles]);
 
   return (

@@ -50,13 +50,14 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
   const snapshotRef = useRef<VenueSnapshot | null>(null);
   const oldestRef = useRef<number | null>(null);
   const loadingMoreRef = useRef(false);
-  const cancelledRef = useRef(false);
+  const genRef = useRef(0);
   const liveCoinRef = useRef<string | null>(null);
   const coin = useMemo(() => coinForHyperliquidMarket(market.id), [market.id]);
 
   const loadMoreCandles = useCallback(async () => {
     const liveCoin = liveCoinRef.current;
-    if (loadingMoreRef.current || !oldestRef.current || !liveCoin || cancelledRef.current) return;
+    const gen = genRef.current;
+    if (loadingMoreRef.current || !oldestRef.current || !liveCoin || gen === 0) return;
     loadingMoreRef.current = true;
     try {
       const endTime = oldestRef.current;
@@ -65,7 +66,7 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
         type: "candleSnapshot",
         req: { coin: liveCoin, interval, startTime, endTime },
       }).catch(() => []);
-      if (cancelledRef.current) return;
+      if (genRef.current !== gen) return;
       const normalized = candles.map(normalizeCandle).filter(Boolean) as TradeCandle[];
       if (normalized.length === 0) return;
       oldestRef.current = normalized[0].time;
@@ -88,14 +89,15 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
   useEffect(() => {
     if (!coin || !market.venues.includes("hyperliquid")) {
       snapshotRef.current = null;
-      cancelledRef.current = true;
+      genRef.current = 0;
       setState({ ...EMPTY, status: "unsupported", error: "Hyperliquid does not list this market yet." });
       return;
     }
     const liveCoin = coin;
     liveCoinRef.current = liveCoin;
+    genRef.current += 1;
+    const gen = genRef.current;
 
-    cancelledRef.current = false;
     let ws: WebSocket | null = null;
 
     snapshotRef.current = null;
@@ -103,6 +105,7 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
     setState({ ...EMPTY, status: "connecting" });
 
     const markLive = (patch: Partial<FeedState>) => {
+      if (genRef.current !== gen) return;
       if (patch.snapshot) snapshotRef.current = patch.snapshot;
       setState((current) => ({
         ...current,
@@ -123,16 +126,16 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
           req: { coin: liveCoin, interval, startTime, endTime },
         }).catch(() => []),
       ]);
-      if (!cancelledRef.current) {
-        const normalized = candles.map(normalizeCandle).filter(Boolean) as TradeCandle[];
-        if (normalized.length > 0) oldestRef.current = normalized[0].time;
-        markLive({ snapshot, candles: normalized });
-      }
+      if (genRef.current !== gen) return;
+      const normalized = candles.map(normalizeCandle).filter(Boolean) as TradeCandle[];
+      if (normalized.length > 0) oldestRef.current = normalized[0].time;
+      markLive({ snapshot, candles: normalized });
     }
 
     function connect() {
       ws = new WebSocket(HYPERLIQUID_WS_URL);
       ws.onopen = () => {
+        if (genRef.current !== gen) return;
         for (const subscription of [
           { type: "allMids" },
           { type: "l2Book", coin: liveCoin },
@@ -143,10 +146,15 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
           ws?.send(JSON.stringify({ method: "subscribe", subscription }));
         }
       };
-      ws.onmessage = (event) => handleMessage(event.data);
-      ws.onerror = () => setState((current) => ({ ...current, status: "offline", error: "Live feed error." }));
+      ws.onmessage = (event) => {
+        if (genRef.current === gen) handleMessage(event.data);
+      };
+      ws.onerror = () => {
+        if (genRef.current !== gen) return;
+        setState((current) => ({ ...current, status: "offline", error: "Live feed error." }));
+      };
       ws.onclose = () => {
-        if (!cancelledRef.current) {
+        if (genRef.current === gen) {
           setState((current) => ({ ...current, status: "offline" }));
           window.setTimeout(connect, 1800);
         }
@@ -215,17 +223,18 @@ export function useHyperliquidFeed(market: PerpMarket, interval: string) {
     }
 
     void loadRest().catch((error) => {
-      if (!cancelledRef.current) setState((current) => ({ ...current, status: "offline", error: String(error) }));
+      if (genRef.current === gen) setState((current) => ({ ...current, status: "offline", error: String(error) }));
     });
     connect();
     const staleTimer = window.setInterval(() => {
+      if (genRef.current !== gen) return;
       setState((current) =>
         current.lastUpdate && Date.now() - current.lastUpdate > 20_000 ? { ...current, status: "stale" } : current,
       );
     }, 2000);
 
     return () => {
-      cancelledRef.current = true;
+      genRef.current += 1; // invalidate all pending callbacks
       window.clearInterval(staleTimer);
       ws?.close();
     };
