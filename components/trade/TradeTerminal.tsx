@@ -18,13 +18,14 @@ import {
 } from "@/lib/trade/hyperliquidMarkets";
 import { submitHyperliquidMarketOrder } from "@/lib/trade/hyperliquidOrder";
 import { normalizeOptionalHours } from "@/lib/trade/intents";
+import { formatNumber } from "@/lib/trade/format";
 import { DEFAULT_TRADE_SETTINGS } from "@/lib/trade/markets";
 import { buildTradeTicketLimits } from "@/lib/trade/ticketLimits";
 import type { BestExecutionQuote, PerpMarket, TradeSettings } from "@/lib/trade/types";
 import BestExecutionTable from "./BestExecutionTable";
 import LiveChart from "./LiveChart";
 import MarketHeader from "./MarketHeader";
-import MarketPanel from "./MarketPanel";
+// import MarketPanel from "./MarketPanel";
 import OrderFlowPanel from "./OrderFlowPanel";
 import TerminalTabs from "./TerminalTabs";
 import TradeTicket, { type TicketState } from "./TradeTicket";
@@ -90,6 +91,16 @@ export default function TradeTerminal({ initialCoin }: { initialCoin: string }) 
       }),
     [accountCollateralUsd, feed.snapshot, selectedMarket?.maxLeverage, ticket.leverage, ticket.side, ticket.slippageCapBps],
   );
+
+  useEffect(() => {
+    const price = feed.snapshot?.markPrice ?? selectedMarket?.markPrice ?? null;
+    const label = selectedCoin
+      ? price !== null
+        ? `${selectedCoin} | $${formatNumber(price, selectedMarket?.pricePrecision ?? 2)} | Moeazi`
+        : `${selectedCoin} · Moeazi`
+      : "Moeazi";
+    document.title = label;
+  }, [selectedCoin, feed.snapshot?.markPrice, selectedMarket?.markPrice, selectedMarket?.pricePrecision]);
 
   useEffect(() => {
     setSelectedCoin(canonicalHyperliquidCoin(initialCoin));
