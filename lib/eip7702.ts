@@ -1,4 +1,6 @@
 export type UniversalAccountMode = "smart" | "eip7702-if-supported";
+export type AccountWalletMode = "smart_account" | "eip7702";
+export type AccountWalletProvider = "particle" | "magic" | "wallet";
 
 export type Eip7702Capability = {
   supported: boolean;
@@ -77,4 +79,47 @@ export function getEip7702Status(
     enabled: requested && capability.supported,
     deployments,
   };
+}
+
+function readChainId(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const recordValue = value as Record<string, unknown>;
+  const chainId = recordValue.chainId ?? recordValue.chain_id ?? recordValue.chain;
+  const parsed = Number(chainId);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function extractEip7702DelegatedChainIds(deployments: unknown): number[] {
+  const chainIds = new Set<number>();
+  if (Array.isArray(deployments)) {
+    for (const item of deployments) {
+      const chainId = readChainId(item);
+      if (chainId !== null) chainIds.add(chainId);
+    }
+    return [...chainIds];
+  }
+
+  const deploymentRecord = record(deployments);
+  if (!deploymentRecord) return [];
+  for (const [key, value] of Object.entries(deploymentRecord)) {
+    const numericKey = Number(key);
+    if (Number.isFinite(numericKey) && value) {
+      chainIds.add(numericKey);
+      continue;
+    }
+    const chainId = readChainId(value);
+    if (chainId !== null) chainIds.add(chainId);
+  }
+  return [...chainIds];
+}
+
+export function getEvmDepositAddress(input: {
+  accountMode?: AccountWalletMode | null;
+  evmUaAddress?: string | null;
+  ownerAddress?: string | null;
+}) {
+  if (input.accountMode === "eip7702") {
+    return input.ownerAddress ?? input.evmUaAddress ?? null;
+  }
+  return input.evmUaAddress ?? input.ownerAddress ?? null;
 }

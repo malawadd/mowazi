@@ -63,8 +63,8 @@ export default function ProfileWalletPage() {
         <div className="stack-list">
           <AccountWalletPanel savedWallet={savedWallet ?? null} />
           <ConnectedWalletDepositPanel
-            receiverAddress={accountInfo?.evmSmartAccount ?? savedWallet?.evmUaAddress}
-            recipientLabel="your Particle account wallet"
+            receiverAddress={accountInfo?.evmDepositAddress ?? savedWallet?.evmDepositAddress ?? savedWallet?.evmUaAddress}
+            recipientLabel="your account wallet"
             title="Deposit from connected wallet"
             description="Scan supported Particle primary assets in an EOA wallet and transfer them into your Universal Account."
           />

@@ -27,8 +27,18 @@ export const createStrategyAccount = action({
     const userId = (await ctx.runMutation(internal.mutations.upsertViewerUser, {
       authSubject: identity.subject,
       authProvider: String(identity.authProvider ?? "particle"),
+      walletAddress:
+        typeof identity.walletAddress === "string"
+          ? identity.walletAddress
+          : typeof identity.particleWalletAddress === "string"
+            ? identity.particleWalletAddress
+            : undefined,
       particleWalletAddress:
-        typeof identity.particleWalletAddress === "string" ? identity.particleWalletAddress : undefined,
+        typeof identity.particleWalletAddress === "string"
+          ? identity.particleWalletAddress
+          : typeof identity.walletAddress === "string"
+            ? identity.walletAddress
+            : undefined,
       particleUuid: typeof identity.particleUuid === "string" ? identity.particleUuid : undefined,
       email: identity.email,
       displayName:

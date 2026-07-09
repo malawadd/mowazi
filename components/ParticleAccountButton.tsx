@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useModal } from "@particle-network/connectkit";
 import { useParticleSession } from "@/components/ParticleConnectKitProvider";
 import { useParticleWalletWidgetPreference } from "@/components/ParticleWalletWidgetPreference";
+import { useMagicWallet } from "@/components/MagicWalletProvider";
 import { shouldOpenHeaderWalletPopup } from "@/lib/headerWallet";
 
 function shortenAddress(address: string) {
@@ -15,6 +16,7 @@ export default function ParticleAccountButton() {
   const { session, signOut, status } = useParticleSession();
   const { toggleWalletWidgetVisible, walletWidgetVisible } =
     useParticleWalletWidgetPreference();
+  const magicWallet = useMagicWallet();
   const { setOpen } = useModal();
 
   if (status === "loading") {
@@ -41,6 +43,10 @@ export default function ParticleAccountButton() {
         title="Open wallet menu"
         type="button"
         onClick={() => {
+          if (session.authProvider === "magic") {
+            void magicWallet.showWallet().catch(() => undefined);
+            return;
+          }
           if (
             shouldOpenHeaderWalletPopup({
               hasSession: Boolean(session),
@@ -53,22 +59,24 @@ export default function ParticleAccountButton() {
       >
         {shortenAddress(session.walletAddress)}
       </button>
-      <button
-        aria-label={
-          walletWidgetVisible
-            ? "Hide floating Particle wallet widget"
-            : "Show floating Particle wallet widget"
-        }
-        aria-pressed={walletWidgetVisible}
-        className="wallet-widget-toggle"
-        title={
-          walletWidgetVisible ? "Hide floating wallet" : "Show floating wallet"
-        }
-        type="button"
-        onClick={toggleWalletWidgetVisible}
-      >
-        Widget {walletWidgetVisible ? "On" : "Off"}
-      </button>
+      {session.authProvider === "magic" ? null : (
+        <button
+          aria-label={
+            walletWidgetVisible
+              ? "Hide floating Particle wallet widget"
+              : "Show floating Particle wallet widget"
+          }
+          aria-pressed={walletWidgetVisible}
+          className="wallet-widget-toggle"
+          title={
+            walletWidgetVisible ? "Hide floating wallet" : "Show floating wallet"
+          }
+          type="button"
+          onClick={toggleWalletWidgetVisible}
+        >
+          Widget {walletWidgetVisible ? "On" : "Off"}
+        </button>
+      )}
       <button
         className="secondary-button"
         type="button"

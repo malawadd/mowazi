@@ -1,11 +1,11 @@
 # Moeazi
 
-Moeazi is a `Next.js + Convex + Particle` app for managed strategy accounts.
+Moeazi is a `Next.js + Convex + Particle Universal Accounts` app for managed strategy accounts.
 
 The current product direction is:
 
-- one user identity via Particle Auth
-- one visible Particle Universal Account wallet per user strategy account
+- one user identity via Particle ConnectKit or Magic embedded wallet
+- one visible Universal Account wallet per user profile
 - one managed strategy account per user in Convex
 - three managed venue wallets per account:
   - Optimism execution wallet
@@ -21,14 +21,14 @@ The legacy strategy engine still lives in the `123strk/` folder as internal code
 | Area | Status | Notes |
 | --- | --- | --- |
 | Next.js app shell and pages | Working | Dashboard, deposits, positions, risk, activity, settings, emergency stop are live |
-| Particle auth | Working | Particle Auth signs app challenges, then Moeazi mints Convex `customJwt` sessions |
+| App auth | Working | Particle ConnectKit and Magic sign Moeazi challenges, then Moeazi mints Convex `customJwt` sessions |
 | Convex schema + managed account model | Working | Managed tables are in `convex/schema.ts` |
 | Managed wallet generation + encryption | Working | Wallets are generated in Convex Node actions and encrypted with `WALLET_MASTER_KEY` |
 | Strategy account provisioning | Working | Creates user record, strategy account, venue accounts, wallet secrets, default config |
 | Strategy config save / enable / pause / emergency stop | Working | Backed by Convex mutations and audit events |
-| Account wallet UI | Working | `/profile/wallet` shows Particle UA addresses, unified balance, receive instructions, and share link controls |
+| Account wallet UI | Working | `/profile/wallet` shows provider, account mode, deposit addresses, unified balance, receive instructions, and share link controls |
 | Deposit instructions UI | Working | Shows managed strategy funding addresses for Optimism + HyperLiquid master wallet |
-| Particle Universal Account funding | Working | Receives funds into UA, supports public payment links, and sends supported UA transfers into strategy rails |
+| Universal Account funding | Working | Receives funds into UA, supports public payment links, settles UA payments into Arbitrum USDC, and sends supported UA transfers into strategy rails |
 | Worker HTTP gateway + execution leases | Working | Exposed through `convex/http.ts` |
 | Uniswap execution actions | Implemented | Needs live funded-wallet validation before treating as production-ready |
 | HyperLiquid approval / order / withdrawal actions | Implemented | Needs live funded-wallet validation before treating as production-ready |
@@ -102,6 +102,7 @@ Treat those as legacy internal bot code or reference material unless you intenti
 - Python 3.10+ if you want to run the external supervisor
 - a Convex deployment
 - a Particle Network project
+- a Magic API key if you want native EIP-7702 embedded-wallet mode
 - an Optimism RPC endpoint
 - a HyperLiquid account if you want to validate live hedge flows
 - a Uniswap API key if your environment requires one
@@ -120,6 +121,9 @@ Start from `.env.example`. It documents the current variables without exposing l
 | `NEXT_PUBLIC_CLIENT_KEY` | Yes | Particle browser client key |
 | `NEXT_PUBLIC_APP_ID` | Yes | Particle app ID |
 | `PARTICLE_PROJECT_SERVER_KEY` | Yes | Particle server key used to verify project users |
+| `NEXT_PUBLIC_MAGIC_API_KEY` | Optional | Magic embedded wallet API key for native EIP-7702 login |
+| `NEXT_PUBLIC_MAGIC_DELEGATION_CHAIN_ID` | Optional | Chain used for Magic 7702 delegation, defaults to Arbitrum `42161` |
+| `NEXT_PUBLIC_MAGIC_RPC_URL` | Optional | RPC used by the Magic EVM extension, defaults to public Arbitrum RPC |
 
 ### Convex deployment environment
 
@@ -172,9 +176,17 @@ These showed up in local env state but are not used by the managed Moeazi path:
 3. Generate an RS256 keypair for Moeazi JWTs and set the private/public PEM env values.
 4. Set `PARTICLE_CONVEX_JWT_ISSUER` to your app origin and `PARTICLE_CONVEX_JWKS_URL` to `<origin>/api/auth/jwks`.
 5. Set the same issuer and JWKS values in Convex with `npx convex env set`.
-6. Start the app and verify `/sign-in` opens Particle Auth before provisioning a strategy account.
+6. Start the app and verify `/sign-in` offers `Particle Connect`.
 
 For deployed Convex, the JWKS URL must be publicly reachable by Convex.
+
+## Magic 7702 Setup
+
+1. Create or open a Magic app and copy the publishable API key into `NEXT_PUBLIC_MAGIC_API_KEY`.
+2. Set `NEXT_PUBLIC_MAGIC_DELEGATION_CHAIN_ID=42161` for Arbitrum-native Moeazi accounts.
+3. Set `NEXT_PUBLIC_MAGIC_RPC_URL` to an Arbitrum RPC endpoint.
+4. Start the app and verify `/sign-in` offers `Magic 7702 Wallet`.
+5. After Magic login, open `/profile/wallet`; the owner EOA should be shown as the EVM deposit address because in 7702 mode the EOA is the Universal Account.
 
 ## Running The App
 
@@ -206,7 +218,7 @@ npm run dev:frontend
 
 Open:
 
-- `http://localhost:3000`
+- `http://localhost:3002`
 
 ## Running The External Supervisor
 
@@ -231,13 +243,15 @@ The supervisor currently:
 ## First Manual Smoke Test
 
 1. Start Convex and Next.js.
-2. Sign in with Particle.
+2. Sign in with Particle Connect or Magic 7702 Wallet.
 3. Open `/dashboard`.
 4. Click `Create strategy account`.
 5. Confirm three venue wallets appear.
-6. Open `/profile/wallet` and confirm the Particle account wallet shows owner EOA, EVM UA, Solana UA, and unified balance.
+6. Open `/profile/wallet` and confirm the account wallet shows provider, account mode, owner EOA, EVM deposit address, Solana UA, and unified balance.
+   - Particle / wallet-connect users should see Smart Account mode.
+   - Magic users should see EIP-7702 mode and the owner EOA as the EVM deposit address.
 7. Sync the account wallet, create/copy the shared payment link, and open `/pay/<slug>` in a public browser context.
-8. On the public payment page, connect a Particle payer wallet and preview a supported deposit into the owner UA.
+8. On the public payment page, connect a payer wallet and preview settlement into Arbitrum USDC.
 9. Move funds from the owner UA into the supported strategy rails, then refresh managed funding state.
 10. Open `/deposits` and confirm the managed funding addresses and refreshed balances render.
 11. Approve the HyperLiquid agent wallet from the dashboard.

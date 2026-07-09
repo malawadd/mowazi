@@ -12,6 +12,16 @@ function normalizeAddress(value: string) {
   return value.trim().toLowerCase();
 }
 
+function identityWalletAddress(identity: Record<string, any>) {
+  const value =
+    typeof identity.walletAddress === "string"
+      ? identity.walletAddress
+      : typeof identity.particleWalletAddress === "string"
+        ? identity.particleWalletAddress
+        : undefined;
+  return value ? normalizeAddress(value) : undefined;
+}
+
 async function getViewerIdentity(ctx: { auth: any }) {
   return await ctx.auth.getUserIdentity();
 }
@@ -35,8 +45,9 @@ async function requireViewerUser(ctx: { auth: any; db: any }) {
   const userId = await ctx.db.insert("users", {
     authSubject: identity.subject,
     authProvider: String(identity.authProvider ?? "particle"),
+    walletAddress: identityWalletAddress(identity),
     particleWalletAddress:
-      typeof identity.particleWalletAddress === "string" ? identity.particleWalletAddress : undefined,
+      identityWalletAddress(identity),
     particleUuid: typeof identity.particleUuid === "string" ? identity.particleUuid : undefined,
     email: typeof identity.email === "string" ? identity.email : undefined,
     displayName:
@@ -68,6 +79,17 @@ async function getActivePaymentLinkByUserId(ctx: { db: any }, userId: any) {
 const depositPolicyValidator = v.union(
   v.literal(PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementOnly),
   v.literal(PAYMENT_LINK_DEPOSIT_POLICY.uaSettlementPlusEoaDirect),
+);
+
+const accountWalletProviderValidator = v.union(
+  v.literal("particle"),
+  v.literal("magic"),
+  v.literal("wallet"),
+);
+
+const accountWalletModeValidator = v.union(
+  v.literal("smart_account"),
+  v.literal("eip7702"),
 );
 
 async function createUniquePaymentLink(
@@ -118,7 +140,12 @@ export const syncViewerAccountWallet = mutation({
   args: {
     ownerAddress: v.string(),
     evmUaAddress: v.string(),
+    evmDepositAddress: v.optional(v.string()),
     solanaUaAddress: v.string(),
+    walletProvider: v.optional(accountWalletProviderValidator),
+    accountMode: v.optional(accountWalletModeValidator),
+    eip7702Delegated: v.optional(v.boolean()),
+    delegatedChainIdsJson: v.optional(v.string()),
     unifiedBalanceUsd: v.number(),
     assetsJson: v.string(),
   },
@@ -129,11 +156,14 @@ export const syncViewerAccountWallet = mutation({
     if (!args.evmUaAddress.trim() || !args.solanaUaAddress.trim()) {
       throw new Error("Universal Account addresses are not ready.");
     }
-    if (
-      user.particleWalletAddress &&
-      normalizeAddress(user.particleWalletAddress) !== normalizeAddress(args.ownerAddress)
-    ) {
-      throw new Error("Particle owner address does not match the signed-in user.");
+    const signedInAddress =
+      typeof user.walletAddress === "string"
+        ? user.walletAddress
+        : typeof user.particleWalletAddress === "string"
+          ? user.particleWalletAddress
+          : undefined;
+    if (signedInAddress && normalizeAddress(signedInAddress) !== normalizeAddress(args.ownerAddress)) {
+      throw new Error("Account owner address does not match the signed-in user.");
     }
 
     const now = Date.now();
@@ -144,7 +174,12 @@ export const syncViewerAccountWallet = mutation({
       strategyAccountId: strategyAccount?._id,
       ownerAddress: normalizeAddress(args.ownerAddress),
       evmUaAddress: args.evmUaAddress,
+      evmDepositAddress: args.evmDepositAddress ?? args.evmUaAddress,
       solanaUaAddress: args.solanaUaAddress,
+      walletProvider: args.walletProvider ?? "particle",
+      accountMode: args.accountMode ?? "smart_account",
+      eip7702Delegated: args.eip7702Delegated,
+      delegatedChainIdsJson: args.delegatedChainIdsJson,
       unifiedBalanceUsd: args.unifiedBalanceUsd,
       assetsJson: args.assetsJson,
       lastRefreshedAt: now,

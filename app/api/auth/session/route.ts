@@ -80,6 +80,7 @@ export async function POST(request: Request) {
 
     const token = await createParticleSessionToken({
       subject: `particle:${address}`,
+      authProvider: "particle",
       walletAddress: address,
       particleUuid: userInfo.uuid,
       email: userInfo.email,
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
     const response = NextResponse.json({
       session: {
         subject: `particle:${address}`,
+        authProvider: "particle",
         walletAddress: address,
         particleUuid: userInfo.uuid,
         email: userInfo.email ?? null,

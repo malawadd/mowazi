@@ -19,7 +19,8 @@ export async function GET() {
       token,
       session: {
         subject: payload.sub,
-        walletAddress: payload.particleWalletAddress,
+        authProvider: payload.authProvider,
+        walletAddress: payload.walletAddress ?? payload.particleWalletAddress,
         particleUuid: payload.particleUuid ?? null,
         email: payload.email ?? null,
         name: payload.name ?? null,

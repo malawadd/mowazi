@@ -46,9 +46,9 @@ export default function UniversalAccountTransferPanel({
   paymentLink,
   recipientLabel,
 }: Props) {
-  const { address, isConnected, status: connectionStatus } = useAccount();
+  const { address, status: connectionStatus } = useAccount();
   const { setOpen } = useModal();
-  const { accountInfo, primaryAssets, eip7702Status, refresh, createSettledTransfer, signAndSend } =
+  const { ownerAddress, accountInfo, primaryAssets, eip7702Status, refresh, createSettledTransfer, signAndSend } =
     useUniversalAccount("eip7702-if-supported");
   const createIntent = useMutation(api.payments.createPaymentIntent);
   const markPreviewed = useMutation(api.payments.markPaymentIntentPreviewed);
@@ -69,9 +69,11 @@ export default function UniversalAccountTransferPanel({
   const fundedTokenOptions = useMemo(() => tokenOptions.filter((option) => option.hasBalance), [tokenOptions]);
   const balanceBreakdown = useMemo(() => getPaymentAccountBreakdown(primaryAssets), [primaryAssets]);
   const selectedToken = tokenOptions.find((option) => option.id === tokenId) ?? fundedTokenOptions[0] ?? null;
-  const paymentAccountAddress = accountInfo?.evmSmartAccount || null;
+  const payerAddress = ownerAddress ?? address ?? null;
+  const payerConnected = Boolean(payerAddress);
+  const paymentAccountAddress = accountInfo?.evmDepositAddress || accountInfo?.evmSmartAccount || null;
   const readiness = getPayReadiness({
-    isConnected,
+    isConnected: payerConnected,
     walletReady: paymentLink.walletReady,
     paymentAccountBalanceUsd: primaryAssets?.totalAmountInUSD,
     canPayInPlace: eip7702Status.enabled,
@@ -91,17 +93,17 @@ export default function UniversalAccountTransferPanel({
   }, [fundedTokenOptions, selectedToken?.id, tokenId]);
 
   useEffect(() => {
-    if (isConnected && address && connectTriggered.current) {
+    if (payerConnected && connectTriggered.current) {
       connectTriggered.current = false;
       setBusy(null);
       void refresh();
     }
-  }, [isConnected, address, refresh]);
+  }, [payerConnected, refresh]);
 
   const connectPayer = () => {
     setBusy("connect");
     setMessage(null);
-    if (!isConnected) {
+    if (!payerConnected) {
       connectTriggered.current = true;
       setOpen(true);
       return;
@@ -116,12 +118,12 @@ export default function UniversalAccountTransferPanel({
       return;
     }
     setFundingTarget(paymentAccountAddress);
-    setFundingOwner(address ?? null);
+    setFundingOwner(payerAddress);
     setMessage(null);
   };
 
   const previewPayment = async () => {
-    if (!selectedToken || !address) return;
+    if (!selectedToken || !payerAddress) return;
     let workingIntentId = intentId;
     setBusy("preview");
     setMessage(null);
@@ -146,7 +148,7 @@ export default function UniversalAccountTransferPanel({
         const intent = await createIntent({
           slug: paymentLink.slug,
           paymentFlow: "payer_ua",
-          payerAddress: address,
+          payerAddress,
           targetChainId: settlement.chainId,
           targetTokenAddress: settlement.address,
           targetTokenSymbol: settlement.symbol,
@@ -224,7 +226,7 @@ export default function UniversalAccountTransferPanel({
   const amountNumber = Number(amount);
   const canPreview = Boolean(
     readiness.canUseUaSettlement &&
-      address &&
+      payerAddress &&
       selectedToken?.hasBalance &&
       Number.isFinite(amountNumber) &&
       canCoverSettlementAmount(selectedToken, amountNumber),
@@ -240,19 +242,21 @@ export default function UniversalAccountTransferPanel({
     <Panel title="Settle to Arbitrum USDC" description={`Recipient: ${recipientLabel}`} tone="sky">
       <div className="stack-list">
         <PaymentStatusGrid
-          address={address}
+          address={payerAddress}
+          accountMode={accountInfo?.accountMode}
           balanceBreakdown={balanceBreakdown}
           connectionStatus={connectionStatus}
           directAllowed={directAllowed}
           paymentAccountAddress={paymentAccountAddress}
           paymentFundsUsd={primaryAssets?.totalAmountInUSD}
           readiness={readiness}
+          walletProvider={accountInfo?.walletProvider}
           walletReady={paymentLink.walletReady}
         />
 
         {readiness.canUseUaSettlement ? (
           <PaymentSettlementForm
-            address={address}
+            address={payerAddress}
             amount={amount}
             busy={busy}
             canPreview={canPreview}
@@ -275,7 +279,7 @@ export default function UniversalAccountTransferPanel({
           />
         ) : (
           <PaymentReadinessGate
-            address={address}
+            address={payerAddress}
             busy={busy !== null}
             directAllowed={directAllowed}
             readiness={readiness}
@@ -288,7 +292,7 @@ export default function UniversalAccountTransferPanel({
 
         {fundingTarget ? (
           <PaymentAccountFundingPanel
-            currentAddress={address}
+            currentAddress={payerAddress}
             originalAddress={fundingOwner}
             receiverAddress={fundingTarget}
             onSubmitted={() => void refresh()}

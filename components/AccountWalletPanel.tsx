@@ -7,9 +7,14 @@ import { api } from "@/convex/_generated/api";
 import { DataRow, EmptyState, Panel, StatusBadge } from "@/components/strategy-ui";
 
 type SavedAccountWallet = {
+  accountMode?: "smart_account" | "eip7702";
+  delegatedChainIdsJson?: string;
+  eip7702Delegated?: boolean;
+  evmDepositAddress?: string;
   ownerAddress: string;
   evmUaAddress: string;
   solanaUaAddress: string;
+  walletProvider?: "particle" | "magic" | "wallet";
   unifiedBalanceUsd: number;
   assetsJson: string;
   lastRefreshedAt: number;
@@ -52,14 +57,18 @@ function safeParseAssets(savedWallet: SavedAccountWallet) {
 }
 
 export default function AccountWalletPanel({ savedWallet }: { savedWallet: SavedAccountWallet }) {
-  const { ownerAddress, accountInfo, primaryAssets, eip7702Status, loading, error, refresh } =
+  const { ownerAddress, accountInfo, primaryAssets, eip7702Status, loading, error, refresh, ensureEip7702Delegated } =
     useUniversalAccount("eip7702-if-supported");
   const syncWallet = useMutation(api.accountWallets.syncViewerAccountWallet);
   const [syncing, setSyncing] = useState(false);
+  const [delegating, setDelegating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const assetRows = useMemo(() => primaryAssets?.assets ?? safeParseAssets(savedWallet), [primaryAssets, savedWallet]);
+  const accountMode = accountInfo?.accountMode ?? savedWallet?.accountMode ?? "smart_account";
+  const walletProvider = accountInfo?.walletProvider ?? savedWallet?.walletProvider ?? "particle";
   const evmUaAddress = accountInfo?.evmSmartAccount || savedWallet?.evmUaAddress || "";
+  const evmDepositAddress = accountInfo?.evmDepositAddress || savedWallet?.evmDepositAddress || evmUaAddress;
   const solanaUaAddress = accountInfo?.solanaSmartAccount || savedWallet?.solanaUaAddress || "";
   const currentBalance = primaryAssets?.totalAmountInUSD ?? savedWallet?.unifiedBalanceUsd ?? null;
 
@@ -77,8 +86,13 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
 
       await syncWallet({
         ownerAddress,
+        accountMode: fresh.accountInfo.accountMode,
+        delegatedChainIdsJson: JSON.stringify(fresh.accountInfo.delegatedChainIds),
+        eip7702Delegated: fresh.accountInfo.eip7702Delegated,
+        evmDepositAddress: fresh.accountInfo.evmDepositAddress,
         evmUaAddress: fresh.accountInfo.evmSmartAccount,
         solanaUaAddress: fresh.accountInfo.solanaSmartAccount,
+        walletProvider: fresh.accountInfo.walletProvider,
         unifiedBalanceUsd: fresh.primaryAssets?.totalAmountInUSD ?? 0,
         assetsJson: JSON.stringify(fresh.primaryAssets ?? { assets: [], totalAmountInUSD: 0 }),
       });
@@ -90,9 +104,22 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
     }
   };
 
+  const enableDelegation = async () => {
+    setDelegating(true);
+    setMessage(null);
+    try {
+      await ensureEip7702Delegated();
+      setMessage("Magic 7702 delegation submitted. Refresh the account after confirmation.");
+    } catch (nextError) {
+      setMessage(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setDelegating(false);
+    }
+  };
+
   return (
     <Panel
-      title="Particle account wallet"
+      title="Account wallet"
       description="Receive funds into your Universal Account, then move them into Moeazi strategy wallets when ready."
       tone="sky"
       actions={
@@ -108,12 +135,16 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
           <div className="two-column-grid">
             <div className="stack-list">
               <DataRow label="Owner EOA" value={<span className="mono-label">{ownerAddress ?? savedWallet?.ownerAddress}</span>} />
+              <DataRow
+                label="Wallet provider"
+                value={<StatusBadge tone={walletProvider === "magic" ? "positive" : "info"}>{walletProvider}</StatusBadge>}
+              />
               <DataRow label="Unified balance" value={formatUsd(currentBalance)} />
               <DataRow
                 label="Account mode"
                 value={
                   <StatusBadge tone={eip7702Status.enabled ? "positive" : "info"}>
-                    {eip7702Status.enabled ? "EIP-7702" : "Smart Account"}
+                    {accountMode === "eip7702" ? "EIP-7702" : "Smart Account"}
                   </StatusBadge>
                 }
               />
@@ -130,6 +161,11 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
               <StatusBadge tone={evmUaAddress && solanaUaAddress ? "positive" : "warning"}>
                 {evmUaAddress && solanaUaAddress ? "ready to receive" : "loading addresses"}
               </StatusBadge>
+              {accountMode === "eip7702" ? (
+                <StatusBadge tone={accountInfo?.eip7702Delegated || savedWallet?.eip7702Delegated ? "positive" : "warning"}>
+                  {accountInfo?.eip7702Delegated || savedWallet?.eip7702Delegated ? "delegated" : "delegation available"}
+                </StatusBadge>
+              ) : null}
               {error ? <p className="muted-copy">{error}</p> : null}
               {message ? <p className="muted-copy">{message}</p> : null}
             </div>
@@ -140,13 +176,20 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
               <div className="list-card-head">
                 <div>
                   <h4>EVM deposits</h4>
-                  <p>Send EVM primary assets to this Universal Account address.</p>
+                  <p>
+                    {accountMode === "eip7702"
+                      ? "Send EVM primary assets to this Magic EOA. In 7702 mode, it is the Universal Account."
+                      : "Send EVM primary assets to this Universal Account smart account address."}
+                  </p>
                 </div>
-                <button className="secondary-button" type="button" onClick={() => copyToClipboard(evmUaAddress)}>
+                <button className="secondary-button" type="button" onClick={() => copyToClipboard(evmDepositAddress)}>
                   Copy
                 </button>
               </div>
-              <p className="mono-label">{shortAddress(evmUaAddress)}</p>
+              <p className="mono-label">{shortAddress(evmDepositAddress)}</p>
+              {accountMode === "smart_account" ? (
+                <p className="muted-copy">Smart account: {shortAddress(evmUaAddress)}</p>
+              ) : null}
             </article>
             <article className="list-card">
               <div className="list-card-head">
@@ -185,6 +228,16 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
             <button className="primary-button" type="button" disabled={syncing} onClick={syncSnapshot}>
               {syncing ? "Syncing..." : "Sync account wallet"}
             </button>
+            {walletProvider === "magic" && accountMode === "eip7702" ? (
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={delegating || Boolean(accountInfo?.eip7702Delegated)}
+                onClick={enableDelegation}
+              >
+                {delegating ? "Delegating..." : "Enable 7702"}
+              </button>
+            ) : null}
           </div>
         </div>
       )}

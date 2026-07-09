@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAccount, useModal, useParticleAuth, useWallets } from "@particle-network/connectkit";
 import { EmptyState, Panel } from "@/components/strategy-ui";
 import { useParticleSession } from "@/components/ParticleConnectKitProvider";
+import { useMagicWallet } from "@/components/MagicWalletProvider";
 import { shouldStartParticleSignIn } from "@/lib/signInFlow";
 
 type ParticleUserInfo = {
@@ -38,8 +39,12 @@ export default function SignInPage() {
   const { setOpen } = useModal();
   const { getUserInfo } = useParticleAuth();
   const [primaryWallet] = useWallets();
+  const magicWallet = useMagicWallet();
   const { refreshSession, session, status: sessionStatus } = useParticleSession();
   const [busy, setBusy] = useState(false);
+  const [magicBusy, setMagicBusy] = useState(false);
+  const [magicEmail, setMagicEmail] = useState("");
+  const [particleRequested, setParticleRequested] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const signingRef = useRef(false);
@@ -57,6 +62,7 @@ export default function SignInPage() {
       activeAddressRef.current = null;
       autoAttemptedAddressRef.current = null;
       completedRef.current = false;
+      setParticleRequested(false);
       return;
     }
 
@@ -64,6 +70,7 @@ export default function SignInPage() {
       activeAddressRef.current = normalizedAddress;
       autoAttemptedAddressRef.current = null;
       completedRef.current = false;
+      setParticleRequested(false);
       setError(null);
     }
   }, [isConnected, normalizedAddress]);
@@ -174,6 +181,7 @@ export default function SignInPage() {
       router.replace(getRedirectPath());
     } catch (nextError) {
       completedRef.current = false;
+      setParticleRequested(false);
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
       if (!completedRef.current) {
@@ -182,6 +190,55 @@ export default function SignInPage() {
       }
     }
   }, [getUserInfo, normalizedAddress, refreshSession, router, session, sessionStatus, signMessage]);
+
+  const completeMagicSignIn = useCallback(async () => {
+    if (magicBusy || sessionStatus !== "unauthenticated" || session) return;
+    const email = magicEmail.trim();
+    if (!email) {
+      setError("Enter the email address for your Magic 7702 wallet.");
+      return;
+    }
+
+    setMagicBusy(true);
+    setError(null);
+    try {
+      const login = await magicWallet.loginWithEmail(email);
+      const nonceResponse = await fetch("/api/auth/nonce", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ address: login.address }),
+      });
+      const nonceData = await safeResponseJson<{ message?: string; error?: string }>(nonceResponse);
+      if (!nonceResponse.ok || !nonceData?.message) {
+        throw new Error(nonceData?.error ?? "Could not create Magic sign-in challenge.");
+      }
+
+      const signature = await magicWallet.signMessage(nonceData.message);
+      const sessionResponse = await fetch("/api/auth/wallet-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          address: login.address,
+          authProvider: "magic",
+          email: login.email,
+          signature,
+        }),
+      });
+      const sessionData = await safeResponseJson<{ error?: string }>(sessionResponse);
+      if (!sessionResponse.ok) {
+        throw new Error(sessionData?.error ?? "Could not verify Magic sign-in.");
+      }
+
+      await refreshSession();
+      router.replace(getRedirectPath());
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setMagicBusy(false);
+    }
+  }, [magicBusy, magicEmail, magicWallet, refreshSession, router, session, sessionStatus]);
 
   // Watch for connection — trigger sign-in when user connects in the modal
   useEffect(() => {
@@ -196,13 +253,14 @@ export default function SignInPage() {
       completed: completedRef.current,
     });
 
-    if (canAutoStart) {
+    if (particleRequested && canAutoStart) {
       void completeSignIn();
     }
-  }, [isConnected, normalizedAddress, session, sessionStatus, completeSignIn, busy]);
+  }, [isConnected, normalizedAddress, session, sessionStatus, completeSignIn, busy, particleRequested]);
 
   const openConnectModal = () => {
     setError(null);
+    setParticleRequested(true);
     if (
       isConnected &&
       normalizedAddress &&
@@ -219,16 +277,55 @@ export default function SignInPage() {
 
   return (
     <main className="marketing-shell">
-      <Panel title="Sign in" description="Connect your wallet or sign in with Particle to open Moeazi." tone="sky">
-        <EmptyState
-          title="Sign in to Moeazi."
-          body={mounted ? `Status: ${accountStatus}` : "Status: loading..."}
-          action={
-            <button className="primary-button" type="button" disabled={busy} onClick={openConnectModal}>
-              {busy ? "Signing in..." : "Continue with Particle"}
-            </button>
-          }
-        />
+      <Panel title="Sign in" description="Choose how Moeazi should create your account wallet." tone="sky">
+        <div className="two-column-grid">
+          <EmptyState
+            title="Particle Connect"
+            body={
+              mounted
+                ? `Broad wallet support. Status: ${accountStatus}`
+                : "Broad wallet support. Status: loading..."
+            }
+            action={
+              <button className="primary-button" type="button" disabled={busy || magicBusy} onClick={openConnectModal}>
+                {busy ? "Signing in..." : "Continue with Particle"}
+              </button>
+            }
+          />
+          <div className="list-card">
+            <div className="list-card-head">
+              <div>
+                <h4>Magic 7702 Wallet</h4>
+                <p>Use an embedded EOA that can become your Universal Account in-place.</p>
+              </div>
+            </div>
+            <label className="field-label">
+              Email
+              <input
+                className="field-input"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={magicEmail}
+                onChange={(event) => setMagicEmail(event.target.value)}
+              />
+            </label>
+            <div className="inline-actions">
+              <button
+                className="primary-button"
+                type="button"
+                disabled={!magicWallet.isConfigured || busy || magicBusy}
+                onClick={completeMagicSignIn}
+              >
+                {magicBusy ? "Signing in..." : "Continue with Magic"}
+              </button>
+            </div>
+            {!magicWallet.isConfigured ? (
+              <p className="muted-copy">Magic is not configured for this environment.</p>
+            ) : null}
+          </div>
+        </div>
         {error ? <p className="muted-copy">{error}</p> : null}
       </Panel>
     </main>

@@ -3,9 +3,12 @@ import { exportJWK, importPKCS8, importSPKI, jwtVerify, SignJWT, type JWTPayload
 const CONVEX_AUDIENCE = "convex";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 
+export type AppAuthProvider = "particle" | "magic" | "wallet";
+
 export type ParticleSessionPayload = JWTPayload & {
   sub: string;
-  authProvider: "particle";
+  authProvider: AppAuthProvider;
+  walletAddress?: string;
   particleWalletAddress: string;
   particleUuid?: string;
   email?: string;
@@ -14,6 +17,7 @@ export type ParticleSessionPayload = JWTPayload & {
 
 export type ParticleSessionInput = {
   subject: string;
+  authProvider?: AppAuthProvider;
   walletAddress: string;
   particleUuid?: string;
   email?: string;
@@ -56,9 +60,13 @@ async function publicKey() {
 
 export async function createParticleSessionToken(input: ParticleSessionInput) {
   const normalizedAddress = input.walletAddress.toLowerCase();
+  const authProvider = input.authProvider ?? "particle";
 
   return await new SignJWT({
-    authProvider: "particle",
+    authProvider,
+    walletAddress: normalizedAddress,
+    // Kept for Convex compatibility while the app moves from Particle-only
+    // naming to provider-neutral wallet sessions.
     particleWalletAddress: normalizedAddress,
     particleUuid: input.particleUuid,
     email: input.email,

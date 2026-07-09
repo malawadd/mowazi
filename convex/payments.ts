@@ -13,6 +13,10 @@ function normalizeEvm(value: string) {
   return value.trim().toLowerCase();
 }
 
+function evmReceiveAddress(wallet: any) {
+  return wallet?.evmDepositAddress ?? wallet?.evmUaAddress ?? null;
+}
+
 function assertPositiveAmount(amount: string) {
   const numeric = Number(amount);
   if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -70,9 +74,13 @@ export const getPublicPaymentLink = query({
       strategyLabel: strategyAccount?.label ?? "Moeazi account",
       recipientName: user?.displayName ?? "Moeazi account",
       ownerAddress: wallet?.ownerAddress ?? null,
-      evmUaAddress: wallet?.evmUaAddress ?? null,
+      evmUaAddress: evmReceiveAddress(wallet),
+      evmSmartAccountAddress: wallet?.evmUaAddress ?? null,
+      evmDepositAddress: evmReceiveAddress(wallet),
       solanaUaAddress: wallet?.solanaUaAddress ?? null,
-      walletReady: Boolean(wallet?.evmUaAddress && wallet?.solanaUaAddress),
+      walletProvider: wallet?.walletProvider ?? "particle",
+      accountMode: wallet?.accountMode ?? "smart_account",
+      walletReady: Boolean(evmReceiveAddress(wallet) && wallet?.solanaUaAddress),
       lastRefreshedAt: wallet?.lastRefreshedAt ?? null,
       createdAt: link.createdAt,
     };
@@ -112,12 +120,12 @@ export const createPaymentIntent = mutation({
     }
 
     const wallet = await getWalletForLink(ctx, link);
-    if (!wallet?.evmUaAddress || !wallet?.solanaUaAddress) {
+    if (!evmReceiveAddress(wallet) || !wallet?.solanaUaAddress) {
       throw new Error("Recipient account wallet is not ready.");
     }
 
     const expectedReceiver =
-      args.receiverKind === "evm" ? wallet.evmUaAddress : wallet.solanaUaAddress;
+      args.receiverKind === "evm" ? evmReceiveAddress(wallet) : wallet.solanaUaAddress;
     const receiverMatches =
       args.receiverKind === "evm"
         ? normalizeEvm(args.receiver) === normalizeEvm(expectedReceiver)

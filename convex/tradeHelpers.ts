@@ -19,8 +19,18 @@ export async function requireViewerUser(ctx: { auth: any; db: any }) {
   const userId = await ctx.db.insert("users", {
     authSubject: identity.subject,
     authProvider: String(identity.authProvider ?? "particle"),
+    walletAddress:
+      typeof identity.walletAddress === "string"
+        ? identity.walletAddress
+        : typeof identity.particleWalletAddress === "string"
+          ? identity.particleWalletAddress
+          : undefined,
     particleWalletAddress:
-      typeof identity.particleWalletAddress === "string" ? identity.particleWalletAddress : undefined,
+      typeof identity.particleWalletAddress === "string"
+        ? identity.particleWalletAddress
+        : typeof identity.walletAddress === "string"
+          ? identity.walletAddress
+          : undefined,
     particleUuid: typeof identity.particleUuid === "string" ? identity.particleUuid : undefined,
     email: typeof identity.email === "string" ? identity.email : undefined,
     displayName:

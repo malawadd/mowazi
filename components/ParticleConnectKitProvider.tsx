@@ -25,10 +25,13 @@ import {
   applyParticleWalletWidgetVisibility,
   particleConnectKitConfig,
 } from "@/lib/particleConnectKitConfig";
+import { MagicWalletProvider, useMagicWallet } from "@/components/MagicWalletProvider";
+import type { AppAuthProvider } from "@/lib/particleSession";
 
 // ---- Session types (unchanged) ----
 type ParticleSession = {
   subject: string;
+  authProvider?: AppAuthProvider;
   walletAddress: string;
   particleUuid?: string | null;
   email?: string | null;
@@ -67,6 +70,7 @@ async function readTokenSession() {
 function ParticleSessionStateProvider({ children }: { children: ReactNode }) {
   const { status: walletStatus } = useAccount();
   const { disconnectAsync } = useDisconnect();
+  const magicWallet = useMagicWallet();
   const [status, setStatus] =
     useState<ParticleSessionState["status"]>("loading");
   const [session, setSession] = useState<ParticleSession | null>(null);
@@ -92,18 +96,23 @@ function ParticleSessionStateProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     signOutInFlightRef.current = true;
+    const provider = session?.authProvider;
     try {
       await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "include",
       }).catch(() => undefined);
-      await disconnectAsync().catch(() => undefined);
+      if (provider === "magic") {
+        await magicWallet.logout().catch(() => undefined);
+      } else {
+        await disconnectAsync().catch(() => undefined);
+      }
       clearLocalSession();
     } finally {
       signOutInFlightRef.current = false;
       hadConnectedWalletRef.current = false;
     }
-  }, [clearLocalSession, disconnectAsync]);
+  }, [clearLocalSession, disconnectAsync, magicWallet, session?.authProvider]);
 
   useEffect(() => {
     void refreshSession();
@@ -116,6 +125,7 @@ function ParticleSessionStateProvider({ children }: { children: ReactNode }) {
     }
 
     if (
+      session?.authProvider !== "magic" &&
       shouldClearSessionForWalletDisconnect({
         hasSession: Boolean(session),
         hadConnectedWallet: hadConnectedWalletRef.current,
@@ -225,8 +235,10 @@ export function ParticleConnectKitProvider({
       value={walletWidgetPreference}
     >
       <ConnectKitProvider config={particleConnectKitConfig}>
-        <ParticleWalletWidgetPluginController />
-        <ParticleSessionStateProvider>{children}</ParticleSessionStateProvider>
+        <MagicWalletProvider>
+          <ParticleWalletWidgetPluginController />
+          <ParticleSessionStateProvider>{children}</ParticleSessionStateProvider>
+        </MagicWalletProvider>
       </ConnectKitProvider>
     </ParticleWalletWidgetPreferenceContext.Provider>
   );

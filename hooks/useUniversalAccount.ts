@@ -2,91 +2,62 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAccount, useWallets } from "@particle-network/connectkit";
-import { Signature } from "ethers";
 import {
   UniversalAccount,
-  UNIVERSAL_ACCOUNT_VERSION,
   type EIP7702Authorization,
   type IAssetsResponse,
   type ITransaction,
 } from "@particle-network/universal-account-sdk";
+import { useMagicWallet } from "@/components/MagicWalletProvider";
+import { useParticleSession } from "@/components/ParticleConnectKitProvider";
 import {
   detectEip7702Capability,
+  extractEip7702DelegatedChainIds,
   getEip7702Status,
+  getEvmDepositAddress,
+  type AccountWalletMode,
+  type AccountWalletProvider,
   type Eip7702Status,
   type UniversalAccountMode,
 } from "@/lib/eip7702";
+import { buildUniversalAccountConfig } from "@/lib/universalAccountConfig";
 import { buildArbitrumUsdcSettlementTransaction } from "@/lib/universalAccountSettlement";
+import {
+  firstEip7702Auth,
+  isJsonRpcAuthorizationError,
+  serializeAuthorizationSignature,
+  signParticleEip7702Authorization,
+  type SignAuthorizationInput,
+} from "@/lib/universalAccount7702";
 import { signUniversalAccountRootHash } from "@/lib/universalAccountSigning";
 
 type AccountInfo = {
-  ownerAddress: string;
+  accountMode: AccountWalletMode;
+  delegatedChainIds: number[];
+  eip7702Delegated: boolean;
+  evmDepositAddress: string;
   evmSmartAccount: string;
+  ownerAddress: string;
   solanaSmartAccount: string;
+  walletProvider: AccountWalletProvider;
 };
 
 export type UniversalTransferInput = {
-  token: {
-    chainId: number;
-    address: string;
-  };
+  token: { chainId: number; address: string };
   amount: string;
   receiver: string;
 };
 
 export type SettledTransferInput = {
-  /** Amount of Arbitrum USDC to deliver to the receiver. */
   amount: string;
   receiver: string;
 };
 
-type SignAuthorizationInput = {
-  address: string;
-  chainId: number;
-  nonce: number;
-};
-
-function serializeAuthorizationSignature(value: unknown) {
-  if (typeof value === "string") return value;
-  const record = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-  const signature = record.signature;
-  if (typeof signature === "string") return signature;
-  if (signature && typeof signature === "object") {
-    const nested = signature as Record<string, unknown>;
-    if (typeof nested.serialized === "string") return nested.serialized;
-  }
-  if (typeof record.serialized === "string") return record.serialized;
-  if (record.r && record.s && record.yParity !== undefined) {
-    return Signature.from(record as any).serialized;
-  }
-  throw new Error("Wallet returned an unsupported EIP-7702 authorization signature.");
-}
-
-async function signEip7702Authorization(walletClient: unknown, auth: SignAuthorizationInput) {
-  const client = walletClient as Record<string, any> | null | undefined;
-  if (typeof client?.signAuthorization === "function") {
-    return serializeAuthorizationSignature(await client.signAuthorization(auth));
-  }
-  if (typeof client?.authorizeSync === "function") {
-    return serializeAuthorizationSignature(client.authorizeSync(auth));
-  }
-  if (typeof client?.sign7702Authorization === "function") {
-    return serializeAuthorizationSignature(await client.sign7702Authorization(auth));
-  }
-  if (typeof client?.wallet?.sign7702Authorization === "function") {
-    return serializeAuthorizationSignature(await client.wallet.sign7702Authorization(auth));
-  }
-  throw new Error("Connected wallet does not support EIP-7702 authorization.");
-}
-
-function isJsonRpcAuthorizationError(value: unknown) {
-  const message = value instanceof Error ? value.message : String(value);
-  return message.includes('Account type "json-rpc"') || message.includes("does not support JSON-RPC Accounts");
-}
-
 export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
-  const { address } = useAccount();
+  const { address: particleAddress } = useAccount();
   const [primaryWallet] = useWallets();
+  const { session } = useParticleSession();
+  const magicWallet = useMagicWallet();
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
   const [primaryAssets, setPrimaryAssets] = useState<IAssetsResponse | null>(null);
   const [eip7702Status, setEip7702Status] = useState<Eip7702Status>(() =>
@@ -95,32 +66,35 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isMagicSession = session?.authProvider === "magic";
+  const ownerAddress = isMagicSession ? magicWallet.address : particleAddress;
+  const walletProvider: AccountWalletProvider = isMagicSession
+    ? "magic"
+    : session?.authProvider === "wallet"
+      ? "wallet"
+      : "particle";
   const walletClient = useMemo(() => primaryWallet?.getWalletClient(), [primaryWallet]);
-  const eip7702Capability = useMemo(() => detectEip7702Capability(walletClient), [walletClient]);
+  const particleCapability = useMemo(() => detectEip7702Capability(walletClient), [walletClient]);
+  const eip7702Capability = useMemo(() => {
+    if (isMagicSession) {
+      return {
+        supported: Boolean(magicWallet.address),
+        method: "magic.wallet.sign7702Authorization" as const,
+        reason: "Magic supports EIP-7702 authorization.",
+      };
+    }
+    return particleCapability;
+  }, [isMagicSession, magicWallet.address, particleCapability]);
   const useEIP7702 = mode === "eip7702-if-supported" && eip7702Capability.supported;
+  const accountMode: AccountWalletMode = useEIP7702 ? "eip7702" : "smart_account";
 
   const universalAccount = useMemo(() => {
-    if (!address) return null;
-
-    return new UniversalAccount({
-      projectId: process.env.NEXT_PUBLIC_PROJECT_ID ?? "",
-      projectClientKey: process.env.NEXT_PUBLIC_CLIENT_KEY ?? "",
-      projectAppUuid: process.env.NEXT_PUBLIC_APP_ID ?? "",
-      smartAccountOptions: {
-        useEIP7702,
-        name: "UNIVERSAL",
-        version: UNIVERSAL_ACCOUNT_VERSION,
-        ownerAddress: address,
-      },
-      tradeConfig: {
-        slippageBps: 100,
-        universalGas: true,
-      },
-    });
-  }, [address, useEIP7702]);
+    if (!ownerAddress) return null;
+    return new UniversalAccount(buildUniversalAccountConfig({ ownerAddress, useEIP7702 }));
+  }, [ownerAddress, useEIP7702]);
 
   const refresh = useCallback(async () => {
-    if (!universalAccount || !address) return null;
+    if (!universalAccount || !ownerAddress) return null;
 
     setLoading(true);
     setError(null);
@@ -132,11 +106,27 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
           ? universalAccount.getEIP7702Deployments().catch(() => undefined)
           : Promise.resolve(undefined),
       ]);
-      setEip7702Status(getEip7702Status(mode, eip7702Capability, deployments));
+      const delegatedChainIds = extractEip7702DelegatedChainIds(deployments);
+      const status = getEip7702Status(mode, eip7702Capability, deployments);
+      setEip7702Status(status);
+      const smartAccountAddress = smartAccountOptions.smartAccountAddress ?? "";
+      const resolvedOwner = smartAccountOptions.ownerAddress ?? ownerAddress;
+      const evmDepositAddress =
+        getEvmDepositAddress({
+          accountMode,
+          evmUaAddress: smartAccountAddress,
+          ownerAddress: resolvedOwner,
+        }) ?? "";
       const nextAccountInfo = {
-        ownerAddress: smartAccountOptions.ownerAddress ?? address,
-        evmSmartAccount: smartAccountOptions.smartAccountAddress ?? "",
+        accountMode,
+        delegatedChainIds,
+        eip7702Delegated:
+          accountMode === "eip7702" && delegatedChainIds.includes(magicWallet.chainId),
+        evmDepositAddress,
+        evmSmartAccount: accountMode === "eip7702" ? resolvedOwner : smartAccountAddress,
+        ownerAddress: resolvedOwner,
         solanaSmartAccount: smartAccountOptions.solanaSmartAccountAddress ?? "",
+        walletProvider,
       };
       setAccountInfo(nextAccountInfo);
       setPrimaryAssets(assets);
@@ -147,7 +137,15 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
     } finally {
       setLoading(false);
     }
-  }, [address, eip7702Capability, mode, universalAccount]);
+  }, [
+    accountMode,
+    eip7702Capability,
+    magicWallet.chainId,
+    mode,
+    ownerAddress,
+    universalAccount,
+    walletProvider,
+  ]);
 
   useEffect(() => {
     void refresh();
@@ -155,20 +153,15 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
 
   const createTransfer = useCallback(
     async (input: UniversalTransferInput) => {
-      if (!universalAccount) {
-        throw new Error("Universal Account is not ready.");
-      }
+      if (!universalAccount) throw new Error("Universal Account is not ready.");
       return await universalAccount.createTransferTransaction(input);
     },
     [universalAccount],
   );
 
-  /** Convert supported UA assets into Arbitrum USDC and transfer it to the receiver. */
   const createSettledTransfer = useCallback(
     async (input: SettledTransferInput) => {
-      if (!universalAccount) {
-        throw new Error("Universal Account is not ready.");
-      }
+      if (!universalAccount) throw new Error("Universal Account is not ready.");
       return await universalAccount.createUniversalTransaction(
         buildArbitrumUsdcSettlementTransaction(input),
       );
@@ -176,20 +169,45 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
     [universalAccount],
   );
 
+  const signAuthorization = useCallback(
+    async (auth: SignAuthorizationInput) => {
+      if (isMagicSession) {
+        return serializeAuthorizationSignature(
+          await magicWallet.sign7702Authorization({
+            chainId: auth.chainId,
+            contractAddress: auth.address,
+            nonce: auth.nonce,
+          }),
+        );
+      }
+      try {
+        return await signParticleEip7702Authorization(walletClient, auth);
+      } catch (nextError) {
+        if (isJsonRpcAuthorizationError(nextError)) {
+          throw new Error(
+            "This wallet cannot sign EIP-7702 authorizations. Reconnect with Magic or use Smart Account mode.",
+          );
+        }
+        throw nextError;
+      }
+    },
+    [isMagicSession, magicWallet, walletClient],
+  );
+
   const signAndSend = useCallback(
     async (transaction: ITransaction) => {
-      if (!universalAccount) {
-        throw new Error("Universal Account is not ready.");
-      }
+      if (!universalAccount) throw new Error("Universal Account is not ready.");
       const particleProvider = (window as unknown as Record<string, unknown>).particle as
         | { ethereum?: { request: (args: { method: "personal_sign"; params: unknown[] }) => Promise<string> } }
         | undefined;
-      const signature = await signUniversalAccountRootHash({
-        account: address,
-        rootHash: transaction.rootHash,
-        walletClient,
-        personalSignProvider: particleProvider?.ethereum,
-      });
+      const signature = isMagicSession
+        ? await magicWallet.signRootHash(transaction.rootHash)
+        : await signUniversalAccountRootHash({
+            account: ownerAddress,
+            rootHash: transaction.rootHash,
+            walletClient,
+            personalSignProvider: particleProvider?.ethereum,
+          });
       const authorizations: EIP7702Authorization[] = [];
       const nonceMap = new Map<string, string>();
       if (useEIP7702) {
@@ -198,22 +216,10 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
           const nonceKey = `${userOp.eip7702Auth.chainId}:${userOp.eip7702Auth.nonce}`;
           let authSignature = nonceMap.get(nonceKey);
           if (!authSignature) {
-            try {
-              authSignature = await signEip7702Authorization(walletClient, userOp.eip7702Auth);
-            } catch (nextError) {
-              if (isJsonRpcAuthorizationError(nextError)) {
-                throw new Error(
-                  "This wallet cannot sign EIP-7702 authorizations. Reconnect with a 7702-capable embedded wallet or use Smart Account mode.",
-                );
-              }
-              throw nextError;
-            }
+            authSignature = await signAuthorization(userOp.eip7702Auth);
             nonceMap.set(nonceKey, authSignature);
           }
-          authorizations.push({
-            userOpHash: userOp.userOpHash,
-            signature: authSignature,
-          });
+          authorizations.push({ userOpHash: userOp.userOpHash, signature: authSignature });
         }
       }
       return await universalAccount.sendTransaction(
@@ -222,11 +228,39 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
         authorizations.length > 0 ? authorizations : undefined,
       );
     },
-    [address, universalAccount, useEIP7702, walletClient],
+    [
+      isMagicSession,
+      magicWallet,
+      ownerAddress,
+      signAuthorization,
+      universalAccount,
+      useEIP7702,
+      walletClient,
+    ],
   );
 
+  const ensureEip7702Delegated = useCallback(async () => {
+    if (!isMagicSession || !universalAccount || !ownerAddress) {
+      throw new Error("Magic 7702 wallet is not active.");
+    }
+    await magicWallet.switchChain(magicWallet.chainId);
+    const auth = firstEip7702Auth(await universalAccount.getEIP7702Auth([magicWallet.chainId]));
+    if (!auth?.address) throw new Error("Particle did not return a 7702 authorization target.");
+    const authorization = await magicWallet.sign7702Authorization({
+      chainId: magicWallet.chainId,
+      contractAddress: auth.address,
+      nonce: auth.nonce !== undefined ? auth.nonce + 1 : undefined,
+    });
+    await magicWallet.send7702Transaction({
+      authorizationList: [authorization],
+      data: "0x",
+      to: ownerAddress,
+    });
+    return await refresh();
+  }, [isMagicSession, magicWallet, ownerAddress, refresh, universalAccount]);
+
   return {
-    ownerAddress: address,
+    ownerAddress,
     accountInfo,
     primaryAssets,
     universalAccount,
@@ -236,6 +270,7 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
     refresh,
     createTransfer,
     createSettledTransfer,
+    ensureEip7702Delegated,
     signAndSend,
   };
 }

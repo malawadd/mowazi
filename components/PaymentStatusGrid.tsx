@@ -8,11 +8,13 @@ import type { PaymentAccountAssetBreakdown } from "@/lib/paymentAccountAssets";
 type Props = {
   address?: string | null;
   balanceBreakdown: PaymentAccountAssetBreakdown[];
+  accountMode?: "smart_account" | "eip7702";
   connectionStatus: string;
   directAllowed: boolean;
   paymentAccountAddress?: string | null;
   paymentFundsUsd?: number | null;
   readiness: PayReadiness;
+  walletProvider?: string | null;
   walletReady: boolean;
 };
 
@@ -82,12 +84,14 @@ function FundsBreakdown({
 
 export default function PaymentStatusGrid({
   address,
+  accountMode,
   balanceBreakdown,
   connectionStatus,
   directAllowed,
   paymentAccountAddress,
   paymentFundsUsd,
   readiness,
+  walletProvider,
   walletReady,
 }: Props) {
   return (
@@ -100,6 +104,15 @@ export default function PaymentStatusGrid({
         label="Payment account"
         value={<AddressValue value={paymentAccountAddress} fallback="Loading payment account" />}
       />
+      <DataRow
+        label="Account mode"
+        value={
+          <StatusBadge tone={accountMode === "eip7702" ? "positive" : "info"}>
+            {accountMode === "eip7702" ? "Magic EOA / 7702" : "Smart Account"}
+          </StatusBadge>
+        }
+      />
+      <DataRow label="Provider" value={<StatusBadge tone="info">{walletProvider ?? "particle"}</StatusBadge>} />
       <DataRow
         label="Payment account funds"
         value={<FundsBreakdown breakdown={balanceBreakdown} total={paymentFundsUsd} />}

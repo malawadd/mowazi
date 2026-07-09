@@ -8,6 +8,7 @@ import { DataRow, EmptyState, Panel, StatusBadge } from "@/components/strategy-u
 type DepositPolicy = "ua_settlement_only" | "ua_settlement_plus_eoa_direct";
 
 type SavedAccountWallet = {
+  evmDepositAddress?: string;
   evmUaAddress: string;
   solanaUaAddress: string;
   lastRefreshedAt: number;
@@ -45,7 +46,10 @@ export default function PaymentLinkPanel({ savedWallet }: { savedWallet: SavedAc
     if (!paymentLink?.slug) return "";
     return `${canonicalOrigin()}/pay/${paymentLink.slug}`;
   }, [paymentLink?.slug]);
-  const walletReady = Boolean(savedWallet?.evmUaAddress && savedWallet?.solanaUaAddress);
+  const walletReady = Boolean(
+    (savedWallet?.evmDepositAddress ?? savedWallet?.evmUaAddress) &&
+      savedWallet?.solanaUaAddress,
+  );
   const activePolicy = paymentLink?.depositPolicy ?? "ua_settlement_plus_eoa_direct";
 
   useEffect(() => {

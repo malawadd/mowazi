@@ -4,6 +4,7 @@ import { verifyMessage } from "ethers";
 import { PARTICLE_NONCE_COOKIE, PARTICLE_SESSION_COOKIE } from "@/lib/particleAuthConstants";
 import { decodeParticleNonce } from "@/lib/particleNonce";
 import {
+  type AppAuthProvider,
   createParticleSessionToken,
   getSessionMaxAgeSeconds,
 } from "@/lib/particleSession";
@@ -13,6 +14,9 @@ export const runtime = "nodejs";
 type WalletSessionBody = {
   address?: string;
   signature?: string;
+  authProvider?: AppAuthProvider;
+  email?: string | null;
+  name?: string | null;
 };
 
 function clearNonce(response: NextResponse) {
@@ -22,6 +26,10 @@ function clearNonce(response: NextResponse) {
     path: "/",
     maxAge: 0,
   });
+}
+
+function normalizeAuthProvider(value: unknown): AppAuthProvider {
+  return value === "magic" ? "magic" : "wallet";
 }
 
 export async function POST(request: Request) {
@@ -57,14 +65,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Wallet signature is invalid." }, { status: 401 });
     }
 
+    const authProvider = normalizeAuthProvider(body.authProvider);
+    const subject = `${authProvider}:${address}`;
     const token = await createParticleSessionToken({
-      subject: `wallet:${address}`,
+      subject,
+      authProvider,
       walletAddress: address,
+      email: body.email ?? undefined,
+      name: body.name ?? undefined,
     });
     const response = NextResponse.json({
       session: {
-        subject: `wallet:${address}`,
+        subject,
+        authProvider,
         walletAddress: address,
+        email: body.email ?? null,
+        name: body.name ?? null,
       },
     });
 

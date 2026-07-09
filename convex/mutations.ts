@@ -464,6 +464,7 @@ export const upsertViewerUser = internalMutation({
   args: {
     authSubject: v.string(),
     authProvider: v.optional(v.string()),
+    walletAddress: v.optional(v.string()),
     particleWalletAddress: v.optional(v.string()),
     particleUuid: v.optional(v.string()),
     email: v.optional(v.string()),
@@ -479,6 +480,7 @@ export const upsertViewerUser = internalMutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         authProvider: args.authProvider,
+        walletAddress: args.walletAddress,
         particleWalletAddress: args.particleWalletAddress,
         particleUuid: args.particleUuid,
         email: args.email,
@@ -491,6 +493,7 @@ export const upsertViewerUser = internalMutation({
     return await ctx.db.insert("users", {
       authSubject: args.authSubject,
       authProvider: args.authProvider,
+      walletAddress: args.walletAddress,
       particleWalletAddress: args.particleWalletAddress,
       particleUuid: args.particleUuid,
       email: args.email,

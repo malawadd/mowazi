@@ -13,6 +13,7 @@
     "test": "node --import tsx --test tests/**/*.test.ts"
   },
   "dependencies": {
+    "@magic-ext/evm": "^1.7.0",
     "@particle-network/authkit": "^3.0.0-alpha.8",
     "@particle-network/connectkit": "^3.0.0-alpha.5",
     "@particle-network/universal-account-sdk": "^2.0.0-beta.3",
@@ -23,6 +24,7 @@
     "ethers": "^6.15.0",
     "jose": "^6.2.3",
     "lightweight-charts": "^5.0.9",
+    "magic-sdk": "^33.9.0",
     "msgpackr": "^1.11.5",
     "next": "15.2.3",
     "react": "^19.0.0",

@@ -18,8 +18,13 @@ import {
   getSettlementTarget,
   SETTLEMENT_CHAIN_ID,
 } from "../lib/particlePaymentTokens";
-import { detectEip7702Capability, getEip7702Status } from "../lib/eip7702";
+import { detectEip7702Capability, getEip7702Status, getEvmDepositAddress } from "../lib/eip7702";
+import { buildUniversalAccountConfig } from "../lib/universalAccountConfig";
 import { buildArbitrumUsdcSettlementTransaction } from "../lib/universalAccountSettlement";
+import {
+  firstEip7702Auth,
+  serializeAuthorizationSignature,
+} from "../lib/universalAccount7702";
 import { getPaymentAccountAssetOptions } from "../lib/paymentAccountAssets";
 import { signUniversalAccountRootHash } from "../lib/universalAccountSigning";
 import {
@@ -153,6 +158,34 @@ test("EIP-7702 detection only enables authorization-capable wallets", () => {
     getEip7702Status("smart", detectEip7702Capability(embeddedWallet)).enabled,
     false,
   );
+});
+
+test("Magic UA config enables EIP-7702 and keeps the EOA as the deposit address", () => {
+  const ownerAddress = "0x1111111111111111111111111111111111111111";
+  const smartAddress = "0x2222222222222222222222222222222222222222";
+  const config = buildUniversalAccountConfig({ ownerAddress, useEIP7702: true });
+
+  assert.equal(config.smartAccountOptions?.useEIP7702, true);
+  assert.equal(config.smartAccountOptions?.ownerAddress, ownerAddress);
+  assert.equal(
+    getEvmDepositAddress({ accountMode: "eip7702", ownerAddress, evmUaAddress: smartAddress }),
+    ownerAddress,
+  );
+  assert.equal(
+    getEvmDepositAddress({ accountMode: "smart_account", ownerAddress, evmUaAddress: smartAddress }),
+    smartAddress,
+  );
+});
+
+test("Magic 7702 authorizations serialize for Particle UA submission", () => {
+  const r = `0x${"11".repeat(32)}`;
+  const s = `0x${"22".repeat(32)}`;
+  const signature = serializeAuthorizationSignature({ r, s, v: 27 });
+  const auth = firstEip7702Auth([{ address: "0xabc", chainId: 42161, nonce: 7 }]);
+
+  assert.match(signature, /^0x[0-9a-f]+$/);
+  assert.equal(auth?.chainId, 42161);
+  assert.equal(auth?.nonce, 7);
 });
 
 test("payment receiver selection uses EVM UA for EVM chains and Solana UA for Solana", () => {
