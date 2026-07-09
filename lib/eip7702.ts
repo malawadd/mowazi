@@ -89,12 +89,33 @@ function readChainId(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isTrue(value: unknown) {
+  return value === true || value === "true";
+}
+
+function isDelegatedDeployment(value: unknown) {
+  if (value === true) return true;
+  const deployment = record(value);
+  if (!deployment) return false;
+  const status = typeof deployment.status === "string" ? deployment.status.toLowerCase() : "";
+  const delegationStatus =
+    typeof deployment.delegationStatus === "string"
+      ? deployment.delegationStatus.toLowerCase()
+      : "";
+  return (
+    isTrue(deployment.isDelegated) ||
+    isTrue(deployment.delegated) ||
+    status === "delegated" ||
+    delegationStatus === "delegated"
+  );
+}
+
 export function extractEip7702DelegatedChainIds(deployments: unknown): number[] {
   const chainIds = new Set<number>();
   if (Array.isArray(deployments)) {
     for (const item of deployments) {
       const chainId = readChainId(item);
-      if (chainId !== null) chainIds.add(chainId);
+      if (chainId !== null && isDelegatedDeployment(item)) chainIds.add(chainId);
     }
     return [...chainIds];
   }
@@ -103,12 +124,12 @@ export function extractEip7702DelegatedChainIds(deployments: unknown): number[] 
   if (!deploymentRecord) return [];
   for (const [key, value] of Object.entries(deploymentRecord)) {
     const numericKey = Number(key);
-    if (Number.isFinite(numericKey) && value) {
+    if (Number.isFinite(numericKey) && isDelegatedDeployment(value)) {
       chainIds.add(numericKey);
       continue;
     }
     const chainId = readChainId(value);
-    if (chainId !== null) chainIds.add(chainId);
+    if (chainId !== null && isDelegatedDeployment(value)) chainIds.add(chainId);
   }
   return [...chainIds];
 }

@@ -18,7 +18,12 @@ import {
   getSettlementTarget,
   SETTLEMENT_CHAIN_ID,
 } from "../lib/particlePaymentTokens";
-import { detectEip7702Capability, getEip7702Status, getEvmDepositAddress } from "../lib/eip7702";
+import {
+  detectEip7702Capability,
+  extractEip7702DelegatedChainIds,
+  getEip7702Status,
+  getEvmDepositAddress,
+} from "../lib/eip7702";
 import { buildUniversalAccountConfig } from "../lib/universalAccountConfig";
 import { buildArbitrumUsdcSettlementTransaction } from "../lib/universalAccountSettlement";
 import {
@@ -174,6 +179,25 @@ test("Magic UA config enables EIP-7702 and keeps the EOA as the deposit address"
   assert.equal(
     getEvmDepositAddress({ accountMode: "smart_account", ownerAddress, evmUaAddress: smartAddress }),
     smartAddress,
+  );
+});
+
+test("EIP-7702 deployment parsing requires explicit delegated status", () => {
+  assert.deepEqual(
+    extractEip7702DelegatedChainIds([
+      { chainId: 42161, isDelegated: false },
+      { chainId: 8453, isDelegated: true },
+      { chainId: 10 },
+    ]),
+    [8453],
+  );
+  assert.deepEqual(
+    extractEip7702DelegatedChainIds({
+      "42161": { isDelegated: false },
+      "8453": { delegated: true },
+      "10": { chainId: 10 },
+    }),
+    [8453],
   );
 });
 

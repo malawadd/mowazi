@@ -71,6 +71,9 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
   const evmDepositAddress = accountInfo?.evmDepositAddress || savedWallet?.evmDepositAddress || evmUaAddress;
   const solanaUaAddress = accountInfo?.solanaSmartAccount || savedWallet?.solanaUaAddress || "";
   const currentBalance = primaryAssets?.totalAmountInUSD ?? savedWallet?.unifiedBalanceUsd ?? null;
+  const eip7702Delegated = accountInfo
+    ? accountInfo.eip7702Delegated
+    : Boolean(savedWallet?.eip7702Delegated);
 
   const syncSnapshot = async () => {
     setSyncing(true);
@@ -162,8 +165,8 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
                 {evmUaAddress && solanaUaAddress ? "ready to receive" : "loading addresses"}
               </StatusBadge>
               {accountMode === "eip7702" ? (
-                <StatusBadge tone={accountInfo?.eip7702Delegated || savedWallet?.eip7702Delegated ? "positive" : "warning"}>
-                  {accountInfo?.eip7702Delegated || savedWallet?.eip7702Delegated ? "delegated" : "delegation available"}
+                <StatusBadge tone={eip7702Delegated ? "positive" : "warning"}>
+                  {eip7702Delegated ? "delegated" : "delegation required"}
                 </StatusBadge>
               ) : null}
               {error ? <p className="muted-copy">{error}</p> : null}
@@ -232,7 +235,7 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
               <button
                 className="secondary-button"
                 type="button"
-                disabled={delegating || Boolean(accountInfo?.eip7702Delegated)}
+                disabled={delegating || eip7702Delegated}
                 onClick={enableDelegation}
               >
                 {delegating ? "Delegating..." : "Enable 7702"}
