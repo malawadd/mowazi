@@ -11,7 +11,11 @@ function shortenAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-export default function ParticleAccountButton() {
+export default function ParticleAccountButton({
+  onMagicClick,
+}: {
+  onMagicClick?: () => void;
+}) {
   const router = useRouter();
   const { session, signOut, status } = useParticleSession();
   const { toggleWalletWidgetVisible, walletWidgetVisible } =
@@ -44,6 +48,10 @@ export default function ParticleAccountButton() {
         type="button"
         onClick={() => {
           if (session.authProvider === "magic") {
+            if (onMagicClick) {
+              onMagicClick();
+              return;
+            }
             void magicWallet.showWallet().catch(() => undefined);
             return;
           }

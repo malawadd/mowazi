@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import ParticleAccountButton from "@/components/ParticleAccountButton";
+import { TradeAccountDrawer } from "./TradeAccountDrawer";
 import styles from "./trade-ui.module.css";
 
 export default function TradeShell({ children }: { children: ReactNode }) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   return (
     <main className={styles.shell}>
       <header className={styles.appbar} data-route-tone="sky">
@@ -21,9 +24,10 @@ export default function TradeShell({ children }: { children: ReactNode }) {
             Agentic Portal
           </Link>
         </nav>
-        <ParticleAccountButton />
+        <ParticleAccountButton onMagicClick={() => setDrawerOpen(true)} />
       </header>
       {children}
+      <TradeAccountDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </main>
   );
 }
