@@ -67,6 +67,10 @@ async function getAccountWalletByUserId(ctx: { db: any }, userId: any) {
     .first();
 }
 
+function evmReceiveAddress(wallet: any) {
+  return wallet?.evmDepositAddress ?? wallet?.evmUaAddress ?? null;
+}
+
 async function getActivePaymentLinkByUserId(ctx: { db: any }, userId: any) {
   return await ctx.db
     .query("paymentLinks")
@@ -141,7 +145,7 @@ export const syncViewerAccountWallet = mutation({
     ownerAddress: v.string(),
     evmUaAddress: v.string(),
     evmDepositAddress: v.optional(v.string()),
-    solanaUaAddress: v.string(),
+    solanaUaAddress: v.optional(v.string()),
     walletProvider: v.optional(accountWalletProviderValidator),
     accountMode: v.optional(accountWalletModeValidator),
     eip7702Delegated: v.optional(v.boolean()),
@@ -153,8 +157,8 @@ export const syncViewerAccountWallet = mutation({
     const viewer = await requireViewerUser(ctx);
     const user = viewer.user;
     if (!user) throw new Error("Could not create user.");
-    if (!args.evmUaAddress.trim() || !args.solanaUaAddress.trim()) {
-      throw new Error("Universal Account addresses are not ready.");
+    if (!args.evmUaAddress.trim()) {
+      throw new Error("Universal Account EVM address is not ready.");
     }
     const signedInAddress =
       typeof user.walletAddress === "string"
@@ -217,8 +221,8 @@ export const getOrCreateViewerPaymentLink = mutation({
     const user = viewer.user;
     if (!user) throw new Error("Could not create user.");
     const wallet = await getAccountWalletByUserId(ctx, user._id);
-    if (!wallet?.evmUaAddress || !wallet?.solanaUaAddress) {
-      throw new Error("Sync your Particle account wallet before creating a payment link.");
+    if (!evmReceiveAddress(wallet)) {
+      throw new Error("Sync your account wallet before creating a payment link.");
     }
 
     const existing = await getActivePaymentLinkByUserId(ctx, user._id);
@@ -287,8 +291,8 @@ export const rotateViewerPaymentLink = mutation({
     const user = viewer.user;
     if (!user) throw new Error("Could not create user.");
     const wallet = await getAccountWalletByUserId(ctx, user._id);
-    if (!wallet?.evmUaAddress || !wallet?.solanaUaAddress) {
-      throw new Error("Sync your Particle account wallet before rotating a payment link.");
+    if (!evmReceiveAddress(wallet)) {
+      throw new Error("Sync your account wallet before rotating a payment link.");
     }
 
     const existing = await getActivePaymentLinkByUserId(ctx, user._id);

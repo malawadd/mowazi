@@ -162,7 +162,7 @@ export default defineSchema({
     ownerAddress: v.string(),
     evmUaAddress: v.string(),
     evmDepositAddress: v.optional(v.string()),
-    solanaUaAddress: v.string(),
+    solanaUaAddress: v.optional(v.string()),
     walletProvider: v.optional(v.union(v.literal("particle"), v.literal("magic"), v.literal("wallet"))),
     accountMode: v.optional(v.union(v.literal("smart_account"), v.literal("eip7702"))),
     eip7702Delegated: v.optional(v.boolean()),

@@ -80,7 +80,7 @@ export const getPublicPaymentLink = query({
       solanaUaAddress: wallet?.solanaUaAddress ?? null,
       walletProvider: wallet?.walletProvider ?? "particle",
       accountMode: wallet?.accountMode ?? "smart_account",
-      walletReady: Boolean(evmReceiveAddress(wallet) && wallet?.solanaUaAddress),
+      walletReady: Boolean(evmReceiveAddress(wallet)),
       lastRefreshedAt: wallet?.lastRefreshedAt ?? null,
       createdAt: link.createdAt,
     };
@@ -120,12 +120,19 @@ export const createPaymentIntent = mutation({
     }
 
     const wallet = await getWalletForLink(ctx, link);
-    if (!evmReceiveAddress(wallet) || !wallet?.solanaUaAddress) {
+    if (!evmReceiveAddress(wallet)) {
       throw new Error("Recipient account wallet is not ready.");
     }
 
     const expectedReceiver =
       args.receiverKind === "evm" ? evmReceiveAddress(wallet) : wallet.solanaUaAddress;
+    if (!expectedReceiver) {
+      throw new Error(
+        args.receiverKind === "solana"
+          ? "Recipient Solana Universal Account address is missing."
+          : "Recipient EVM Universal Account address is missing.",
+      );
+    }
     const receiverMatches =
       args.receiverKind === "evm"
         ? normalizeEvm(args.receiver) === normalizeEvm(expectedReceiver)

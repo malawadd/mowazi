@@ -13,7 +13,7 @@ type SavedAccountWallet = {
   evmDepositAddress?: string;
   ownerAddress: string;
   evmUaAddress: string;
-  solanaUaAddress: string;
+  solanaUaAddress?: string | null;
   walletProvider?: "particle" | "magic" | "wallet";
   unifiedBalanceUsd: number;
   assetsJson: string;
@@ -83,8 +83,8 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
         accountInfo,
         primaryAssets,
       };
-      if (!ownerAddress || !fresh.accountInfo?.evmSmartAccount || !fresh.accountInfo?.solanaSmartAccount) {
-        throw new Error("Universal Account addresses are not ready yet.");
+      if (!ownerAddress || !fresh.accountInfo?.evmSmartAccount) {
+        throw new Error("Universal Account EVM address is not ready yet.");
       }
 
       await syncWallet({
@@ -94,7 +94,7 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
         eip7702Delegated: fresh.accountInfo.eip7702Delegated,
         evmDepositAddress: fresh.accountInfo.evmDepositAddress,
         evmUaAddress: fresh.accountInfo.evmSmartAccount,
-        solanaUaAddress: fresh.accountInfo.solanaSmartAccount,
+        solanaUaAddress: fresh.accountInfo.solanaSmartAccount || undefined,
         walletProvider: fresh.accountInfo.walletProvider,
         unifiedBalanceUsd: fresh.primaryAssets?.totalAmountInUSD ?? 0,
         assetsJson: JSON.stringify(fresh.primaryAssets ?? { assets: [], totalAmountInUSD: 0 }),
@@ -132,7 +132,7 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
       }
     >
       {!ownerAddress && !savedWallet ? (
-        <EmptyState title="Particle wallet not ready." body="Reconnect with Particle to load your account wallet." />
+        <EmptyState title="Wallet not ready." body="Reconnect to load your account wallet." />
       ) : (
         <div className="stack-list">
           <div className="two-column-grid">
@@ -161,8 +161,8 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
               />
             </div>
             <div className="stack-list">
-              <StatusBadge tone={evmUaAddress && solanaUaAddress ? "positive" : "warning"}>
-                {evmUaAddress && solanaUaAddress ? "ready to receive" : "loading addresses"}
+              <StatusBadge tone={evmUaAddress ? "positive" : "warning"}>
+                {evmUaAddress ? "ready to receive" : "loading EVM address"}
               </StatusBadge>
               {accountMode === "eip7702" ? (
                 <StatusBadge tone={eip7702Delegated ? "positive" : "warning"}>
@@ -205,6 +205,9 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
                 </button>
               </div>
               <p className="mono-label">{shortAddress(solanaUaAddress)}</p>
+              {!solanaUaAddress ? (
+                <p className="muted-copy">Not returned for this wallet provider yet.</p>
+              ) : null}
             </article>
           </div>
 

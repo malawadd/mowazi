@@ -29,7 +29,7 @@ type PublicPaymentLink = {
   strategyLabel: string;
   recipientName: string;
   evmUaAddress: string | null;
-  solanaUaAddress: string | null;
+  solanaUaAddress?: string | null;
   walletReady: boolean;
 };
 

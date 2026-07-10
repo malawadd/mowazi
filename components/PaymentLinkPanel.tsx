@@ -10,7 +10,7 @@ type DepositPolicy = "ua_settlement_only" | "ua_settlement_plus_eoa_direct";
 type SavedAccountWallet = {
   evmDepositAddress?: string;
   evmUaAddress: string;
-  solanaUaAddress: string;
+  solanaUaAddress?: string | null;
   lastRefreshedAt: number;
 } | null;
 
@@ -46,10 +46,7 @@ export default function PaymentLinkPanel({ savedWallet }: { savedWallet: SavedAc
     if (!paymentLink?.slug) return "";
     return `${canonicalOrigin()}/pay/${paymentLink.slug}`;
   }, [paymentLink?.slug]);
-  const walletReady = Boolean(
-    (savedWallet?.evmDepositAddress ?? savedWallet?.evmUaAddress) &&
-      savedWallet?.solanaUaAddress,
-  );
+  const walletReady = Boolean(savedWallet?.evmDepositAddress ?? savedWallet?.evmUaAddress);
   const activePolicy = paymentLink?.depositPolicy ?? "ua_settlement_plus_eoa_direct";
 
   useEffect(() => {
@@ -72,13 +69,13 @@ export default function PaymentLinkPanel({ savedWallet }: { savedWallet: SavedAc
   return (
     <Panel
       title="Shared deposit link"
-      description="Create one public link that lets someone else deposit into your Particle account wallet."
+      description="Create one public link that lets someone else deposit into your account wallet."
       tone="mint"
     >
       {!walletReady ? (
         <EmptyState
           title="Sync your account wallet first."
-          body="Moeazi needs your EVM and Solana Universal Account addresses before it can create a public deposit link."
+          body="Moeazi needs your EVM account wallet address before it can create a public deposit link."
         />
       ) : (
         <div className="stack-list">

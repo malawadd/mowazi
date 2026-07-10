@@ -37,11 +37,11 @@ export default function ProfileWalletPage() {
   };
 
   return (
-    <StrategyShell title="Wallet" subtitle="Particle account wallet and shared deposit link">
+    <StrategyShell title="Wallet" subtitle="Account wallet and shared deposit link">
       {!isSignedIn ? (
         <EmptyState
           title={status === "loading" ? "Loading Particle session..." : "Sign in to view your account wallet."}
-          body="Your Particle account wallet is tied to your user profile, not strategy provisioning."
+          body="Your account wallet is tied to your user profile, not strategy provisioning."
           action={
             status === "unauthenticated" ? (
               <Link className="primary-button" href="/sign-in?redirect=/profile/wallet">

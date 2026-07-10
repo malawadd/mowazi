@@ -11,7 +11,7 @@ type PublicPaymentLink = {
   strategyLabel: string;
   recipientName: string;
   evmUaAddress: string | null;
-  solanaUaAddress: string | null;
+  solanaUaAddress?: string | null;
   walletReady: boolean;
   depositPolicy?: "ua_settlement_only" | "ua_settlement_plus_eoa_direct";
   eoaDirectAllowed?: boolean;
