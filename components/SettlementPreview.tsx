@@ -51,6 +51,27 @@ export default function SettlementPreviewPanel({
         }
       />
       <DataRow label="Destination" value={settlementLabel} />
+      {preview.fees ? (
+        <DataRow
+          label="Estimated fees"
+          value={
+            <span>
+              {formatUsd(preview.fees.totalUsd) ?? "Unavailable"}
+              {preview.fees.gasUsd !== null ? ` gas ${formatUsd(preview.fees.gasUsd)}` : ""}
+            </span>
+          }
+        />
+      ) : null}
+      {preview.requiredBalanceUsd !== null && preview.requiredBalanceUsd !== undefined ? (
+        <DataRow
+          label="Needed in payment account"
+          value={`${formatUsd(preview.requiredBalanceUsd) ?? "Unavailable"}${
+            preview.availableBalanceUsd !== null && preview.availableBalanceUsd !== undefined
+              ? ` available ${formatUsd(preview.availableBalanceUsd) ?? "Unavailable"}`
+              : ""
+          }`}
+        />
+      ) : null}
       <DataRow
         label="Powered by"
         value={<StatusBadge tone="info">Universal Account</StatusBadge>}

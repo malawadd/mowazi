@@ -61,6 +61,7 @@ export default function ConnectedWalletDepositPanel({
     error,
     connect,
     refresh,
+    getMaxDepositAmount,
     previewDeposit,
     sendDeposit,
   } = useEoaDepositBalances();
@@ -72,7 +73,7 @@ export default function ConnectedWalletDepositPanel({
   const [amount, setAmount] = useState("");
   const [preview, setPreview] = useState<EoaDepositPreview | null>(null);
   const [intentId, setIntentId] = useState<Id<"paymentIntents"> | null>(null);
-  const [busy, setBusy] = useState<"connect" | "refresh" | "preview" | "send" | null>(null);
+  const [busy, setBusy] = useState<"connect" | "refresh" | "max" | "preview" | "send" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const selectableBalances = depositableBalances.length > 0 ? depositableBalances : balances;
@@ -97,6 +98,22 @@ export default function ConnectedWalletDepositPanel({
     setMessage(null);
     try {
       await refresh();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const setMaxAmount = async () => {
+    if (!selectedToken || !receiverAddress) return;
+    setBusy("max");
+    setMessage(null);
+    try {
+      const max = await getMaxDepositAmount(selectedToken, receiverAddress);
+      setAmount(max.amount);
+      resetPreview();
+      setMessage(max.note);
+    } catch (nextError) {
+      setMessage(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
       setBusy(null);
     }
@@ -257,13 +274,9 @@ export default function ConnectedWalletDepositPanel({
                 className="secondary-button"
                 type="button"
                 disabled={!selectedToken || busy !== null}
-                onClick={() => {
-                  if (!selectedToken) return;
-                  setAmount(selectedToken.formattedBalance);
-                  resetPreview();
-                }}
+                onClick={setMaxAmount}
               >
-                Max
+                {busy === "max" ? "Checking..." : "Max"}
               </button>
               <button className="primary-button" type="button" disabled={!canPreview} onClick={previewTransfer}>
                 {busy === "preview" ? "Previewing..." : "Preview transfer"}

@@ -19,6 +19,16 @@ export type SettlementPreview = {
   sourceAmountUsd: number | null;
   /** Token price in USD. Null when price data is unavailable. */
   sourceTokenPrice: number | null;
+  fees?: UaFeeEstimate;
+  requiredBalanceUsd?: number | null;
+  availableBalanceUsd?: number | null;
+};
+
+export type UaFeeEstimate = {
+  totalUsd: number | null;
+  gasUsd: number | null;
+  serviceUsd: number | null;
+  lpUsd: number | null;
 };
 
 // ---- helpers ----
@@ -116,4 +126,37 @@ export function formatSettlementAmount(amount: string, symbol: string): string {
   const parsed = Number(amount);
   if (!Number.isFinite(parsed) || parsed <= 0) return `0 ${symbol}`;
   return `${Number(parsed).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${symbol}`;
+}
+
+function readRecord(value: unknown) {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function scaledUsd(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string" || !value.trim()) return null;
+  if (value.includes(".")) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  try {
+    return Number(BigInt(value)) / 1e18;
+  } catch {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+}
+
+export function extractUaFeeEstimate(transaction: unknown): UaFeeEstimate | null {
+  const tx = readRecord(transaction);
+  const feeQuotes = Array.isArray(tx?.feeQuotes) ? tx.feeQuotes : [];
+  const fees = readRecord(readRecord(feeQuotes[0])?.fees);
+  const totals = readRecord(fees?.totals);
+  if (!totals) return null;
+  return {
+    totalUsd: scaledUsd(totals.feeTokenAmountInUSD),
+    gasUsd: scaledUsd(totals.gasFeeTokenAmountInUSD),
+    serviceUsd: scaledUsd(totals.transactionServiceFeeTokenAmountInUSD),
+    lpUsd: scaledUsd(totals.transactionLPFeeTokenAmountInUSD),
+  };
 }

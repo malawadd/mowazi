@@ -12,8 +12,10 @@ import type { SettlementPreview } from "@/lib/particleSettlement";
 import { getPaymentAccountAssetOptions, getPaymentAccountBreakdown } from "@/lib/paymentAccountAssets";
 import {
   buildPaymentSettlementPreview,
+  addTransactionFeesToPreview,
   canCoverSettlementAmount,
-  formatMaxSettlementAmount,
+  canCoverSettlementWithFees,
+  estimateSpendableSettlementMax,
   safeJsonDetails,
 } from "@/lib/paymentSettlementPreview";
 import { friendlyPaymentError, getPayReadiness } from "@/lib/payReadiness";
@@ -63,6 +65,7 @@ export default function UniversalAccountTransferPanel({
   const [message, setMessage] = useState<string | null>(null);
   const [fundingTarget, setFundingTarget] = useState<string | null>(null);
   const [fundingOwner, setFundingOwner] = useState<string | null>(null);
+  const [maxAmountHint, setMaxAmountHint] = useState<string | null>(null);
   const connectTriggered = useRef(false);
 
   const tokenOptions = useMemo(() => getPaymentAccountAssetOptions(primaryAssets), [primaryAssets]);
@@ -142,8 +145,6 @@ export default function UniversalAccountTransferPanel({
         throw new Error("The selected payment account balance is too small for this USDC amount.");
       }
       const est = buildPaymentSettlementPreview(selectedToken, settlement, amount, amountNumber);
-      setSettlementPreview(est);
-
       if (!workingIntentId) {
         const intent = await createIntent({
           slug: paymentLink.slug,
@@ -172,6 +173,31 @@ export default function UniversalAccountTransferPanel({
         amount,
         receiver: receiverInfo.receiver,
       });
+      const estWithFees = addTransactionFeesToPreview(
+        est,
+        transaction,
+        primaryAssets?.totalAmountInUSD ?? selectedToken.amountUsd,
+      );
+      setSettlementPreview(estWithFees);
+      if (
+        !canCoverSettlementWithFees({
+          amountUsd: amountNumber,
+          availableUsd: estWithFees.availableBalanceUsd,
+          feeUsd: estWithFees.fees?.totalUsd,
+        })
+      ) {
+        const available =
+          estWithFees.availableBalanceUsd !== null && estWithFees.availableBalanceUsd !== undefined
+            ? `$${estWithFees.availableBalanceUsd.toFixed(2)}`
+            : "the current balance";
+        const required =
+          estWithFees.requiredBalanceUsd !== null && estWithFees.requiredBalanceUsd !== undefined
+            ? `$${estWithFees.requiredBalanceUsd.toFixed(2)}`
+            : "more funds";
+        throw new Error(
+          `This payment account has about ${available}, but this payment needs about ${required} including Particle fees. Add funds or lower the amount.`,
+        );
+      }
 
       setPreview(transaction);
       const transactionDetails = transaction as ITransaction & { tokenChanges?: unknown; transactionFees?: unknown };
@@ -184,7 +210,7 @@ export default function UniversalAccountTransferPanel({
           sourceBalance: selectedToken,
           targetToken: settlement,
           receiver: receiverInfo.receiver,
-          settlementPreview: est,
+          settlementPreview: estWithFees,
           tokenChanges: transactionDetails.tokenChanges,
           transactionFees: transactionDetails.transactionFees,
         }),
@@ -234,7 +260,16 @@ export default function UniversalAccountTransferPanel({
 
   const setMaxAmount = () => {
     if (!selectedToken?.hasBalance) return;
-    setAmount(formatMaxSettlementAmount(selectedToken.amountUsd));
+    const spendable = estimateSpendableSettlementMax({
+      availableUsd: primaryAssets?.totalAmountInUSD ?? selectedToken.amountUsd,
+      lastFeeUsd: settlementPreview?.fees?.totalUsd,
+    });
+    setAmount(spendable.amount);
+    setMaxAmountHint(
+      spendable.reserveUsd > 0
+        ? `Max keeps about $${spendable.reserveUsd.toFixed(2)} reserved for Particle fees. Preview will confirm the exact fee.`
+        : "No spendable amount is available after the fee reserve.",
+    );
     resetPreview();
   };
 
@@ -261,19 +296,23 @@ export default function UniversalAccountTransferPanel({
             busy={busy}
             canPreview={canPreview}
             hasPreview={Boolean(preview && intentId)}
+            maxAmountHint={maxAmountHint}
             selectedTokenId={selectedToken?.id ?? ""}
             tokenOptions={tokenOptions}
             walletReady={paymentLink.walletReady}
             onAmountChange={(value) => {
               setAmount(value);
+              setMaxAmountHint(null);
               resetPreview();
             }}
             onMaxAmount={setMaxAmount}
             onPreview={previewPayment}
             onRefresh={connectPayer}
             onSend={sendPayment}
+            onStartFunding={startFunding}
             onTokenChange={(value) => {
               setTokenId(value);
+              setMaxAmountHint(null);
               resetPreview();
             }}
           />

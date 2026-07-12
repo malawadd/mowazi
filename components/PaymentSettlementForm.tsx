@@ -12,11 +12,13 @@ type Props = {
   selectedTokenId: string;
   tokenOptions: PaymentAccountAssetOption[];
   walletReady: boolean;
+  maxAmountHint?: string | null;
   onAmountChange: (value: string) => void;
   onMaxAmount: () => void;
   onPreview: () => void;
   onRefresh: () => void;
   onSend: () => void;
+  onStartFunding: () => void;
   onTokenChange: (value: string) => void;
 };
 
@@ -29,11 +31,13 @@ export default function PaymentSettlementForm({
   selectedTokenId,
   tokenOptions,
   walletReady,
+  maxAmountHint,
   onAmountChange,
   onMaxAmount,
   onPreview,
   onRefresh,
   onSend,
+  onStartFunding,
   onTokenChange,
 }: Props) {
   const [showAllAssets, setShowAllAssets] = useState(false);
@@ -100,13 +104,16 @@ export default function PaymentSettlementForm({
               Max
             </button>
           </div>
-          <span className="field-hint">Recipient receives USDC on Arbitrum.</span>
+          <span className="field-hint">{maxAmountHint ?? "Recipient receives USDC on Arbitrum."}</span>
         </label>
       </div>
 
       <div className="inline-actions">
         <button className="secondary-button" type="button" disabled={busy !== null} onClick={onRefresh}>
           {busy === "connect" ? "Connecting..." : address ? "Refresh balance" : "Connect wallet"}
+        </button>
+        <button className="secondary-button" type="button" disabled={busy !== null} onClick={onStartFunding}>
+          Add funds
         </button>
         <button className="primary-button" type="button" disabled={!walletReady || !canPreview || busy !== null} onClick={onPreview}>
           {busy === "preview" ? "Previewing..." : "Preview payment"}

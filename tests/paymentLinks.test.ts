@@ -31,6 +31,11 @@ import {
   serializeAuthorizationSignature,
 } from "../lib/universalAccount7702";
 import { getPaymentAccountAssetOptions } from "../lib/paymentAccountAssets";
+import {
+  addTransactionFeesToPreview,
+  canCoverSettlementWithFees,
+  estimateSpendableSettlementMax,
+} from "../lib/paymentSettlementPreview";
 import { signUniversalAccountRootHash } from "../lib/universalAccountSigning";
 import {
   friendlyPaymentError,
@@ -324,6 +329,59 @@ test("UA settlement transaction targets Arbitrum USDC and transfers to receiver"
   assert.equal(transaction.transactions.length, 1);
   assert.equal((transaction.transactions[0] as any).to, settlement.address);
   assert.match((transaction.transactions[0] as any).data, /^0xa9059cbb/);
+});
+
+test("UA settlement preview includes Particle fees before signing", () => {
+  const settlement = getSettlementTarget();
+  const preview = addTransactionFeesToPreview(
+    {
+      settlement,
+      isDirect: true,
+      estimatedSettlementAmount: "0.04",
+      sourceAmountUsd: 0.04,
+      sourceTokenPrice: 1,
+    },
+    {
+      feeQuotes: [
+        {
+          fees: {
+            totals: {
+              feeTokenAmountInUSD: "25000000000000000",
+              gasFeeTokenAmountInUSD: "10000000000000000",
+              transactionServiceFeeTokenAmountInUSD: "5000000000000000",
+              transactionLPFeeTokenAmountInUSD: "10000000000000000",
+            },
+          },
+        },
+      ],
+    },
+    0.05,
+  );
+
+  assert.equal(preview.fees?.totalUsd, 0.025);
+  assert.equal(preview.requiredBalanceUsd, 0.065);
+  assert.equal(
+    canCoverSettlementWithFees({
+      amountUsd: 0.04,
+      availableUsd: preview.availableBalanceUsd,
+      feeUsd: preview.fees?.totalUsd,
+    }),
+    false,
+  );
+});
+
+test("payment max keeps a reserve for UA settlement fees", () => {
+  assert.deepEqual(estimateSpendableSettlementMax({ availableUsd: 0.3 }), {
+    amount: "0.25",
+    amountNumber: 0.25,
+    reserveUsd: 0.05,
+  });
+
+  assert.deepEqual(estimateSpendableSettlementMax({ availableUsd: 0.3, lastFeeUsd: 0.08 }), {
+    amount: "0.215",
+    amountNumber: 0.215,
+    reserveUsd: 0.085,
+  });
 });
 
 test("UA root hash signing uses viem raw message payload", async () => {

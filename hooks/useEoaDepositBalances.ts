@@ -45,6 +45,11 @@ export type EoaDepositPreview = {
   gasEstimate: string;
 };
 
+export type EoaDepositMaxAmount = {
+  amount: string;
+  note: string;
+};
+
 function publicClientFor(chainId: number) {
   const chain = getParticleEvmChain(chainId);
   if (!chain) throw new Error(`Unsupported EVM chain ${chainId}.`);
@@ -193,6 +198,37 @@ export function useEoaDepositBalances() {
     [address],
   );
 
+  const getMaxDepositAmount = useCallback(
+    async (token: EoaDepositBalance, receiver: string): Promise<EoaDepositMaxAmount> => {
+      if (!address) throw new Error("Connect a wallet first.");
+      if (!token.isNative) {
+        const nativeGasBalance = balances.find((balance) => balance.chainId === token.chainId && balance.isNative);
+        return {
+          amount: token.formattedBalance,
+          note:
+            nativeGasBalance?.rawBalance && nativeGasBalance.rawBalance > 0n
+              ? "Max uses the full token balance. The source wallet still pays network gas in the native token."
+              : `Max uses the full token balance. Add ${token.chainName} native gas if the wallet cannot submit the transfer.`,
+        };
+      }
+
+      const client = publicClientFor(token.chainId);
+      const gas = await client.estimateGas({
+        account: address as Address,
+        to: receiver as Address,
+        value: 0n,
+      });
+      const gasPrice = await client.getGasPrice();
+      const feeRaw = gas * gasPrice;
+      const spendableRaw = token.rawBalance > feeRaw ? token.rawBalance - feeRaw : 0n;
+      return {
+        amount: formatBalance(spendableRaw, token.realDecimals),
+        note: `Max leaves about ${formatBalance(feeRaw, token.realDecimals)} ${token.symbol} for network gas.`,
+      };
+    },
+    [address, balances],
+  );
+
   const sendDeposit = useCallback(
     async (preview: EoaDepositPreview) => {
       if (!address) throw new Error("Connect a wallet first.");
@@ -233,6 +269,7 @@ export function useEoaDepositBalances() {
     error,
     connect,
     refresh,
+    getMaxDepositAmount,
     previewDeposit,
     sendDeposit,
     zeroAddress,

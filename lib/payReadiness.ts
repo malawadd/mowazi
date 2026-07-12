@@ -99,5 +99,8 @@ export function friendlyPaymentError(value: unknown) {
   if (message.includes("accepts Universal Account settlement only")) {
     return "The recipient only accepts settled payments for this link.";
   }
+  if (message.toLowerCase().includes("insufficient balance for gas")) {
+    return "This payment account has funds, but not enough to cover the payment plus Particle fees. Add a little more funds or lower the amount, then refresh and preview again.";
+  }
   return message;
 }
