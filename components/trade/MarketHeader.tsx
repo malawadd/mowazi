@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ArrowLeftRight, Network } from "lucide-react";
 import { formatNumber, formatUsd } from "@/lib/trade/format";
 import type { PerpMarket, VenueSnapshot } from "@/lib/trade/types";
 import styles from "./trade-ui.module.css";
@@ -15,12 +17,18 @@ export default function MarketHeader({
   snapshot,
   status,
   onSelectMarket,
+  action,
 }: {
   market: PerpMarket;
   markets: PerpMarket[];
   snapshot: VenueSnapshot | null;
   status: string;
   onSelectMarket: (marketId: string) => void;
+  action?: {
+    href: string;
+    label: string;
+    kind: "trade" | "viz";
+  };
 }) {
   const mark = snapshot?.markPrice ?? market.markPrice ?? null;
   const oracle = snapshot?.oraclePrice ?? market.oraclePrice ?? null;
@@ -41,6 +49,12 @@ export default function MarketHeader({
           ))}
         </select>
         <span className={styles.leverageChip}>{market.maxLeverage}x max</span>
+        {action ? (
+          <Link className={styles.marketHeaderAction} href={action.href}>
+            {action.kind === "viz" ? <Network size={16} aria-hidden="true" /> : <ArrowLeftRight size={16} aria-hidden="true" />}
+            {action.label}
+          </Link>
+        ) : null}
       </div>
       <HeaderMetric label="Feed" value={status} tone={status === "live" ? "positive" : "warning"} />
       <HeaderMetric label="Mark" value={formatNumber(mark, market.pricePrecision)} />

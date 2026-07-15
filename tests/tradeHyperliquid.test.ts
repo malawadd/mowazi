@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { canUseUaForHyperliquid, fundingAmountNeeded } from "../lib/trade/hyperliquidFunding";
-import { buildHyperliquidMarkets, canonicalHyperliquidCoin, tradePathForCoin } from "../lib/trade/hyperliquidMarkets";
+import { buildHyperliquidMarkets, canonicalHyperliquidCoin, tradePathForCoin, vizPathForCoin } from "../lib/trade/hyperliquidMarkets";
 import { buildHyperliquidOrderActions, formatHyperliquidPrice, formatHyperliquidSize } from "../lib/trade/hyperliquidOrder";
 import { buildTradeTicketLimits } from "../lib/trade/ticketLimits";
 import { isProtectedRoute } from "../middleware";
@@ -9,6 +9,8 @@ import { isProtectedRoute } from "../middleware";
 test("/trade is public while app account routes stay protected", () => {
   assert.equal(isProtectedRoute("/trade"), false);
   assert.equal(isProtectedRoute("/trade/BTC-PERP"), false);
+  assert.equal(isProtectedRoute("/viz"), false);
+  assert.equal(isProtectedRoute("/viz/BTC"), false);
   assert.equal(isProtectedRoute("/dashboard"), true);
   assert.equal(isProtectedRoute("/profile/wallet"), true);
 });
@@ -17,6 +19,7 @@ test("Hyperliquid route symbols canonicalize to clean market paths", () => {
   assert.equal(canonicalHyperliquidCoin("eth"), "ETH");
   assert.equal(canonicalHyperliquidCoin("BTC-PERP"), "BTC");
   assert.equal(tradePathForCoin("sol-perp"), "/trade/SOL");
+  assert.equal(vizPathForCoin("sol-perp"), "/viz/SOL");
 });
 
 test("Hyperliquid metadata builds live markets and excludes delisted assets", () => {

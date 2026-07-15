@@ -15,6 +15,7 @@ import {
   findHyperliquidMarket,
   getLiveHyperliquidMarkets,
   tradePathForCoin,
+  vizPathForCoin,
 } from "@/lib/trade/hyperliquidMarkets";
 import { submitHyperliquidMarketOrder } from "@/lib/trade/hyperliquidOrder";
 import { normalizeOptionalHours } from "@/lib/trade/intents";
@@ -280,7 +281,7 @@ export default function TradeTerminal({ initialCoin }: { initialCoin: string }) 
 
   return (
     <div className={styles.terminal}>
-      <MarketHeader market={selectedMarket} markets={markets} snapshot={feed.snapshot} status={feed.status} onSelectMarket={(coin) => { setSelectedCoin(canonicalHyperliquidCoin(coin)); window.history.replaceState(null, "", tradePathForCoin(coin)); }} />
+      <MarketHeader market={selectedMarket} markets={markets} snapshot={feed.snapshot} status={feed.status} action={{ href: vizPathForCoin(selectedCoin), label: "View Viz", kind: "viz" }} onSelectMarket={(coin) => { setSelectedCoin(canonicalHyperliquidCoin(coin)); window.history.replaceState(null, "", tradePathForCoin(coin)); }} />
       <div className={styles.terminalGrid}>
         {/* <MarketPanel markets={markets} selectedMarket={selectedMarket} onSelectMarket={(coin) => router.push(tradePathForCoin(coin))} /> */}
         <div className={styles.chartColumn}>

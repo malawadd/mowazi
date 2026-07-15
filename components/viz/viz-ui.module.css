@@ -1,0 +1,171 @@
+.vizShell,.paperPanel { border: var(--border-width-lg) solid var(--line); background: var(--surface-paper); box-shadow: var(--shadow-md); }
+.vizShell { display: grid; gap: 10px; overflow: hidden; }
+.vizToolbar { display: flex; justify-content: space-between; align-items: end; gap: 10px; flex-wrap: wrap; padding: 0 8px 8px; border-bottom: var(--border-width-lg) solid var(--line); background: var(--surface-paper); }
+.tabButtons { display: flex; gap: 6px; flex-wrap: wrap; align-items: end; }
+.tabButtons button { min-width: 112px; min-height: 48px; border: var(--border-width) solid var(--line); border-top: 0; background: var(--surface-paper); color: var(--ink); box-shadow: var(--shadow-sm); cursor: pointer; font-family: var(--font-plex-mono), monospace; font-size: 0.74rem; font-weight: 900; text-transform: uppercase; }
+.tabButtons button[aria-pressed="true"] { background: var(--surface-sky); }
+.liveStamp,.paperFooter span,.panelTitle p,.forceInfo p,.summaryTile p,.scenarioCard p,.agentCard p,.synthesisCard p,.marketStateCard small { color: var(--muted); font-size: 0.82rem; }
+.liveStamp { border: var(--border-width) solid var(--line); background: var(--surface-mint-tint); box-shadow: var(--shadow-sm); padding: 8px 10px; font-family: var(--font-plex-mono), monospace; font-weight: 800; text-transform: uppercase; }
+.paperPanel { margin: 10px; overflow: hidden; }
+.panelTitle { display: flex; justify-content: space-between; align-items: start; gap: 14px; padding: 16px 18px 10px; }
+.panelTitle h2 { margin: 0; font-family: var(--font-plex-mono), monospace; font-size: clamp(1.45rem,3vw,2.25rem); line-height: 1; letter-spacing: 0; }
+.panelTitle p { margin: 6px 0 0; max-width: 58ch; font-weight: 700; }
+.forceBoard { position: relative; min-height: 700px; max-width: 1180px; margin: 10px auto 20px; overflow: hidden; }
+.agentBoard { display: grid; grid-template-columns: minmax(230px,0.9fr) minmax(260px,1fr) minmax(230px,0.9fr); gap: 18px; padding: 10px 20px 20px; align-items: center; }
+.forceColumn,.agentColumn,.scenarioCards { display: grid; gap: 14px; }
+.forceCard,.agentCard,.scenarioCard,.summaryTile,.marketStateCard,.synthesisCard,.catalystCard,.keyCard,.stripMetric,.leaderButton,.leaderActive { border: var(--border-width) solid var(--line); box-shadow: var(--shadow-sm); background: var(--surface-paper); }
+.forceCard { display: grid; grid-template-columns: 116px minmax(0,1fr); min-height: 154px; }
+.agentCard { display: grid; grid-template-columns: 112px minmax(0,1fr); min-height: 128px; }
+.glyphBox { display: grid; place-items: center; min-height: 100%; border-right: var(--border-width) solid var(--line); background: var(--viz-soft, var(--surface-paper-alt)); color: var(--ink); }
+.glyph { width: 74px; height: 74px; color: var(--ink); filter: drop-shadow(2px 2px 0 rgba(17,17,17,0.16)); }
+.smallGlyph { width: 42px; height: 42px; color: var(--ink); }
+.forceInfo,.agentCard > div:last-child,.scenarioCard > div:nth-child(2) { display: grid; align-content: start; gap: 5px; min-width: 0; padding: 12px 14px; }
+.forceInfo { gap: 4px; overflow: hidden; padding: 12px 14px 10px; }
+.forceInfo h3,.agentCard h3,.scenarioCard h3,.marketStateCard h3 { margin: 0; font-family: var(--font-syne), sans-serif; font-size: 1rem; line-height: 1; text-transform: uppercase; }
+.forceInfo h3 { font-size: 0.95rem; line-height: 0.98; overflow-wrap: anywhere; }
+.forceInfo strong,.summaryTile strong,.marketStateCard > strong,.synthesisCard > strong { font-family: var(--font-syne), sans-serif; font-size: clamp(1.45rem,2.6vw,2.4rem); line-height: 0.95; overflow-wrap: anywhere; }
+.forceInfo strong { max-width: 100%; font-size: clamp(1.35rem,1.8vw,2rem); line-height: 0.98; }
+.forceInfo p,.agentCard p,.scenarioCard p,.summaryTile p { margin: 0; font-weight: 700; }
+.forceInfo p { display: -webkit-box; overflow: hidden; font-size: 0.74rem; line-height: 1.18; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.forceInfo small,.agentCard small,.scenarioCard small,.synthesisCard small,.panelTitle span,.stripMetric span,.summaryTile span,.disagreementStrip span,.assumption span { font-family: var(--font-plex-mono), monospace; font-size: 0.68rem; font-weight: 900; text-transform: uppercase; }
+.forceInfo small { overflow: hidden; font-size: 0.62rem; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.stanceBadge { width: fit-content; padding: 2px 7px; border: 2px solid var(--line); font-family: var(--font-plex-mono), monospace; font-size: 0.65rem; font-weight: 900; text-transform: uppercase; }
+.bullish { background: var(--surface-mint); color: var(--ink); }
+.bearish { background: var(--surface-pink); color: var(--ink); }
+.neutral { background: var(--surface-yellow); color: var(--ink); }
+.forceNode { position: absolute; z-index: 2; width: 332px; cursor: grab; touch-action: none; user-select: none; }
+.forceNode:active { cursor: grabbing; }
+.forceConnectorLayer { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.forceConnection { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(2px 2px 0 rgba(17,17,17,0.2)); }
+.forceSupportLine .forceConnection { stroke: #37a96b; }
+.forceRiskLine .forceConnection { stroke: #f05b86; }
+.arrowBadge { fill: var(--surface-paper); stroke: var(--line); stroke-width: 3; }
+.forceConnectorSign { fill: var(--ink); font-family: var(--font-plex-mono), monospace; font-size: 22px; font-weight: 900; text-anchor: middle; pointer-events: none; }
+.forceCore { position: absolute; left: 50%; top: 50%; z-index: 1; display: grid; place-items: center; transform: translate(-50%,-50%); }
+.coinMedallion { z-index: 1; width: clamp(150px,19vw,210px); aspect-ratio: 1; display: grid; place-items: center; align-content: center; gap: 6px; border: var(--border-width-lg) solid var(--line); border-radius: 999px; background: var(--surface-yellow); box-shadow: 10px 10px 0 rgba(17,17,17,0.16), var(--shadow-md); }
+.coinMedallion span { font-family: var(--font-syne), sans-serif; font-size: clamp(2rem,5vw,3.5rem); font-weight: 900; line-height: 1; }
+.coinMedallion strong { color: #16a365; font-family: var(--font-plex-mono), monospace; font-size: 1.2rem; }
+.coinMedallion small { font-family: var(--font-plex-mono), monospace; font-weight: 900; text-transform: uppercase; }
+.forceSummary,.galaxyStrip,.paperFooter,.disagreementStrip { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; padding: 0 20px 20px; }
+.summaryTile { display: grid; align-content: start; gap: 6px; min-height: 128px; padding: 16px; background: var(--viz-soft, var(--surface-paper)); }
+.summaryTile strong { display: block; }
+.dotMeter,.barMeter,.barStack { display: flex; align-items: end; gap: 6px; margin-top: 8px; }
+.dotMeter i { width: 14px; aspect-ratio: 1; border: 2px solid var(--line); border-radius: 999px; background: var(--surface-paper); }
+.dotMeter i[data-on="true"] { background: #21a66d; }
+.barMeter i,.barStack i { width: 18px; height: 34px; border: 2px solid var(--line); background: var(--surface-paper); }
+.barMeter i[data-hot="true"],.barStack i[data-on="true"] { background: var(--surface-pink); }
+.storyControls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: var(--font-plex-mono), monospace; font-weight: 900; }
+.storyControls button { border: var(--border-width) solid var(--line); background: var(--surface-paper); box-shadow: var(--shadow-sm); padding: 8px 12px; cursor: pointer; font-family: inherit; font-weight: 900; }
+.storyControls button[aria-pressed="true"] { background: var(--surface-sky); }
+.timelineBoard { margin: 6px 20px 14px; border: var(--border-width) solid var(--line); overflow: hidden; background: var(--surface-paper-alt); }
+.timelineBoard svg,.galaxyBoard svg,.branchMap { width: 100%; display: block; }
+.phaseBand { fill: var(--viz-soft, var(--surface-paper-alt)); stroke: var(--line); stroke-width: 1.5; opacity: 0.86; }
+.timelineGrid { stroke: rgba(17,17,17,0.18); stroke-dasharray: 4 6; }
+.axisLabel,.phaseNumber,.phaseName { fill: var(--ink); font-family: var(--font-plex-mono), monospace; font-weight: 900; text-anchor: middle; }
+.axisLabel { font-size: 8px; text-anchor: start; }
+.phaseDivider { stroke: var(--line); stroke-width: 1.5; }
+.phaseNumber { font-size: 18px; }
+.phaseName { font-size: 9px; }
+.priceTrace { fill: none; stroke: var(--line); stroke-width: 3.4; stroke-linejoin: round; stroke-linecap: round; }
+.tracePin { fill: var(--ink); stroke: var(--surface-paper); stroke-width: 3; }
+.catalystRow,.insightRow { display: grid; grid-template-columns: 90px repeat(5,minmax(0,1fr)); gap: 10px; padding: 0 20px 18px; }
+.keyCard,.catalystCard,.insightRow > * { padding: 10px; }
+.keyCard { display: grid; place-items: center; font-family: var(--font-plex-mono), monospace; font-weight: 900; text-align: center; }
+.catalystCard { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; background: var(--viz-soft, var(--surface-paper)); }
+.catalystCard span { grid-column: 2; font-family: var(--font-plex-mono), monospace; font-weight: 900; }
+.insightRow { border-top: var(--border-width-lg) solid var(--line); padding-top: 14px; }
+.insightRow > * { border: var(--border-width) solid var(--line); background: var(--viz-soft, var(--surface-paper)); font-weight: 800; }
+.scenarioBoard { display: grid; grid-template-columns: minmax(220px,0.75fr) minmax(220px,0.9fr) minmax(340px,1.4fr); gap: 16px; padding: 4px 20px 18px; align-items: center; }
+.marketStateCard { padding: 16px; background: var(--surface-paper); }
+.marketStateCard > strong { display: block; font-size: clamp(1.25rem,2vw,2rem); overflow-wrap: anywhere; }
+.marketStateCard dl { display: grid; gap: 8px; margin: 14px 0; }
+.marketStateCard div { display: flex; justify-content: space-between; gap: 8px; font-family: var(--font-plex-mono), monospace; font-size: 0.78rem; }
+.marketStateCard dt { color: var(--muted); }
+.marketStateCard dd { margin: 0; font-weight: 900; }
+.branchMap { min-height: 270px; }
+.branchRoot { fill: var(--surface-paper); stroke: var(--line); stroke-width: 3; }
+.branchLine { fill: none; stroke: var(--viz-tone); stroke-width: 7; stroke-linecap: round; }
+.branchPct { fill: var(--viz-tone); stroke: var(--line); stroke-width: 0.4; paint-order: stroke; font-family: var(--font-syne), sans-serif; font-size: 24px; font-weight: 900; }
+.scenarioCard { display: grid; grid-template-columns: 92px minmax(0,1fr) 132px; min-height: 150px; background: var(--surface-paper); }
+.miniPath { width: 120px; align-self: center; justify-self: center; border: 2px solid rgba(17,17,17,0.26); background: rgba(255,253,245,0.45); }
+.miniPath path { stroke: rgba(17,17,17,0.16); stroke-width: 1; }
+.miniTrace { fill: none; stroke: var(--line) !important; stroke-width: 3 !important; }
+.assumptionStrip { display: grid; grid-template-columns: auto repeat(3,minmax(0,1fr)); gap: 10px; align-items: center; padding: 14px 20px 20px; border-top: var(--border-width-lg) solid var(--line); }
+.assumption { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border: var(--border-width) solid var(--line); padding: 10px; background: var(--surface-paper); box-shadow: var(--shadow-sm); }
+.assumption span,.assumption input { grid-column: 1 / -1; }
+.assumption input { accent-color: var(--surface-mint); }
+.assumption em { font-family: var(--font-plex-mono), monospace; font-size: 0.68rem; font-style: normal; font-weight: 900; text-transform: uppercase; }
+.assumption em:last-child { text-align: right; }
+.synthesisCard { min-height: 250px; display: grid; place-items: center; align-content: center; gap: 12px; padding: 18px; text-align: center; }
+.synthesisStats { width: 100%; display: grid; grid-template-columns: 1fr 1fr; border-top: var(--border-width) solid var(--line); border-bottom: var(--border-width) solid var(--line); }
+.synthesisStats div { padding: 12px; }
+.synthesisStats div:first-child { border-right: var(--border-width) solid var(--line); }
+.synthesisStats b { display: block; color: var(--surface-pink); font-family: var(--font-syne), sans-serif; font-size: 2rem; }
+.agentFlow { height: 520px; margin: 4px 20px 18px; border: var(--border-width) solid var(--line); background: var(--surface-paper-alt); box-shadow: var(--shadow-sm); }
+.agentFlow :global(.react-flow__node) { width: 340px; color: var(--ink); }
+.agentFlow :global(.react-flow__node-synthesis) { width: 330px; }
+.agentFlow :global(.react-flow__node.selectable:focus),.agentFlow :global(.react-flow__node.selected) { outline: 4px solid var(--surface-yellow); outline-offset: 2px; }
+.agentFlow :global(.react-flow__pane) { cursor: default; }
+.flowHandle { width: 12px !important; height: 12px !important; border: 2px solid var(--line) !important; background: var(--surface-paper) !important; }
+.signalEdge { stroke: var(--line); stroke-width: 3; stroke-dasharray: 7 7; }
+.signalDot { fill: var(--surface-pink); stroke: var(--line); stroke-width: 2; }
+.disagreementStrip { border-top: var(--border-width-lg) solid var(--line); padding-top: 14px; background: var(--surface-rose-tint); }
+.disagreementStrip > div { min-width: 0; padding: 12px; border-right: var(--border-width) solid var(--line); }
+.disagreementStrip > div:last-child { border-right: 0; }
+.disagreementStrip strong { display: block; font-family: var(--font-syne), sans-serif; font-size: clamp(1.1rem,2vw,1.75rem); line-height: 1; overflow-wrap: anywhere; }
+.disagreementStrip ul { margin: 6px 0 0 18px; padding: 0; font-size: 0.82rem; font-weight: 800; }
+.galaxyBoard { margin: 4px 20px 0; border: var(--border-width) solid var(--line); background: var(--surface-cream); overflow: hidden; }
+.galaxyDust { fill: none; stroke: rgba(17,17,17,0.18); stroke-width: 1.2; stroke-dasharray: 1 11; }
+.orbitLine { fill: none; stroke: rgba(17,17,17,0.22); stroke-width: 1.3; stroke-dasharray: 3 6; }
+.galaxyBubble { cursor: pointer; color: var(--ink); }
+.galaxyBubble circle { fill: var(--viz-tone); stroke: var(--line); stroke-width: 3; filter: drop-shadow(3px 3px 0 rgba(17,17,17,0.16)); }
+.galaxyBubbleActive circle { stroke-width: 5; filter: drop-shadow(5px 5px 0 rgba(17,17,17,0.22)); }
+.galaxyBubble text { fill: var(--ink); font-family: var(--font-syne), sans-serif; font-size: 15px; font-weight: 900; text-anchor: middle; pointer-events: none; }
+.galaxyBubble text + text { font-family: var(--font-plex-mono), monospace; font-size: 9px; fill: #16965e; }
+.galaxyStrip { grid-template-columns: minmax(210px,1.05fr) repeat(3,minmax(135px,0.8fr)); align-items: stretch; border-top: var(--border-width-lg) solid var(--line); padding-top: 14px; }
+.galaxyInfoCard { padding: 12px; border: var(--border-width) solid var(--line); background: var(--viz-soft, var(--surface-paper)); box-shadow: var(--shadow-sm); }
+.galaxyInfoCard strong { display: block; font-family: var(--font-syne), sans-serif; font-size: clamp(1.35rem,2.2vw,2rem); line-height: 1; }
+.galaxyInfoCard p { margin: 5px 0 8px; color: #139360; font-family: var(--font-plex-mono), monospace; font-weight: 900; }
+.galaxyInfoCard dl { display: grid; gap: 5px; margin: 0; font-family: var(--font-plex-mono), monospace; font-size: 0.68rem; font-weight: 900; text-transform: uppercase; }
+.galaxyInfoCard div { display: flex; justify-content: space-between; gap: 8px; }
+.galaxyInfoCard dd { margin: 0; }
+.stripMetric { padding: 12px; background: var(--surface-paper); }
+.stripMetric strong { display: block; color: #139360; font-family: var(--font-plex-mono), monospace; text-transform: uppercase; }
+.leaderRail { grid-column: 1 / -1; display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap; }
+.leaderButton,.leaderActive { min-width: 56px; padding: 8px; cursor: pointer; font-family: var(--font-plex-mono), monospace; font-weight: 900; }
+.leaderActive { background: var(--surface-yellow); }
+.paperFooter { grid-template-columns: 1fr auto auto; align-items: center; padding: 8px 12px; border-top: var(--border-width-lg) solid var(--line); background: var(--surface-paper); font-family: var(--font-plex-mono), monospace; font-weight: 900; text-transform: uppercase; }
+.toneYellow { --viz-tone: var(--surface-yellow); --viz-soft: var(--surface-cream); }
+.toneSky { --viz-tone: var(--surface-sky); --viz-soft: var(--surface-sky-tint); }
+.toneMint { --viz-tone: var(--surface-mint); --viz-soft: var(--surface-mint-tint); }
+.toneOrange { --viz-tone: var(--surface-orange); --viz-soft: var(--surface-orange-tint); }
+.toneLilac { --viz-tone: var(--surface-lilac); --viz-soft: var(--surface-lilac-tint); }
+.toneRose { --viz-tone: var(--surface-rose); --viz-soft: var(--surface-rose-tint); }
+.tonePaper { --viz-tone: var(--surface-paper); --viz-soft: var(--surface-paper-alt); }
+@media (max-width: 1180px) {
+  .forceBoard,.agentBoard,.scenarioBoard,.forceSummary,.galaxyStrip,.disagreementStrip,.paperFooter { grid-template-columns: 1fr; }
+  .forceCore { order: -1; }
+  .scenarioCard { grid-template-columns: 90px minmax(0,1fr); }
+  .scenarioCard .miniPath { grid-column: 1 / -1; width: calc(100% - 24px); margin-bottom: 10px; }
+  .assumptionStrip,.catalystRow,.insightRow { grid-template-columns: 1fr; }
+}
+@media (max-width: 1060px) {
+  .forceBoard { display: grid; gap: 10px; min-height: auto; max-width: none; margin: 10px 20px 20px; overflow: visible; }
+  .forceConnectorLayer { display: none; }
+  .forceNode { position: relative; left: auto !important; top: auto !important; width: 100%; }
+  .forceCore { position: relative; left: auto; top: auto; min-height: 230px; transform: none; }
+}
+@media (max-width: 760px) {
+  .paperPanel { margin: 6px; }
+  .tabButtons button { min-width: 0; flex: 1 1 92px; min-height: 42px; }
+  .panelTitle { flex-direction: column; padding: 12px; }
+  .forceBoard,.scenarioBoard,.agentBoard,.forceSummary,.galaxyStrip,.catalystRow,.insightRow { padding-left: 10px; padding-right: 10px; gap: 10px; }
+  .forceBoard { margin: 10px; }
+  .forceCard,.agentCard,.scenarioCard { grid-template-columns: 1fr; }
+  .glyphBox { min-height: 92px; border-right: 0; border-bottom: var(--border-width) solid var(--line); }
+  .forceCore { min-height: 230px; }
+  .coinMedallion { width: 148px; }
+  .timelineBoard,.galaxyBoard { margin-left: 10px; margin-right: 10px; }
+  .agentFlow { height: 720px; margin-left: 10px; margin-right: 10px; }
+  .agentFlow :global(.react-flow__node) { width: min(300px, calc(100vw - 70px)); }
+}

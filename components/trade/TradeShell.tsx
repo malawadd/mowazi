@@ -1,13 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import ParticleAccountButton from "@/components/ParticleAccountButton";
+import { canonicalHyperliquidCoin, tradePathForCoin, vizPathForCoin } from "@/lib/trade/hyperliquidMarkets";
 import { TradeAccountDrawer } from "./TradeAccountDrawer";
 import styles from "./trade-ui.module.css";
 
 export default function TradeShell({ children }: { children: ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const pathname = usePathname();
+  const coin = canonicalHyperliquidCoin(pathname.split("/")[2]);
+  const inViz = pathname.startsWith("/viz");
 
   return (
     <main className={styles.shell}>
@@ -17,8 +22,11 @@ export default function TradeShell({ children }: { children: ReactNode }) {
           <strong>Moeazi</strong>
         </Link>
         <nav className={styles.topNav} aria-label="Moeazi">
-          <Link className={styles.navPillActive} href="/trade/BTC">
+          <Link className={inViz ? styles.navPill : styles.navPillActive} href={tradePathForCoin(coin)}>
             Trade
+          </Link>
+          <Link className={inViz ? styles.navPillActive : styles.navPill} href={vizPathForCoin(coin)}>
+            Viz
           </Link>
           <Link className={styles.navPill} href="/dashboard">
             Agentic Portal

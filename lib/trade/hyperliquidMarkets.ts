@@ -41,6 +41,10 @@ export function tradePathForCoin(value: string | null | undefined) {
   return `/trade/${canonicalHyperliquidCoin(value)}`;
 }
 
+export function vizPathForCoin(value: string | null | undefined) {
+  return `/viz/${canonicalHyperliquidCoin(value)}`;
+}
+
 export function isCanonicalTradePathCoin(value: string | null | undefined) {
   const raw = decodeURIComponent(value ?? "").trim();
   return raw === canonicalHyperliquidCoin(raw);
