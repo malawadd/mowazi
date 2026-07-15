@@ -1,0 +1,131 @@
+from abc import ABC, abstractmethod
+from datetime import datetime, timezone
+from typing import Any
+
+import httpx
+
+from .contracts import StrictModel
+
+
+class Quote(StrictModel):
+    venue: str
+    reference: str
+    market: str
+    input_amount: str
+    output_amount: str
+    expires_at: datetime
+    raw: dict[str, Any]
+
+
+class VenueHealth(StrictModel):
+    venue: str
+    healthy: bool
+    live_submission_enabled: bool
+    reason: str | None = None
+
+
+class VenueAdapter(ABC):
+    name: str
+
+    @abstractmethod
+    async def quote(self, request: dict[str, Any]) -> Quote: ...
+    @abstractmethod
+    async def balance(self, account: str) -> dict[str, Any]: ...
+    @abstractmethod
+    async def positions(self, account: str) -> list[dict[str, Any]]: ...
+    @abstractmethod
+    async def place(self, request: dict[str, Any], credential: bytes) -> dict[str, Any]: ...
+    @abstractmethod
+    async def cancel(self, request: dict[str, Any], credential: bytes) -> dict[str, Any]: ...
+    @abstractmethod
+    async def close(self, request: dict[str, Any], credential: bytes) -> dict[str, Any]: ...
+    @abstractmethod
+    async def reconcile(self, account: str) -> dict[str, Any]: ...
+    @abstractmethod
+    async def health(self) -> VenueHealth: ...
+
+
+class CertificationBlockedAdapter(VenueAdapter):
+    def __init__(self, name: str, reason: str = "Sandbox and funded canaries not certified"):
+        self.name, self.reason = name, reason
+
+    async def _blocked(self):
+        raise RuntimeError(f"{self.name} execution blocked: {self.reason}")
+
+    async def quote(self, request): return await self._blocked()
+    async def balance(self, account): return await self._blocked()
+    async def positions(self, account): return await self._blocked()
+    async def place(self, request, credential): return await self._blocked()
+    async def cancel(self, request, credential): return await self._blocked()
+    async def close(self, request, credential): return await self._blocked()
+    async def reconcile(self, account): return await self._blocked()
+    async def health(self): return VenueHealth(venue=self.name, healthy=False, live_submission_enabled=False, reason=self.reason)
+
+
+class UniswapTradingApiAdapter(VenueAdapter):
+    name = "uniswap"
+
+    def __init__(self, base_url: str, api_key: str, live_enabled: bool):
+        self.client = httpx.AsyncClient(
+            base_url=base_url, timeout=20,
+            headers={"x-api-key": api_key, "Content-Type": "application/json", "x-universal-router-version": "2.0"},
+        )
+        self.live_enabled = live_enabled
+
+    async def check_approval(self, request: dict[str, Any]) -> dict[str, Any]:
+        response = await self.client.post("/check_approval", json=request)
+        response.raise_for_status()
+        return response.json()
+
+    async def quote(self, request: dict[str, Any]) -> Quote:
+        response = await self.client.post("/quote", json=request)
+        response.raise_for_status()
+        raw = response.json()
+        quote = raw.get("quote", raw)
+        from datetime import timedelta
+        return Quote(
+            venue=self.name, reference=str(raw.get("requestId") or raw.get("quoteId") or "uniswap"),
+            market=f"{request.get('tokenIn')}/{request.get('tokenOut')}",
+            input_amount=str(request.get("amount", "0")), output_amount=str(quote.get("output", {}).get("amount", "0")),
+            expires_at=datetime.now(timezone.utc) + timedelta(seconds=30), raw=raw,
+        )
+
+    @staticmethod
+    def swap_body(quote_response: dict[str, Any], signature: str | None = None) -> dict[str, Any]:
+        body = dict(quote_response)
+        permit = body.get("permitData")
+        if permit is None:
+            body.pop("permitData", None)
+        elif signature:
+            body["signature"] = signature
+        return body
+
+    async def build_swap(self, quote_response: dict[str, Any], signature: str | None = None) -> dict[str, Any]:
+        response = await self.client.post("/swap", json=self.swap_body(quote_response, signature))
+        response.raise_for_status()
+        result = response.json()
+        self.validate_transaction(result)
+        return result
+
+    @staticmethod
+    def validate_transaction(result: dict[str, Any]) -> None:
+        tx = result.get("swap", result.get("transaction", result))
+        if not isinstance(tx, dict): raise ValueError("Missing swap transaction")
+        target, data = tx.get("to"), tx.get("data")
+        if not isinstance(target, str) or not target.startswith("0x") or len(target) != 42:
+            raise ValueError("Invalid transaction target")
+        if not isinstance(data, str) or not data.startswith("0x") or len(data) <= 2:
+            raise ValueError("Invalid transaction data")
+        value = tx.get("value", "0")
+        if not isinstance(value, (str, int)):
+            raise ValueError("Invalid transaction value")
+
+    async def balance(self, account): raise NotImplementedError("Use chain RPC sidecar")
+    async def positions(self, account): return []
+    async def place(self, request, credential):
+        if not self.live_enabled: raise RuntimeError("Uniswap broadcast circuit breaker is open")
+        raise NotImplementedError("Signing and broadcast are delegated to the TypeScript sidecar")
+    async def cancel(self, request, credential): raise NotImplementedError("AMM swaps cannot be cancelled after broadcast")
+    async def close(self, request, credential): return await self.place(request, credential)
+    async def reconcile(self, account): raise NotImplementedError("Use chain RPC sidecar")
+    async def health(self): return VenueHealth(venue=self.name, healthy=True, live_submission_enabled=self.live_enabled)

@@ -1,5 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { agentTables } from "./agentSchema";
+import { managedTradingVenue, managedVenueRole } from "./agentValidators";
 
 export default defineSchema({
   users: defineTable({
@@ -54,12 +56,8 @@ export default defineSchema({
 
   venueAccounts: defineTable({
     strategyAccountId: v.id("strategyAccounts"),
-    role: v.union(
-      v.literal("optimism_execution_wallet"),
-      v.literal("hyperliquid_master_wallet"),
-      v.literal("hyperliquid_agent_wallet"),
-    ),
-    venue: v.union(v.literal("uniswap"), v.literal("hyperliquid")),
+    role: managedVenueRole,
+    venue: managedTradingVenue,
     chainRef: v.string(),
     accountRef: v.string(),
     walletAddress: v.string(),
@@ -126,11 +124,7 @@ export default defineSchema({
   deposits: defineTable({
     strategyAccountId: v.id("strategyAccounts"),
     venueAccountId: v.id("venueAccounts"),
-    venueRole: v.union(
-      v.literal("optimism_execution_wallet"),
-      v.literal("hyperliquid_master_wallet"),
-      v.literal("hyperliquid_agent_wallet"),
-    ),
+    venueRole: managedVenueRole,
     asset: v.string(),
     chainRef: v.string(),
     amount: v.optional(v.string()),
@@ -311,11 +305,7 @@ export default defineSchema({
   walletAssetStates: defineTable({
     strategyAccountId: v.id("strategyAccounts"),
     venueAccountId: v.id("venueAccounts"),
-    venueRole: v.union(
-      v.literal("optimism_execution_wallet"),
-      v.literal("hyperliquid_master_wallet"),
-      v.literal("hyperliquid_agent_wallet"),
-    ),
+    venueRole: managedVenueRole,
     chainRef: v.string(),
     asset: v.string(),
     purpose: v.union(
@@ -340,11 +330,7 @@ export default defineSchema({
   walletTransferEvents: defineTable({
     strategyAccountId: v.id("strategyAccounts"),
     venueAccountId: v.id("venueAccounts"),
-    venueRole: v.union(
-      v.literal("optimism_execution_wallet"),
-      v.literal("hyperliquid_master_wallet"),
-      v.literal("hyperliquid_agent_wallet"),
-    ),
+    venueRole: managedVenueRole,
     chainRef: v.string(),
     asset: v.string(),
     purpose: v.union(
@@ -669,4 +655,6 @@ export default defineSchema({
     latencyMs: v.optional(v.number()),
     createdAt: v.number(),
   }).index("by_scope", ["scope"]),
+
+  ...agentTables,
 });

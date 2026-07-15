@@ -1,0 +1,50 @@
+from datetime import datetime, timezone
+from typing import Any
+
+from .config import Settings
+from .contracts import ExecutionDecision, TradeProposal
+from .credentials import KeyWrapper
+from .policy import AutomationPolicy, RiskContext, evaluate_policy
+from .venues import CertificationBlockedAdapter, UniswapTradingApiAdapter, VenueAdapter
+
+
+class ExecutionGateway:
+    def __init__(self, settings: Settings, key_wrapper: KeyWrapper | None = None):
+        certified = settings.certified_venue_set
+        self.adapters: dict[str, VenueAdapter] = {
+            venue: CertificationBlockedAdapter(venue) for venue in ("hyperliquid", "lighter", "orderly", "gmx", "ostium")
+        }
+        self.adapters["uniswap"] = UniswapTradingApiAdapter(
+            settings.uniswap_api_url, settings.uniswap_api_key.get_secret_value(),
+            settings.live_execution_enabled and "uniswap" in certified,
+        )
+        self.live_enabled = settings.live_execution_enabled
+        self.certified = certified
+        self.key_wrapper = key_wrapper
+
+    async def preflight(
+        self, venue: str, proposal: TradeProposal, policy: AutomationPolicy,
+        context: RiskContext, quote_request: dict[str, Any], idempotency_key: str,
+    ) -> tuple[ExecutionDecision, Any]:
+        adapter = self.adapters[venue]
+        health = await adapter.health()
+        quote = await adapter.quote(quote_request)
+        fresh_context = context.model_copy(update={"venue_healthy": health.healthy})
+        decision = evaluate_policy(policy, proposal, fresh_context, quote.reference, idempotency_key)
+        if quote.expires_at <= datetime.now(timezone.utc):
+            decision = decision.model_copy(update={"result": "fail"})
+        return decision, quote
+
+    async def execute(
+        self, venue: str, request: dict[str, Any], decision: ExecutionDecision,
+        wrapped_credential: str, account_context: str,
+    ) -> dict[str, Any]:
+        if decision.result != "pass": raise RuntimeError("Policy decision rejected execution")
+        if not self.live_enabled or venue not in self.certified:
+            raise RuntimeError(f"{venue} live execution is not enabled and certified")
+        if not self.key_wrapper: raise RuntimeError("Credential KMS adapter is unavailable")
+        credential = bytearray(self.key_wrapper.unwrap(wrapped_credential, account_context.encode()))
+        try:
+            return await self.adapters[venue].place(request, bytes(credential))
+        finally:
+            for index in range(len(credential)): credential[index] = 0

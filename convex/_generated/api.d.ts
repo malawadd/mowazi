@@ -10,7 +10,15 @@
 
 import type * as accountWallets from "../accountWallets.js";
 import type * as actions from "../actions.js";
+import type * as agentCredits from "../agentCredits.js";
+import type * as agentMutations from "../agentMutations.js";
+import type * as agentQueries from "../agentQueries.js";
+import type * as agentScheduler from "../agentScheduler.js";
+import type * as agentSchema from "../agentSchema.js";
+import type * as agentValidators from "../agentValidators.js";
+import type * as agentWorker from "../agentWorker.js";
 import type * as constants from "../constants.js";
+import type * as helpers_agentPolicy from "../helpers/agentPolicy.js";
 import type * as helpers_executionPolicy from "../helpers/executionPolicy.js";
 import type * as helpers_leases from "../helpers/leases.js";
 import type * as helpers_paymentLinks from "../helpers/paymentLinks.js";
@@ -45,7 +53,15 @@ import type {
 declare const fullApi: ApiFromModules<{
   accountWallets: typeof accountWallets;
   actions: typeof actions;
+  agentCredits: typeof agentCredits;
+  agentMutations: typeof agentMutations;
+  agentQueries: typeof agentQueries;
+  agentScheduler: typeof agentScheduler;
+  agentSchema: typeof agentSchema;
+  agentValidators: typeof agentValidators;
+  agentWorker: typeof agentWorker;
   constants: typeof constants;
+  "helpers/agentPolicy": typeof helpers_agentPolicy;
   "helpers/executionPolicy": typeof helpers_executionPolicy;
   "helpers/leases": typeof helpers_leases;
   "helpers/paymentLinks": typeof helpers_paymentLinks;

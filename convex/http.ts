@@ -73,6 +73,34 @@ http.route({
           return jsonResponse(await ctx.runMutation(internal.worker.recordAlert, payload as any));
         case "recordIncident":
           return jsonResponse(await ctx.runMutation(internal.mutations.recordIncidentEvent, payload as any));
+        case "claimNextAnalysisJob":
+          return jsonResponse(await ctx.runMutation(internal.agentWorker.claimNextAnalysisJob, payload as any));
+        case "heartbeatAnalysisJob":
+          return jsonResponse(await ctx.runMutation(internal.agentWorker.heartbeatAnalysisJob, payload as any));
+        case "completeAnalysisJob":
+          return jsonResponse(await ctx.runMutation(internal.agentWorker.completeAnalysisJob, payload as any));
+        case "failAnalysisJob":
+          return jsonResponse(await ctx.runMutation(internal.agentWorker.failAnalysisJob, payload as any));
+        case "recordPolicyDraft":
+          return jsonResponse(await ctx.runMutation(internal.agentWorker.recordPolicyDraft, payload as any));
+        case "recordTradeProposal":
+          return jsonResponse(await ctx.runMutation(internal.agentWorker.recordTradeProposal, payload as any));
+        case "transitionTradeProposal":
+          return jsonResponse(await ctx.runMutation(internal.agentWorker.transitionTradeProposal, payload as any));
+        case "getAnalysisJob":
+          return jsonResponse(await ctx.runQuery(internal.agentWorker.getAnalysisJob, payload as any));
+        case "listActivePublicDemand":
+          return jsonResponse(await ctx.runQuery(internal.agentWorker.listActivePublicDemand, {}));
+        case "grantAgentCredits":
+          return jsonResponse(await ctx.runMutation(internal.agentCredits.grantCredits, payload as any));
+        case "reserveAgentCredits":
+          return jsonResponse(await ctx.runMutation(internal.agentCredits.reserveCredits, payload as any));
+        case "settleAgentCredits":
+          return jsonResponse(await ctx.runMutation(internal.agentCredits.settleCredits, payload as any));
+        case "releaseAgentCredits":
+          return jsonResponse(await ctx.runMutation(internal.agentCredits.releaseCredits, payload as any));
+        case "scheduleDueAnalysisJobs":
+          return jsonResponse(await ctx.runMutation(internal.agentScheduler.scheduleDueAnalysisJobs, payload as any));
         case "updateStrategyState":
           return jsonResponse(await ctx.runMutation(internal.mutations.updateStrategyExecutionState, payload as any));
         case "syncVenueState":

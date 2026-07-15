@@ -15,7 +15,11 @@ export type AssetPurpose = (typeof ASSET_PURPOSE)[keyof typeof ASSET_PURPOSE];
 type VenueRole =
   | "optimism_execution_wallet"
   | "hyperliquid_master_wallet"
-  | "hyperliquid_agent_wallet";
+  | "hyperliquid_agent_wallet"
+  | "lighter_trading_account"
+  | "orderly_trading_account"
+  | "gmx_trading_wallet"
+  | "ostium_trading_wallet";
 
 export type WalletAssetProfile = {
   asset: string;
@@ -59,6 +63,10 @@ const SUPPORTED_ASSETS_BY_ROLE: Record<VenueRole, WalletAssetProfile[]> = {
     },
   ],
   hyperliquid_agent_wallet: [],
+  lighter_trading_account: [],
+  orderly_trading_account: [],
+  gmx_trading_wallet: [],
+  ostium_trading_wallet: [],
 };
 
 function normalizeAmount(value: string | number | null | undefined) {
