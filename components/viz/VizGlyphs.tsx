@@ -69,9 +69,10 @@ function shape(name: VizGlyphName) {
     case "bull":
       return (
         <>
-          <path d="M31 37c-8-9-13-18-10-26 11 6 17 13 19 22M65 37c8-9 13-18 10-26-11 6-17 13-19 22" strokeWidth="5" />
-          <path d="M26 51c0-16 10-27 22-27s22 11 22 27c0 17-10 29-22 29S26 68 26 51Z" fill="currentColor" opacity=".15" strokeWidth="4" />
-          <path d="M38 58c6 5 14 5 20 0M37 47h.1M59 47h.1" strokeWidth="5" />
+          <path d="M38 33C27 34 18 29 13 18c10 1 18 5 24 12M58 33c11 1 20-4 25-15-10 1-18 5-24 12" strokeWidth="5" />
+          <path d="M27 45c0-13 9-22 21-22s21 9 21 22v12c0 16-9 25-21 25s-21-9-21-25Z" fill="currentColor" opacity=".15" strokeWidth="4" />
+          <path d="M34 63c4-8 24-8 28 0v9c-7 7-21 7-28 0Z" strokeWidth="4" />
+          <path d="M37 47h.1M59 47h.1M42 66h.1M54 66h.1" strokeWidth="5" />
         </>
       );
     case "scales":

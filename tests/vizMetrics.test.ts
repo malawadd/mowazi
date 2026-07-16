@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildVisualizationMetrics } from "../components/viz/vizMetrics";
 import { buildPaperVizModel } from "../components/viz/vizPaperModel";
+import { projectGalaxyForMobile } from "../components/viz/vizGalaxyModel";
+import { buildConnectorPath, settleForceOffset } from "../components/viz/vizLayout";
+import { normalizePercentages } from "../components/viz/vizMath";
 import type { PerpMarket, VenueSnapshot } from "../lib/trade/types";
 
 function market(overrides: Partial<PerpMarket> = {}): PerpMarket {
@@ -17,6 +20,7 @@ function market(overrides: Partial<PerpMarket> = {}): PerpMarket {
     volume24hUsd: 1_000_000,
     openInterestUsd: 500_000,
     dayChangePct: 1.5,
+    fundingRateHourly: 0.0000125,
     venues: ["hyperliquid"],
     ...overrides,
   };
@@ -122,3 +126,63 @@ test("galaxy view model keeps a finite selected market bubble", () => {
   assert.notEqual(paper.galaxy.strength, "");
   assert.notEqual(paper.galaxy.volatility, "");
 });
+
+test("scenario weights normalize to an exact finite 100 percent", () => {
+  const normalized = normalizePercentages([Number.NaN, 3.4, 8.1]);
+  assert.equal(normalized.reduce((sum, value) => sum + value, 0), 100);
+  assert.ok(normalized.every((value) => Number.isFinite(value) && value >= 0));
+
+  const metrics = buildVisualizationMetrics({ market: market(), markets: [], snapshot: null, candles: [], trades: [] });
+  const paper = buildPaperVizModel(metrics, market(), null);
+  assert.equal(paper.scenarios.reduce((sum, scenario) => sum + scenario.probability, 0), 100);
+  assert.ok(paper.scenarios.every((scenario) => /not a prediction/i.test(scenario.disclaimer)));
+});
+
+test("galaxy layout is deterministic, bounded, and collision free", () => {
+  const ids = ["BTC", "ETH", "SOL", "HYPE", "XRP", "DOGE", "AAVE", "NEAR", "CASHCAT", "LINK", "SUI", "LIT", "XMR", "ZEC", "PUMP", "WLD", "XPL", "FARTCOIN", "ADA", "AVAX"];
+  const markets = ids.map((id, index) => market({ id, label: `${id} Perp`, baseSymbol: id, volume24hUsd: 5_000_000 - index * 120_000, openInterestUsd: 2_000_000 - index * 40_000, dayChangePct: index % 2 ? -index / 3 : index / 4 }));
+  const first = buildVisualizationMetrics({ market: markets[0], markets, snapshot: null, candles: [], trades: [] }).galaxy;
+  const second = buildVisualizationMetrics({ market: markets[0], markets, snapshot: null, candles: [], trades: [] }).galaxy;
+  const mobile = projectGalaxyForMobile(first);
+
+  assert.equal(first.length, 18);
+  assert.deepEqual(first.map(({ id, x, y }) => ({ id, x, y })), second.map(({ id, x, y }) => ({ id, x, y })));
+  assert.ok(first.some((node) => node.id === "BTC" && node.selected));
+  assert.ok(first.some((node) => node.label === "CASHCAT"));
+  assertBounded(first, 1000, 520);
+  assertBounded(mobile, 360, 650);
+  assertNoCircleCollisions(first);
+  assertNoCircleCollisions(mobile);
+});
+
+test("force connector and release layouts stay finite and bounded", () => {
+  const slots = {
+    a: { x: 20, y: 20, width: 120, height: 80 },
+    b: { x: 160, y: 20, width: 120, height: 80 },
+  };
+  const offset = settleForceOffset("a", { x: 500, y: -500 }, slots, {}, { width: 320, height: 220 });
+  const desktop = buildConnectorPath(slots.a, { x: 130, y: 110, width: 60, height: 60 }, 0.7, 320);
+  const mobile = buildConnectorPath(slots.b, { x: 130, y: 110, width: 60, height: 60 }, -0.7, 320);
+
+  assert.deepEqual(offset, { x: 180, y: -20 });
+  assert.ok(!/NaN|Infinity/.test(`${desktop.path}${desktop.badge.x}${desktop.badge.y}`));
+  assert.ok(!/NaN|Infinity/.test(`${mobile.path}${mobile.badge.x}${mobile.badge.y}`));
+});
+
+function assertBounded(nodes: Array<{ x: number; y: number; radius: number }>, width: number, height: number) {
+  nodes.forEach((node) => {
+    assert.ok(Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.radius));
+    assert.ok(node.x - node.radius >= 0 && node.x + node.radius <= width);
+    assert.ok(node.y - node.radius >= 0 && node.y + node.radius <= height);
+  });
+}
+
+function assertNoCircleCollisions(nodes: Array<{ x: number; y: number; radius: number }>) {
+  for (let index = 0; index < nodes.length; index += 1) {
+    for (let other = index + 1; other < nodes.length; other += 1) {
+      const a = nodes[index];
+      const b = nodes[other];
+      assert.ok(Math.hypot(a.x - b.x, a.y - b.y) + 1 >= a.radius + b.radius, `bubble ${index} overlaps ${other}`);
+    }
+  }
+}

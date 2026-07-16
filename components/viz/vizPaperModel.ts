@@ -1,6 +1,7 @@
 import { formatNumber, formatUsd } from "@/lib/trade/format";
 import type { PerpMarket, VenueSnapshot } from "@/lib/trade/types";
 import type { VizMetrics, VizTone } from "./vizMetrics";
+import { normalizePercentages } from "./vizMath";
 
 export type VizGlyphName = "coin" | "whale" | "faucet" | "link" | "gauge" | "globe" | "lock" | "bull" | "scales" | "bear" | "rocket" | "shield";
 export type VizStance = "bullish" | "bearish" | "neutral";
@@ -15,7 +16,7 @@ export type PaperForceCard = {
   score: number;
   tone: VizTone;
   glyph: VizGlyphName;
-  side: "support" | "risk";
+  column: "market" | "leverage";
 };
 
 export type PaperScenario = {
@@ -29,6 +30,7 @@ export type PaperScenario = {
   tone: VizTone;
   glyph: VizGlyphName;
   path: number[];
+  disclaimer: string;
 };
 
 export type PaperAgent = {
@@ -47,6 +49,13 @@ export type PaperStoryPhase = {
   detail: string;
   insight: string;
   catalyst: string;
+  catalystTime: string;
+  timeRange: string;
+  startPrice: number;
+  endPrice: number;
+  highPrice: number;
+  lowPrice: number;
+  volumeIntensity: number;
   changePct: number;
   tone: VizTone;
   glyph: VizGlyphName;
@@ -122,12 +131,12 @@ function buildForceCards(metrics: VizMetrics): PaperForceCard[] {
   const byId = new Map(metrics.forces.map((force) => [force.id, force]));
   const pick = (id: string) => byId.get(id);
   return [
-    forceCard("momentum", "Price Momentum", "Last candles versus first loaded candle.", "Momentum", pick("momentum"), "link", "sky", "support"),
-    forceCard("liquidity", "Liquidity Depth", "Bid and ask depth imbalance.", "Depth", pick("liquidity"), "faucet", "mint", "support"),
-    forceCard("flow", "Trade Flow", "Live buy/sell print pressure.", "Tape", pick("flow"), "whale", "yellow", "support"),
-    forceCard("funding", "Funding Rate", "Hourly funding proxy for derivatives pressure.", "Funding", pick("funding"), "gauge", "rose", "risk", true),
-    forceCard("openInterest", "Position Risk", "Open interest weight against activity.", "OI / Volume", pick("openInterest"), "lock", "orange", "risk", true),
-    forceCard("volume", "Activity Scale", "24h notional activity scale.", "Volume", pick("volume"), "globe", "lilac", "risk"),
+    forceCard("momentum", "Price Momentum", "Loaded candle direction.", "Momentum", pick("momentum"), "link", "sky", "market"),
+    forceCard("liquidity", "Liquidity Depth", "Bid versus ask depth.", "Order book", pick("liquidity"), "faucet", "mint", "market"),
+    forceCard("flow", "Trade Flow", "Live buy versus sell prints.", "Live tape", pick("flow"), "whale", "yellow", "market"),
+    forceCard("funding", "Funding Rate", "Hourly derivatives carry pressure.", "Funding", pick("funding"), "gauge", "rose", "leverage"),
+    forceCard("openInterest", "Position Risk", "Open interest relative to activity.", "OI / volume", pick("openInterest"), "lock", "orange", "leverage"),
+    forceCard("volume", "Activity Scale", "24h notional activity intensity.", "Volume", pick("volume"), "globe", "lilac", "leverage"),
   ];
 }
 
@@ -139,11 +148,10 @@ function forceCard(
   force: VizMetrics["forces"][number] | undefined,
   glyph: VizGlyphName,
   tone: VizTone,
-  side: "support" | "risk",
-  invert = false,
+  column: "market" | "leverage",
 ): PaperForceCard {
   const raw = (force?.polarity ?? 0) * (force?.magnitude ?? 0);
-  const score = clamp(invert ? -Math.abs(raw) : raw, -1, 1);
+  const score = clamp(raw, -1, 1);
   return {
     id,
     title,
@@ -154,22 +162,40 @@ function forceCard(
     score,
     tone,
     glyph,
-    side,
+    column,
   };
 }
 
 function buildStoryPhases(metrics: VizMetrics): PaperStoryPhase[] {
-  const names = [
-    ["Accumulation", "Quiet positioning while pressure builds.", "Foundation forms in slower prints.", "Base test", "whale", "mint"],
-    ["Expansion", "Demand tries to clear local resistance.", "Trend validation comes from flow.", "Break attempt", "link", "sky"],
-    ["Euphoria", "Momentum stretches and fragility rises.", "Large candles can invite leverage.", "Momentum burst", "rocket", "yellow"],
-    ["Shock", "Fast adverse move or volatility pocket.", "Risk comes from crowded pressure.", "Volatility check", "globe", "rose"],
-    ["Recovery", "Stabilization after the pressure flush.", "Confidence improves when flow confirms.", "Reclaim test", "shield", "lilac"],
-  ] as const;
-  const rows = metrics.story.length > 0 ? metrics.story : [{ id: "empty", changePct: 0, volumeScore: 0, tone: "paper" as VizTone }];
-  return names.map(([title, detail, insight, catalyst, glyph, tone], index) => {
-    const chunk = rows.slice(Math.floor((index * rows.length) / 5), Math.max(1, Math.floor(((index + 1) * rows.length) / 5)));
-    return { id: title, title, detail, insight, catalyst, glyph, tone, changePct: average(chunk.map((row) => row.changePct)) };
+  const rows = metrics.story.length > 0 ? metrics.story : [{ id: "empty", time: 0, open: 0, close: 0, high: 0, low: 0, changePct: 0, volumeScore: 0, tone: "paper" as VizTone }];
+  let previousChange = 0;
+  return Array.from({ length: 5 }, (_, index) => {
+    const start = Math.floor((index * rows.length) / 5);
+    const end = Math.max(start + 1, Math.floor(((index + 1) * rows.length) / 5));
+    const chunk = rows.slice(start, end);
+    const first = chunk[0] ?? rows[0];
+    const last = chunk.at(-1) ?? first;
+    const changePct = first.open > 0 ? ((last.close - first.open) / first.open) * 100 : average(chunk.map((row) => row.changePct));
+    const volumeIntensity = average(chunk.map((row) => row.volumeScore));
+    const phase = detectPhase(changePct, volumeIntensity, previousChange);
+    previousChange = changePct;
+    const event = [...chunk].sort((a, b) => b.volumeScore - a.volumeScore)[0] ?? first;
+    return {
+      id: `${index}-${phase.title}`,
+      title: phase.title,
+      detail: phase.detail,
+      insight: phase.insight,
+      catalyst: volumeIntensity > 0.64 ? "Volume spike" : changePct > 0.2 ? "Local high" : changePct < -0.2 ? "Local low" : "Range hold",
+      catalystTime: formatTime(event.time),
+      timeRange: `${formatTime(first.time)} - ${formatTime(last.time)}`,
+      startPrice: finite(first.open), endPrice: finite(last.close),
+      highPrice: Math.max(...chunk.map((row) => finite(row.high)), finite(last.close)),
+      lowPrice: Math.min(...chunk.map((row) => finite(row.low)), finite(last.close)),
+      volumeIntensity,
+      glyph: phase.glyph,
+      tone: phase.tone,
+      changePct: finite(changePct),
+    };
   });
 }
 
@@ -180,23 +206,40 @@ function buildPaperScenarios(metrics: VizMetrics, market: PerpMarket): PaperScen
     range: `Mean zone: ${formatUsd(market.markPrice ?? 0, market.pricePrecision)}`,
     flush: `Lower range: ${formatUsd((market.markPrice ?? 0) * 0.93, market.pricePrecision)}`,
   };
+  const price = finite(market.markPrice ?? 0);
   const paths = {
-    squeeze: [34, 30, 25, 21, 16, 12],
-    range: [34, 31, 33, 30, 32, 31],
-    flush: [34, 38, 43, 48, 53, 57],
+    squeeze: [price, price * 1.01, price * 1.018, price * 1.032, price * 1.05, price * 1.08],
+    range: [price, price * 0.995, price * 1.004, price * 0.997, price * 1.002, price],
+    flush: [price, price * 0.99, price * 0.982, price * 0.965, price * 0.948, price * 0.93],
   };
-  return metrics.scenarios.map((scenario) => ({
+  const probabilities = normalizePercentages(metrics.scenarios.map((scenario) => scenario.score));
+  return metrics.scenarios.map((scenario, index) => ({
     id: scenario.id,
     label: scenario.label.replace(" Branch", " Case"),
     stance: scenario.id === "squeeze" ? "bullish" : scenario.id === "flush" ? "bearish" : "neutral",
-    probability: Math.round(clamp(scenario.score * 100, 0, 100)),
+    probability: probabilities[index],
     trigger: scenario.trigger,
     invalidation: scenario.invalidation,
     target: targets[scenario.id as keyof typeof targets] ?? "Live-derived range",
     tone: scenario.tone,
     glyph: icons[scenario.id] ?? "scales",
     path: paths[scenario.id as keyof typeof paths] ?? paths.range,
+    disclaimer: scenario.disclaimer,
   }));
+}
+
+function detectPhase(change: number, volume: number, previous: number): Pick<PaperStoryPhase, "title" | "detail" | "insight" | "tone" | "glyph"> {
+  if (change < -0.75) return { title: "Shock", detail: "Price moved sharply lower in this window.", insight: "Risk expanded with the adverse move.", tone: "rose", glyph: "globe" };
+  if (previous < -0.35 && change > 0.2) return { title: "Recovery", detail: "Price reclaimed part of the prior decline.", insight: "Follow-through matters more than the first bounce.", tone: "lilac", glyph: "shield" };
+  if (change > 0.85 && volume > 0.58) return { title: "Euphoria", detail: "Momentum and activity accelerated together.", insight: "Fast gains can increase fragility.", tone: "yellow", glyph: "rocket" };
+  if (change > 0.18) return { title: "Expansion", detail: "Price advanced through the window.", insight: "Flow is validating the directional move.", tone: "sky", glyph: "link" };
+  return { title: "Accumulation", detail: "Price stayed comparatively compressed.", insight: "A quieter range is forming the next decision point.", tone: "mint", glyph: "whale" };
+}
+
+function formatTime(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "Now";
+  const milliseconds = value < 10_000_000_000 ? value * 1000 : value;
+  return new Date(milliseconds).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function buildPaperAgents(metrics: VizMetrics): PaperAgent[] {

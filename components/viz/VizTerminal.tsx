@@ -9,7 +9,7 @@ import {
   canonicalHyperliquidCoin,
   findHyperliquidMarket,
   getLiveHyperliquidMarkets,
-  // tradePathForCoin,
+  tradePathForCoin,
   vizPathForCoin,
 } from "@/lib/trade/hyperliquidMarkets";
 import type { PerpMarket } from "@/lib/trade/types";
@@ -120,7 +120,7 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
         markets={markets}
         snapshot={feed.snapshot}
         status={feed.status}
-        // action={{ href: tradePathForCoin(selectedCoin), label: "Back To Trade", kind: "trade" }}
+        action={{ href: tradePathForCoin(selectedCoin), label: "Back To Trade", kind: "trade" }}
         onSelectMarket={selectMarket}
       />
       <VizTabs
