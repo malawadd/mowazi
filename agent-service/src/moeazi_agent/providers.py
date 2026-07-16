@@ -112,7 +112,9 @@ class DeepSeekProvider(SignalProvider):
                 content = response.json()["choices"][0]["message"].get("content")
                 if not content or not content.strip():
                     raise ProviderFailure(self.name, "DeepSeek returned empty content")
-                report = SignalReport.model_validate(json.loads(content))
+                document = json.loads(content)
+                document["evidence"] = []
+                report = SignalReport.model_validate(document)
                 return report.model_copy(update={"provider": self.name, "model": self.model})
             except (KeyError, json.JSONDecodeError, ValidationError, httpx.HTTPError, ProviderFailure) as exc:
                 if attempt >= self.retries:

@@ -1,5 +1,4 @@
 import asyncio
-import os
 from datetime import timedelta
 
 from temporalio import activity, workflow
@@ -8,22 +7,33 @@ from temporalio.common import RetryPolicy
 from temporalio.worker import Worker
 
 with workflow.unsafe.imports_passed_through():
-    from .config import get_settings
-    from .contracts import MarketSynthesis
-    from .orchestrator import AnalysisOrchestrator, AnalysisRequest
-    from .providers import DeepSeekProvider, OpenAIProvider
-    from .storage import AnalysisRepository
-    from .security import evidence_prompt_block
+    from moeazi_agent.config import get_settings
+    from moeazi_agent.orchestrator import AnalysisOrchestrator, AnalysisRequest
+    from moeazi_agent.providers import DeepSeekProvider, OpenAIProvider
+    from moeazi_agent.security import evidence_prompt_block
+    from moeazi_agent.storage import AnalysisRepository
 
 
 @activity.defn
 async def analyze_market_activity(payload: dict) -> dict:
     settings = get_settings()
-    providers = {"openai": OpenAIProvider(settings), "deepseek": DeepSeekProvider(settings)}
+    deepseek = DeepSeekProvider(settings)
+    providers = (
+        {"openai": deepseek, "deepseek": deepseek}
+        if settings.provider_mode == "deepseek_only"
+        else {"openai": OpenAIProvider(settings), "deepseek": deepseek}
+    )
     repository = AnalysisRepository(settings.postgres_dsn)
     evidence = await repository.recent_evidence(payload["market"])
-    request = AnalysisRequest(**{**payload, "evidence": evidence_prompt_block(evidence)})
-    result = await AnalysisOrchestrator(providers, settings.provider_max_concurrency).run(request)
+    request = AnalysisRequest(**{
+        **payload,
+        "evidence": evidence_prompt_block([(ref.id, content) for ref, content in evidence]),
+        "evidence_refs": tuple(ref for ref, _ in evidence),
+    })
+    result = await AnalysisOrchestrator(
+        providers, settings.provider_max_concurrency,
+        allow_single_provider=settings.provider_mode == "deepseek_only",
+    ).run(request)
     await repository.save_run(
         result.synthesis, result.reports, result.calls, payload["scope"], payload.get("account_id")
     )

@@ -12,6 +12,22 @@ from .temporal_app import MarketAnalysisWorkflow
 from .policy_draft import draft_from_text, policy_json
 
 
+async def result_with_heartbeats(
+    handle, convex: ConvexWorkerClient, job_id: str, holder: str, interval_seconds: float = 30,
+):
+    """Wait for a durable workflow while keeping exclusive ownership in Convex."""
+    result_task = asyncio.create_task(handle.result())
+    try:
+        while True:
+            done, _ = await asyncio.wait({result_task}, timeout=interval_seconds)
+            if result_task in done:
+                return result_task.result()
+            await convex.heartbeat(job_id, holder)
+    finally:
+        if not result_task.done():
+            result_task.cancel()
+
+
 async def dispatch_forever() -> None:
     settings = get_settings()
     convex = ConvexWorkerClient(settings)
@@ -49,7 +65,7 @@ async def dispatch_forever() -> None:
                 },
                 id=f"analysis-{job_id}", task_queue=settings.temporal_task_queue,
             )
-            result = await handle.result()
+            result = await result_with_heartbeats(handle, convex, job_id, holder)
             await convex.complete(job_id, holder, result["synthesis"], result["calls"])
             if job.get("scope") == "private":
                 specialists = sum(call["status"] == "completed" and call.get("kind") != "synthesis" for call in result["calls"])

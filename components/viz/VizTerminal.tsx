@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
@@ -18,11 +18,14 @@ import tradeStyles from "../trade/trade-ui.module.css";
 import { useHyperliquidFeed } from "../trade/useHyperliquidFeed";
 import { buildVisualizationMetrics } from "./vizMetrics";
 import { buildPaperVizModel } from "./vizPaperModel";
+import { applyAgentVisualization } from "./agentVizAdapter";
+import type { AgentVisualization } from "@/lib/agentBackend";
 import VizTabs from "./VizTabs";
 
 export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
   const router = useRouter();
   const loadMarkets = useAction(api.trade.getHyperliquidMarkets);
+  const touchPublicDemand = useMutation(api.agentMutations.touchPublicMarketDemand);
   const [markets, setMarkets] = useState<PerpMarket[]>([]);
   const [selectedCoin, setSelectedCoin] = useState(() => canonicalHyperliquidCoin(initialCoin));
   const [interval, setInterval] = useState("1h");
@@ -33,6 +36,8 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
     () => findHyperliquidMarket(markets, selectedCoin) ?? markets[0] ?? null,
     [markets, selectedCoin],
   );
+  const agentMarketId = `${selectedCoin}-USD`;
+  const publicAnalysis = useQuery(api.agentQueries.getPublicMarketAnalysis, { marketId: agentMarketId });
   const feed = useHyperliquidFeed(selectedMarket, interval);
   const metrics = useMemo(
     () =>
@@ -48,8 +53,11 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
     [feed.candles, feed.snapshot, feed.trades, markets, selectedMarket],
   );
   const paper = useMemo(
-    () => (selectedMarket && metrics ? buildPaperVizModel(metrics, selectedMarket, feed.snapshot) : null),
-    [feed.snapshot, metrics, selectedMarket],
+    () => selectedMarket && metrics ? applyAgentVisualization(
+      buildPaperVizModel(metrics, selectedMarket, feed.snapshot),
+      (publicAnalysis?.analysis?.visualization as AgentVisualization | undefined) ?? null,
+    ) : null,
+    [feed.snapshot, metrics, publicAnalysis?.analysis?.visualization, selectedMarket],
   );
 
   useEffect(() => {
@@ -87,6 +95,19 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
       cancelled = true;
     };
   }, [loadMarkets]);
+
+  useEffect(() => {
+    const storageKey = "moeazi-public-demand-session";
+    let sessionHash = window.localStorage.getItem(storageKey);
+    if (!sessionHash) {
+      sessionHash = crypto.randomUUID().replaceAll("-", "");
+      window.localStorage.setItem(storageKey, sessionHash);
+    }
+    const touch = () => void touchPublicDemand({ marketId: agentMarketId, sessionHash });
+    touch();
+    const timer = window.setInterval(touch, 30_000);
+    return () => window.clearInterval(timer);
+  }, [agentMarketId, touchPublicDemand]);
 
   useEffect(() => {
     if (markets.length === 0) return;
@@ -128,7 +149,11 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
         metrics={metrics}
         paper={paper}
         selectedMarket={selectedMarket}
-        statusMessage={marketError ?? feed.error}
+        statusMessage={
+          marketError ?? feed.error ?? (publicAnalysis?.analysis
+            ? `Agent ${publicAnalysis.analysis.tier} · ${publicAnalysis.stale ? "refreshing" : publicAnalysis.analysis.status}`
+            : "Agent analysis queued · live market fallback")
+        }
         onIntervalChange={setInterval}
       />
     </div>

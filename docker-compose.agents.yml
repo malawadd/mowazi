@@ -3,6 +3,11 @@ name: moeazi-agents
 x-agent-service: &agent-service
   build: ./agent-service
   env_file: ${AGENT_ENV_FILE:-.env.agents.example}
+  environment:
+    WORKER_SHARED_SECRET: ${WORKER_SHARED_SECRET:-}
+    CONVEX_WORKER_URL: ${CONVEX_WORKER_URL:-}
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
   depends_on:
     temporal:
       condition: service_started
@@ -76,6 +81,8 @@ services:
   execution-sidecar:
     build: ./execution-sidecar
     env_file: ${AGENT_ENV_FILE:-.env.agents.example}
+    environment:
+      WORKER_SHARED_SECRET: ${WORKER_SHARED_SECRET:-}
     restart: unless-stopped
     ports: ["8300:8300"]
 

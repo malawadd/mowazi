@@ -1,0 +1,33 @@
+.shell { min-height: 100vh; background: #eee9df; color: #171713; padding: 32px; font-family: var(--font-sans, sans-serif); }
+.header { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; padding: 28px 32px; background: #171713; color: #f7f2e8; border-bottom: 5px solid #f08a45; }
+.header p { margin: 0 0 8px; color: #f6a36a; font: 700 11px/1.2 var(--font-mono, monospace); letter-spacing: .16em; text-transform: uppercase; }
+.header h1 { margin: 0; font: 700 clamp(34px, 5vw, 68px)/.96 var(--font-display, sans-serif); letter-spacing: -.045em; }
+.header span { display: block; max-width: 720px; margin-top: 14px; color: #bdb8ae; line-height: 1.5; }
+.headerActions { display: flex; gap: 10px; flex-shrink: 0; }
+.headerActions a, .headerActions button { border: 1px solid #5b5952; background: transparent; color: #f7f2e8; padding: 11px 14px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.healthStrip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #bcb6aa; border-top: 0; background: #f7f2e8; }
+.healthStrip > div { position: relative; padding: 16px 18px; border-right: 1px solid #bcb6aa; }
+.healthStrip > div:last-child { border-right: 0; }
+.healthStrip span { display: block; color: #6c675f; font: 700 10px/1.2 var(--font-mono, monospace); text-transform: uppercase; letter-spacing: .12em; }
+.healthStrip strong { display: block; margin-top: 6px; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.healthStrip i { position: absolute; top: 17px; right: 16px; width: 8px; height: 8px; border-radius: 50%; background: #d15a4a; }
+.healthStrip i[data-ok="true"] { background: #2f9565; }
+.workspace { display: grid; grid-template-columns: minmax(300px, .78fr) minmax(0, 1.5fr); gap: 18px; margin-top: 18px; }
+.controlPanel, .outputPanel { border: 1px solid #aaa397; background: #f7f2e8; padding: 24px; min-height: 560px; }
+.sectionTitle { display: flex; gap: 14px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid #c9c2b6; }
+.sectionTitle > span { display: grid; place-items: center; width: 34px; height: 34px; background: #f08a45; font: 800 12px var(--font-mono, monospace); }
+.sectionTitle h2 { margin: 0; font-size: 20px; }
+.sectionTitle p { margin: 5px 0 0; color: #716b62; font-size: 13px; }
+.controlPanel label { display: block; margin-bottom: 16px; color: #5f5a52; font: 700 11px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.controlPanel input, .controlPanel select, .controlPanel textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 8px; border: 1px solid #aaa397; border-radius: 0; background: #fffdf8; color: #171713; padding: 12px; font: 500 14px/1.45 var(--font-mono, monospace); }
+.controlPanel textarea { resize: vertical; }
+.runButton { width: 100%; border: 0; background: #171713; color: #fffaf0; padding: 15px; font-weight: 800; cursor: pointer; }
+.runButton:disabled { cursor: not-allowed; opacity: .48; }
+.error { padding: 12px; background: #f2d5cf; color: #8f3227; font-size: 13px; }
+.tabs { display: flex; gap: 0; overflow-x: auto; border-bottom: 1px solid #aaa397; }
+.tabs button { border: 0; border-right: 1px solid #aaa397; background: #e8e2d8; padding: 11px 14px; color: #5f5a52; font: 800 11px var(--font-mono, monospace); text-transform: uppercase; cursor: pointer; }
+.tabs button[data-active="true"] { background: #171713; color: #fffaf0; }
+.contractList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-height: 500px; padding-top: 14px; overflow: auto; }
+.contractList pre { margin: 0; padding: 14px; overflow: auto; border: 1px solid #c9c2b6; background: #fffdf8; color: #34312c; font: 11px/1.5 var(--font-mono, monospace); white-space: pre-wrap; }
+.empty { display: grid; place-items: center; min-height: 380px; color: #7c766d; text-align: center; }
+@media (max-width: 900px) { .shell { padding: 0; } .header { align-items: flex-start; flex-direction: column; } .healthStrip { grid-template-columns: 1fr 1fr; } .healthStrip > div:nth-child(2) { border-right: 0; } .workspace { grid-template-columns: 1fr; padding: 0 12px 12px; } .contractList { grid-template-columns: 1fr; } }

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     provider_timeout_seconds: float = 45.0
     provider_max_concurrency: int = Field(default=40, ge=1, le=500)
     provider_retries: int = Field(default=2, ge=0, le=5)
+    provider_mode: str = "balanced"
 
     quicknode_stream_url: str = ""
     cryptopanic_api_key: SecretStr = SecretStr("")

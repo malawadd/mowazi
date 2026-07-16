@@ -4,7 +4,7 @@ from fastapi import FastAPI, Header, HTTPException
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from pydantic import BaseModel
 from redis.asyncio import Redis
-from temporalio.client import Client
+from temporalio.client import Client, WorkflowExecutionStatus
 
 from .config import get_settings
 from .contracts import ExecutionDecision, TradeProposal
@@ -65,7 +65,11 @@ def authorize(value: str | None) -> None:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "live_execution": settings.live_execution_enabled}
+    return {
+        "status": "ok", "live_execution": settings.live_execution_enabled,
+        "provider_mode": settings.provider_mode,
+        "degraded": settings.provider_mode != "balanced",
+    }
 
 
 @app.get("/v1/tiers/{tier}")
@@ -86,6 +90,18 @@ async def start_workflow(request: WorkflowRequest, authorization: str | None = H
         id=f"analysis-{request.job_id}", task_queue=settings.temporal_task_queue,
     )
     return {"workflowId": handle.id}
+
+
+@app.get("/internal/workflows/{workflow_id}")
+async def workflow_status(workflow_id: str, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    handle = app.state.temporal.get_workflow_handle(workflow_id)
+    description = await handle.describe()
+    status = description.status.name.lower()
+    response = {"workflowId": workflow_id, "status": status}
+    if description.status == WorkflowExecutionStatus.COMPLETED:
+        response["result"] = await handle.result()
+    return response
 
 
 @app.post("/internal/policy/check", response_model=ExecutionDecision)

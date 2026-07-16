@@ -36,6 +36,8 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
+.env.agents
+.codex-next.*.log
 .env.local
 .env.*.local
 .env.example.local

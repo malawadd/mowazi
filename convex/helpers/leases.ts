@@ -1,5 +1,5 @@
 export type LeaseShape = {
-  leaseId: string;
+  leaseId?: string;
   holderId: string;
   expiresAt: number;
   releasedAt?: number;

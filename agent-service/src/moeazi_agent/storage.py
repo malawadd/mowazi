@@ -4,7 +4,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from .contracts import MarketSynthesis, SignalReport
+from .contracts import EvidenceRef, MarketSynthesis, SignalReport
 
 
 class AnalysisRepository:
@@ -27,15 +27,23 @@ class AnalysisRepository:
                 "content": item.content, "provenance": json.dumps(item.metadata),
             })
 
-    async def recent_evidence(self, market: str, limit: int = 100) -> list[tuple[str, str]]:
+    async def recent_evidence(self, market: str, limit: int = 100) -> list[tuple[EvidenceRef, str]]:
         async with self.engine.connect() as conn:
             rows = await conn.execute(text("""
-                SELECT evidence_id, sanitized_content FROM evidence
+                SELECT evidence_id, source, reference, observed_at, event_at, quality_score,
+                       content_hash, sanitized_content FROM evidence
                 WHERE provenance->>'market' = :market
                   AND observed_at > now() - interval '30 minutes'
                 ORDER BY observed_at DESC LIMIT :limit
             """), {"market": market, "limit": max(1, min(500, limit))})
-            return [(row.evidence_id, row.sanitized_content) for row in rows]
+            return [(
+                EvidenceRef(
+                    id=row.evidence_id, source=row.source, uri=row.reference,
+                    observed_at=row.observed_at, event_at=row.event_at,
+                    quality_score=row.quality_score, content_hash=row.content_hash,
+                ),
+                row.sanitized_content,
+            ) for row in rows]
 
     async def save_run(
         self,

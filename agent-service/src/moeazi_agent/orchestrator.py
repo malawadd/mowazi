@@ -3,7 +3,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from .contracts import AgentRunView, MarketSynthesis, SignalReport
+from .contracts import AgentRunView, EvidenceRef, MarketSynthesis, SignalReport
 from .providers import ProviderFailure, SignalProvider
 from .roles import Assignment, assignments_for_tier
 from .synthesis import synthesize
@@ -16,6 +16,7 @@ class AnalysisRequest:
     scope: str
     account_id: str | None = None
     evidence: str = ""
+    evidence_refs: tuple[EvidenceRef, ...] = ()
     freshness_ms: int = 0
 
 
@@ -27,14 +28,18 @@ class AnalysisResult:
 
 
 class AnalysisOrchestrator:
-    def __init__(self, providers: dict[str, SignalProvider], max_concurrency: int = 40):
+    def __init__(
+        self, providers: dict[str, SignalProvider], max_concurrency: int = 40,
+        allow_single_provider: bool = False,
+    ):
         self.providers = providers
         self.semaphore = asyncio.Semaphore(max_concurrency)
+        self.allow_single_provider = allow_single_provider
 
     async def run(self, request: AnalysisRequest) -> AnalysisResult:
         assignments = assignments_for_tier(request.tier)
         outcomes = await asyncio.gather(
-            *(self._one(item, request.market, request.evidence) for item in assignments),
+            *(self._one(item, request.market, request.evidence, request.evidence_refs) for item in assignments),
             return_exceptions=False,
         )
         reports = [report for report, _ in outcomes if report]
@@ -53,14 +58,18 @@ class AnalysisOrchestrator:
         output = synthesize(request.market, request.tier, reports, runs, request.freshness_ms, draft=draft)
         return AnalysisResult(output, reports, calls)
 
-    async def _one(self, assignment: Assignment, market: str, evidence: str):
+    async def _one(
+        self, assignment: Assignment, market: str, evidence: str,
+        evidence_refs: tuple[EvidenceRef, ...],
+    ):
         started = time.perf_counter()
         provider = self.providers[assignment.provider]
         try:
             async with self.semaphore:
                 report = await provider.analyze(assignment, market, evidence)
+            report = report.model_copy(update={"evidence": list(evidence_refs[:30])})
             call = {
-                "role": assignment.role.name, "provider": assignment.provider,
+                "role": assignment.role.name, "provider": report.provider,
                 "model": report.model, "status": "completed",
                 "latency_ms": int((time.perf_counter() - started) * 1000),
                 "evidence_ids": [item.id for item in report.evidence],
@@ -68,7 +77,7 @@ class AnalysisOrchestrator:
             return report, call
         except ProviderFailure as exc:
             return None, {
-                "role": assignment.role.name, "provider": assignment.provider,
+                "role": assignment.role.name, "provider": provider.name,
                 "model": "unknown", "status": "failed",
                 "latency_ms": int((time.perf_counter() - started) * 1000), "error": str(exc)[:500],
             }
@@ -100,21 +109,21 @@ class AnalysisOrchestrator:
         async with self.semaphore:
             draft = await provider.synthesize(request.market, request.tier, step, materials)
         return draft, {
-            "role": step, "provider": provider_name,
+            "role": step, "provider": provider.name,
             "model": getattr(provider, "synthesis_model", "deterministic-v1"),
             "status": "completed", "kind": "synthesis",
             "latency_ms": int((time.perf_counter() - started) * 1000),
         }
 
-    @staticmethod
-    def _enforce_quorum(tier: str, assignments: list[Assignment], reports: list[SignalReport]) -> None:
+    def _enforce_quorum(self, tier: str, assignments: list[Assignment], reports: list[SignalReport]) -> None:
         completed = {(report.role, report.provider) for report in reports}
         if tier == "focus" and len(reports) < 4:
             raise ProviderFailure("quorum", "Focus requires four successful specialists")
         if tier in {"pro", "max"}:
             providers = {report.provider for report in reports}
             required = 8 if tier == "pro" else 14
-            if len(reports) < required or not {"openai", "deepseek"}.issubset(providers):
+            provider_quorum = self.allow_single_provider or {"openai", "deepseek"}.issubset(providers)
+            if len(reports) < required or not provider_quorum:
                 raise ProviderFailure("quorum", f"{tier.title()} provider quorum failed")
             critical = {item.role.name for item in assignments if item.role.critical}
             if any(not any(report.role == role for report in reports) for role in critical):

@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY pyproject.toml ./
 COPY src ./src
-RUN pip install --no-cache-dir .
+RUN --mount=type=cache,target=/root/.cache/pip pip install .
 
 USER 65532:65532
 CMD ["uvicorn", "moeazi_agent.api:app", "--host", "0.0.0.0", "--port", "8100"]
