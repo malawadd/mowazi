@@ -155,3 +155,21 @@ export const listActivePublicDemand = internalQuery({
     return rows.filter((row) => row.expiresAt > now);
   },
 });
+
+export const cancelAutomaticAnalysisJobs = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("analysisJobs").collect();
+    const automatic = rows.filter((row) =>
+      ["queued", "claimed", "running"].includes(row.status)
+      && (row.trigger === "viewer_demand" || row.trigger.startsWith("cadence:")));
+    const now = Date.now();
+    for (const row of automatic) {
+      await ctx.db.patch(row._id, {
+        status: "cancelled", holderId: undefined, leaseExpiresAt: undefined,
+        error: "Automatic analysis disabled by operator", completedAt: now, updatedAt: now,
+      });
+    }
+    return { cancelled: automatic.length };
+  },
+});

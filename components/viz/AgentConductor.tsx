@@ -28,7 +28,7 @@ export default function AgentConductor({ paper }: { paper: PaperVizModel }) {
   };
   return (
     <article className={common.paperPanel}>
-      <PanelTitle eyebrow="Specialist synthesis" title="AGENT CONDUCTOR" description="Five public-market specialists send stance-colored evidence into a single uncertainty-aware synthesis." />
+      <PanelTitle eyebrow="Market analysis" title="WHAT THE SIGNALS SAY" description="Six independent market lenses are combined into one readable view, with uncertainty and disagreements kept visible." />
       <div className={styles.desktopFlow}>
         <ReactFlow nodes={nodes} edges={graph.edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodesChange={onNodesChange} onNodeDragStop={onNodeDragStop} fitView fitViewOptions={{ padding: .1, minZoom: .72, maxZoom: 1 }} minZoom={.72} maxZoom={1.05} nodeExtent={[[-20, -20], [1190, 510]]} translateExtent={[[-70, -70], [1240, 570]]} panOnScroll={false} panOnDrag={false} zoomOnScroll={false} zoomOnPinch={false} nodesDraggable nodesConnectable={false} elementsSelectable proOptions={{ hideAttribution: true }} />
       </div>
@@ -62,9 +62,9 @@ function Synthesis({ paper, handles = false }: { paper: PaperVizModel; handles?:
   return (
     <article className={styles.synthesisCard}>
       {handles ? <><Handle id="left" type="target" position={Position.Left} className={styles.flowHandle} /><Handle id="right" type="target" position={Position.Right} className={styles.flowHandle} /></> : null}
-      <span>Synthesis</span><strong>{paper.synthesis.label}</strong><small>Direction <b className={common[paper.synthesis.stance]}>{paper.synthesis.stance}</b></small>
+      <span>Overall view</span><strong>{paper.synthesis.label}</strong><small>Market lean <b className={common[paper.synthesis.stance]}>{paper.synthesis.stance}</b></small>
       <div className={styles.synthesisStats}><div><span>Confidence</span><b>{paper.synthesis.confidence}%</b></div><div><span>Reversal risk</span><b>{paper.synthesis.reversalRisk}%</b></div></div>
-      <p>Live-derived view. Uncertainty remains explicit.</p>
+      <p>A concise reading of the latest manually requested analysis.</p>
     </article>
   );
 }
@@ -81,7 +81,7 @@ function MobileConductor({ paper }: { paper: PaperVizModel }) {
 }
 
 function Disagreement({ paper }: { paper: PaperVizModel }) {
-  return <div className={styles.disagreement}><div><span>Main disagreement</span><strong>{paper.synthesis.conflictDrivers[0]}</strong><p>Conflict score is descriptive, not predictive.</p></div><div><span>Conflict drivers</span><ul>{paper.synthesis.conflictDrivers.map((driver) => <li key={driver}>{driver}</li>)}</ul></div><div><span>Disagreement score</span><strong>{paper.synthesis.disagreement} / 100</strong><div className={styles.barStack}>{Array.from({ length: 8 }, (_, index) => <i key={index} data-on={index < Math.round(paper.synthesis.disagreement / 12.5)} />)}</div></div></div>;
+  return <div className={styles.disagreement}><div><span>What does not agree</span><strong>{paper.synthesis.conflictDrivers[0]}</strong><p>A disagreement is a reason for caution, not a prediction.</p></div><div><span>Why the view is mixed</span><ul>{paper.synthesis.conflictDrivers.map((driver) => <li key={driver}>{driver}</li>)}</ul></div><div><span>Signal disagreement</span><strong>{paper.synthesis.disagreement} / 100</strong><div className={styles.barStack}>{Array.from({ length: 8 }, (_, index) => <i key={index} data-on={index < Math.round(paper.synthesis.disagreement / 12.5)} />)}</div></div></div>;
 }
 
 function buildFlow(paper: PaperVizModel): { nodes: FlowNode[]; edges: Edge<SignalData>[] } {

@@ -9,6 +9,7 @@ from temporalio.client import Client, WorkflowExecutionStatus
 from .config import get_settings
 from .contracts import ExecutionDecision, TradeProposal
 from .credits import estimated_credits
+from .costs import tier_estimate
 from .policy import AutomationPolicy, RiskContext, evaluate_policy
 from .observability import configure_observability
 from .roles import assignments_for_tier
@@ -40,6 +41,9 @@ class WorkflowRequest(BaseModel):
     scope: str
     account_id: str | None = None
     evidence: str = ""
+    confirmed: bool = False
+    pricing_version: str = ""
+    estimated_cost_microusd: int = 0
 
 
 class PolicyCheckRequest(BaseModel):
@@ -69,18 +73,40 @@ async def health():
         "status": "ok", "live_execution": settings.live_execution_enabled,
         "provider_mode": settings.provider_mode,
         "degraded": settings.provider_mode != "balanced",
+        "analysis_mode": "manual",
+        "scheduled_analysis_enabled": settings.scheduled_analysis_enabled,
+        "thinking_enabled": settings.deepseek_thinking_enabled,
     }
 
 
 @app.get("/v1/tiers/{tier}")
 async def tier_contract(tier: str):
-    assignments = assignments_for_tier(tier)
-    return {"tier": tier, "calls": len(assignments), "estimatedCredits": estimated_credits(tier)}
+    try:
+        assignments = assignments_for_tier(tier)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    estimate = tier_estimate(tier)
+    return {
+        "tier": tier, "calls": len(assignments), "estimatedCredits": estimated_credits(tier),
+        "providerMode": settings.provider_mode, "estimate": estimate,
+    }
 
 
 @app.post("/internal/workflows")
 async def start_workflow(request: WorkflowRequest, authorization: str | None = Header(default=None)):
     authorize(authorization)
+    if settings.provider_mode != "deepseek_only":
+        raise HTTPException(status_code=409, detail="No active upfront rate card for the configured provider route")
+    try:
+        estimate = tier_estimate(request.tier)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if (
+        not request.confirmed
+        or request.pricing_version != estimate["pricingVersion"]
+        or request.estimated_cost_microusd != estimate["estimatedCostMicrousd"]
+    ):
+        raise HTTPException(status_code=409, detail="Confirm the current tier and cost estimate before starting analysis")
     handle = await app.state.temporal.start_workflow(
         MarketAnalysisWorkflow.run,
         {

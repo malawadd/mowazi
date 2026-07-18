@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { PerpMarket } from "@/lib/trade/types";
 import type { PaperVizModel } from "./vizPaperModel";
 import type { VizMetrics } from "./vizMetrics";
+import type { AgentCostEstimate } from "@/lib/agentBackend";
 import ForcesPanel from "./ForcesPanel";
 import StoryPanel from "./StoryPanel";
 import ScenariosPanel from "./ScenariosPanel";
@@ -21,6 +22,7 @@ export default function VizTabs({
   paper,
   selectedMarket,
   statusMessage,
+  analysisAction,
   onIntervalChange,
 }: {
   interval: string;
@@ -28,6 +30,12 @@ export default function VizTabs({
   paper: PaperVizModel;
   selectedMarket: PerpMarket;
   statusMessage: string | null;
+  analysisAction: {
+    estimate: AgentCostEstimate | null;
+    running: boolean;
+    disabled: boolean;
+    onRun: () => void;
+  };
   onIntervalChange: (interval: string) => void;
 }) {
   const [active, setActive] = useState<Tab>("Forces");
@@ -50,7 +58,12 @@ export default function VizTabs({
             </button>
           ))}
         </div>
-        <span className={styles.liveStamp}>{statusMessage ?? "Live public Hyperliquid feed"}</span>
+        <div className={styles.analysisControls}>
+          <span className={styles.liveStamp}>{statusMessage ?? "Live public Hyperliquid feed"}</span>
+          <button className={styles.analysisButton} type="button" disabled={analysisAction.disabled || analysisAction.running || !analysisAction.estimate} onClick={analysisAction.onRun}>
+            {analysisAction.running ? "Analysis queued…" : analysisAction.disabled ? "Analysis is current" : `Run Focus · est. $${analysisAction.estimate?.estimatedCostUsd.toFixed(3) ?? "—"} · cap $${analysisAction.estimate?.maximumCostUsd.toFixed(3) ?? "—"}`}
+          </button>
+        </div>
       </div>
       <div id="viz-active-panel" role="tabpanel" aria-labelledby={`viz-tab-${active.toLowerCase()}`}>
         {active === "Forces" ? <ForcesPanel market={selectedMarket} paper={paper} /> : null}
@@ -61,7 +74,7 @@ export default function VizTabs({
       </div>
       <div className={styles.paperFooter}>
         <span>Last updated: {paper.marketState.capturedAt}</span>
-        <span>Auto-refresh: ON</span>
+        <span>Agent analysis: MANUAL</span>
         <span>Public-data visualization. Not financial advice.</span>
       </div>
     </section>

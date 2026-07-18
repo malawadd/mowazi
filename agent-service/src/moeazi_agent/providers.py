@@ -1,6 +1,7 @@
 import asyncio
 import json
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
@@ -10,6 +11,7 @@ from pydantic import ValidationError
 
 from .config import Settings
 from .contracts import SignalReport, SynthesisDraft, utc_now
+from .costs import Usage
 from .roles import Assignment
 from .security import SYSTEM_BOUNDARY
 
@@ -21,14 +23,20 @@ class ProviderFailure(RuntimeError):
         self.retryable = retryable
 
 
+@dataclass(frozen=True)
+class ProviderResponse:
+    value: Any
+    usage: Usage = Usage()
+
+
 class SignalProvider(ABC):
     name: str
 
     @abstractmethod
-    async def analyze(self, assignment: Assignment, market: str, evidence: str) -> SignalReport: ...
+    async def analyze(self, assignment: Assignment, market: str, evidence: str) -> SignalReport | ProviderResponse: ...
 
     @abstractmethod
-    async def synthesize(self, market: str, tier: str, step: str, materials: list[dict]) -> SynthesisDraft: ...
+    async def synthesize(self, market: str, tier: str, step: str, materials: list[dict]) -> SynthesisDraft | ProviderResponse: ...
 
 
 def specialist_prompt(assignment: Assignment, market: str, evidence: str) -> str:
@@ -45,6 +53,7 @@ class OpenAIProvider(SignalProvider):
     name = "openai"
 
     def __init__(self, settings: Settings):
+        self.settings = settings
         self.model = settings.openai_specialist_model
         self.synthesis_model = settings.openai_synthesis_model
         self.client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value(), timeout=settings.provider_timeout_seconds)
@@ -56,10 +65,14 @@ class OpenAIProvider(SignalProvider):
                 instructions=SYSTEM_BOUNDARY,
                 input=specialist_prompt(assignment, market, evidence),
                 text_format=SignalReport,
+                max_output_tokens=self.settings.specialist_max_output_tokens,
             )
             if response.output_parsed is None:
                 raise ProviderFailure(self.name, "OpenAI returned no typed output")
-            return response.output_parsed.model_copy(update={"provider": self.name, "model": self.model})
+            return ProviderResponse(
+                response.output_parsed.model_copy(update={"provider": self.name, "model": self.model}),
+                _openai_usage(response),
+            )
         except ProviderFailure:
             raise
         except Exception as exc:
@@ -70,10 +83,11 @@ class OpenAIProvider(SignalProvider):
             response = await self.client.responses.parse(
                 model=self.synthesis_model, instructions=SYSTEM_BOUNDARY,
                 input=_synthesis_prompt(market, tier, step, materials), text_format=SynthesisDraft,
+                max_output_tokens=self.settings.synthesis_max_output_tokens,
             )
             if response.output_parsed is None:
                 raise ProviderFailure(self.name, "OpenAI returned no typed synthesis")
-            return response.output_parsed
+            return ProviderResponse(response.output_parsed, _openai_usage(response))
         except ProviderFailure:
             raise
         except Exception as exc:
@@ -84,6 +98,7 @@ class DeepSeekProvider(SignalProvider):
     name = "deepseek"
 
     def __init__(self, settings: Settings):
+        self.settings = settings
         self.model = settings.deepseek_specialist_model
         self.synthesis_model = settings.deepseek_synthesis_model
         self.retries = settings.provider_retries
@@ -101,21 +116,28 @@ class DeepSeekProvider(SignalProvider):
                 {"role": "user", "content": specialist_prompt(assignment, market, evidence)},
             ],
             "response_format": {"type": "json_object"},
-            "temperature": 0.1,
+            "thinking": {"type": "enabled" if self.settings.deepseek_thinking_enabled else "disabled"},
+            "max_tokens": self.settings.specialist_max_output_tokens,
         }
+        if not self.settings.deepseek_thinking_enabled:
+            body["temperature"] = 0.1
         for attempt in range(self.retries + 1):
             try:
                 response = await self.client.post("/chat/completions", json=body)
                 if response.status_code in {408, 429, 500, 502, 503, 504}:
                     raise ProviderFailure(self.name, f"HTTP {response.status_code}")
                 response.raise_for_status()
-                content = response.json()["choices"][0]["message"].get("content")
+                payload = response.json()
+                content = payload["choices"][0]["message"].get("content")
                 if not content or not content.strip():
                     raise ProviderFailure(self.name, "DeepSeek returned empty content")
                 document = json.loads(content)
                 document["evidence"] = []
                 report = SignalReport.model_validate(document)
-                return report.model_copy(update={"provider": self.name, "model": self.model})
+                return ProviderResponse(
+                    report.model_copy(update={"provider": self.name, "model": self.model}),
+                    _deepseek_usage(payload),
+                )
             except (KeyError, json.JSONDecodeError, ValidationError, httpx.HTTPError, ProviderFailure) as exc:
                 if attempt >= self.retries:
                     raise ProviderFailure(self.name, str(exc)) from exc
@@ -129,17 +151,24 @@ class DeepSeekProvider(SignalProvider):
                 {"role": "system", "content": SYSTEM_BOUNDARY},
                 {"role": "user", "content": _synthesis_prompt(market, tier, step, materials)},
             ],
-            "response_format": {"type": "json_object"}, "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+            "thinking": {"type": "enabled" if self.settings.deepseek_thinking_enabled else "disabled"},
+            "max_tokens": self.settings.synthesis_max_output_tokens,
         }
+        if not self.settings.deepseek_thinking_enabled:
+            body["temperature"] = 0.1
         for attempt in range(self.retries + 1):
             try:
                 response = await self.client.post("/chat/completions", json=body)
                 if response.status_code in {408, 429, 500, 502, 503, 504}:
                     raise ProviderFailure(self.name, f"HTTP {response.status_code}")
                 response.raise_for_status()
-                content = response.json()["choices"][0]["message"].get("content")
+                payload = response.json()
+                content = payload["choices"][0]["message"].get("content")
                 if not content or not content.strip(): raise ProviderFailure(self.name, "DeepSeek returned empty synthesis")
-                return SynthesisDraft.model_validate(json.loads(content))
+                return ProviderResponse(
+                    SynthesisDraft.model_validate(json.loads(content)), _deepseek_usage(payload),
+                )
             except (KeyError, json.JSONDecodeError, ValidationError, httpx.HTTPError, ProviderFailure) as exc:
                 if attempt >= self.retries: raise ProviderFailure(self.name, str(exc)) from exc
                 await asyncio.sleep(min(2**attempt, 4))
@@ -187,4 +216,23 @@ def _synthesis_prompt(market: str, tier: str, step: str, materials: list[dict]) 
         f"Market: {market}\nTier: {tier}\nStep: {step}. Reconcile the validated analytical materials. "
         "Scenario probabilities must sum to 1. Return JSON matching this schema exactly:\n"
         f"{schema}\nMaterials:\n{data}"
+    )
+
+
+def _deepseek_usage(payload: dict) -> Usage:
+    usage = payload.get("usage") or {}
+    return Usage(
+        input_tokens=int(usage.get("prompt_tokens") or 0),
+        cached_input_tokens=int(usage.get("prompt_cache_hit_tokens") or 0),
+        output_tokens=int(usage.get("completion_tokens") or 0),
+    )
+
+
+def _openai_usage(response: Any) -> Usage:
+    usage = getattr(response, "usage", None)
+    details = getattr(usage, "input_tokens_details", None)
+    return Usage(
+        input_tokens=int(getattr(usage, "input_tokens", 0) or 0),
+        cached_input_tokens=int(getattr(details, "cached_tokens", 0) or 0),
+        output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
     )

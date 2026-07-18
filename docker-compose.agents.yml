@@ -8,6 +8,7 @@ x-agent-service: &agent-service
     CONVEX_WORKER_URL: ${CONVEX_WORKER_URL:-}
     OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    SCHEDULED_ANALYSIS_ENABLED: ${SCHEDULED_ANALYSIS_ENABLED:-false}
   depends_on:
     temporal:
       condition: service_started
@@ -72,6 +73,7 @@ services:
   scheduler:
     <<: *agent-service
     command: ["python", "-m", "moeazi_agent.scheduler"]
+    profiles: ["scheduled-analysis"]
 
   execution-gateway:
     <<: *agent-service

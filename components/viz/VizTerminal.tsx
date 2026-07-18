@@ -4,6 +4,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
+import { agentRequest, type AgentTierContract } from "@/lib/agentBackend";
 import { formatNumber } from "@/lib/trade/format";
 import {
   canonicalHyperliquidCoin,
@@ -26,11 +27,16 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
   const router = useRouter();
   const loadMarkets = useAction(api.trade.getHyperliquidMarkets);
   const touchPublicDemand = useMutation(api.agentMutations.touchPublicMarketDemand);
+  const requestPublicAnalysis = useMutation(api.agentMutations.requestPublicAnalysis);
   const [markets, setMarkets] = useState<PerpMarket[]>([]);
   const [selectedCoin, setSelectedCoin] = useState(() => canonicalHyperliquidCoin(initialCoin));
   const [interval, setInterval] = useState("1h");
   const [busy, setBusy] = useState(true);
   const [marketError, setMarketError] = useState<string | null>(null);
+  const [demandSession, setDemandSession] = useState<string | null>(null);
+  const [focusContract, setFocusContract] = useState<AgentTierContract | null>(null);
+  const [analysisState, setAnalysisState] = useState<string | null>(null);
+  const [analysisRequestedAt, setAnalysisRequestedAt] = useState<number | null>(null);
 
   const selectedMarket = useMemo(
     () => findHyperliquidMarket(markets, selectedCoin) ?? markets[0] ?? null,
@@ -59,6 +65,12 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
     ) : null,
     [feed.snapshot, metrics, publicAnalysis?.analysis?.visualization, selectedMarket],
   );
+
+  useEffect(() => {
+    void agentRequest<AgentTierContract>("v1/tiers/focus")
+      .then(setFocusContract)
+      .catch(() => setFocusContract(null));
+  }, []);
 
   useEffect(() => {
     setSelectedCoin(canonicalHyperliquidCoin(initialCoin));
@@ -103,11 +115,39 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
       sessionHash = crypto.randomUUID().replaceAll("-", "");
       window.localStorage.setItem(storageKey, sessionHash);
     }
+    setDemandSession(sessionHash);
     const touch = () => void touchPublicDemand({ marketId: agentMarketId, sessionHash });
     touch();
     const timer = window.setInterval(touch, 30_000);
     return () => window.clearInterval(timer);
   }, [agentMarketId, touchPublicDemand]);
+
+  useEffect(() => {
+    if (analysisRequestedAt && (publicAnalysis?.analysis?.createdAt ?? 0) > analysisRequestedAt) {
+      setAnalysisState("Manual analysis complete");
+      setAnalysisRequestedAt(null);
+    }
+  }, [analysisRequestedAt, publicAnalysis?.analysis?.createdAt]);
+
+  const runManualAnalysis = async () => {
+    if (!demandSession || !focusContract) return;
+    setAnalysisState("Confirming manual request…");
+    try {
+      const result = await requestPublicAnalysis({
+        marketId: agentMarketId, sessionHash: demandSession, tier: "focus", confirmed: true,
+        pricingVersion: focusContract.estimate.pricingVersion,
+        estimatedCostMicrousd: focusContract.estimate.estimatedCostMicrousd,
+      });
+      if (result.reason === "fresh") {
+        setAnalysisState("Current analysis is still fresh");
+        return;
+      }
+      setAnalysisRequestedAt(Date.now());
+      setAnalysisState(result.deduplicated ? "Manual analysis already queued" : "Manual Focus analysis queued");
+    } catch (error) {
+      setAnalysisState(error instanceof Error ? error.message : "Could not request analysis");
+    }
+  };
 
   useEffect(() => {
     if (markets.length === 0) return;
@@ -150,10 +190,16 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
         paper={paper}
         selectedMarket={selectedMarket}
         statusMessage={
-          marketError ?? feed.error ?? (publicAnalysis?.analysis
+          marketError ?? feed.error ?? analysisState ?? (publicAnalysis?.analysis
             ? `Agent ${publicAnalysis.analysis.tier} · ${publicAnalysis.stale ? "refreshing" : publicAnalysis.analysis.status}`
-            : "Agent analysis queued · live market fallback")
+            : "Live market view · agent analysis is manual")
         }
+        analysisAction={{
+          estimate: focusContract?.estimate ?? null,
+          running: Boolean(analysisRequestedAt),
+          disabled: publicAnalysis?.stale === false,
+          onRun: () => void runManualAnalysis(),
+        }}
         onIntervalChange={setInterval}
       />
     </div>

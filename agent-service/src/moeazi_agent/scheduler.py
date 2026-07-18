@@ -5,7 +5,11 @@ from .convex import ConvexWorkerClient
 
 
 async def schedule_forever() -> None:
-    convex = ConvexWorkerClient(get_settings())
+    settings = get_settings()
+    if not settings.scheduled_analysis_enabled:
+        await asyncio.Event().wait()
+        return
+    convex = ConvexWorkerClient(settings)
     while True:
         await convex.command("scheduleDueAnalysisJobs", limit=100)
         await asyncio.sleep(15)

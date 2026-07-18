@@ -31,10 +31,10 @@ def sanitize_untrusted_content(value: str, max_chars: int = 12_000) -> Sanitized
     return SanitizedEvidence(normalized, digest, tuple(markers))
 
 
-def evidence_prompt_block(items: list[tuple[str, str]]) -> str:
+def evidence_prompt_block(items: list[tuple[str, str]], max_chars_per_item: int = 700) -> str:
     blocks = []
     for evidence_id, content in items:
-        safe = sanitize_untrusted_content(content)
+        safe = sanitize_untrusted_content(content, max_chars=max_chars_per_item)
         blocks.append(f'<evidence id="{evidence_id}" trust="untrusted">{safe.text}</evidence>')
     return "\n".join(blocks)
 

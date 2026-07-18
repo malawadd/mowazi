@@ -101,6 +101,8 @@ http.route({
           return jsonResponse(await ctx.runMutation(internal.agentCredits.releaseCredits, payload as any));
         case "scheduleDueAnalysisJobs":
           return jsonResponse(await ctx.runMutation(internal.agentScheduler.scheduleDueAnalysisJobs, payload as any));
+        case "cancelAutomaticAnalysisJobs":
+          return jsonResponse(await ctx.runMutation(internal.agentWorker.cancelAutomaticAnalysisJobs, {}));
         case "updateStrategyState":
           return jsonResponse(await ctx.runMutation(internal.mutations.updateStrategyExecutionState, payload as any));
         case "syncVenueState":

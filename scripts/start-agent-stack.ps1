@@ -1,6 +1,7 @@
 param(
   [switch]$Build,
-  [switch]$InfrastructureOnly
+  [switch]$InfrastructureOnly,
+  [switch]$EnableScheduledAnalysis
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,8 +46,11 @@ foreach ($name in $required) {
 }
 
 $env:AGENT_ENV_FILE = ".env.agents"
+$env:SCHEDULED_ANALYSIS_ENABLED = if ($EnableScheduledAnalysis) { "true" } else { "false" }
 $services = if ($InfrastructureOnly) { @("timescaledb", "redis", "temporal") } else { @() }
-$arguments = @("compose", "-f", "docker-compose.agents.yml", "up", "-d")
+$arguments = @("compose", "-f", "docker-compose.agents.yml")
+if ($EnableScheduledAnalysis) { $arguments += @("--profile", "scheduled-analysis") }
+$arguments += @("up", "-d")
 if ($Build) { $arguments += "--build" }
 $arguments += $services
 Push-Location $root

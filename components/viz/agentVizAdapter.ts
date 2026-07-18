@@ -35,7 +35,9 @@ export function applyAgentVisualization(base: PaperVizModel, payload: AgentVisua
       return {
         id: `${agent.provider}-${agent.role}-${index}`, title: title(agent.role),
         stance: stance(force?.score ?? 0), confidence: Math.round((force?.confidence ?? 0) * 100),
-        evidence: `${agent.provider} · ${agent.model} · ${agent.evidence_ids.length} evidence refs · ${agent.latency_ms} ms`,
+        evidence: agent.status === "completed"
+          ? `${agent.evidence_ids.length} recent market observations reviewed`
+          : "This market lens was unavailable for the latest run",
         tone: tones[index % tones.length], glyph: glyphs[index % glyphs.length],
       };
     });
@@ -59,7 +61,9 @@ export function applyAgentVisualization(base: PaperVizModel, payload: AgentVisua
       ...base.synthesis, stance: stance(consensus), label: label(consensus),
       confidence: Math.round((payload.confidence ?? base.synthesis.confidence / 100) * 100),
       disagreement: Math.round(disagreement * 100), reversalRisk: Math.round(Math.min(1, disagreement + Math.abs(consensus) * .2) * 100),
-      conflictDrivers: payload.conflicts?.length ? payload.conflicts : ["No material agent conflict reported"],
+      conflictDrivers: payload.conflicts?.length
+        ? payload.conflicts.map(humanizeConflict)
+        : ["The market signals are broadly aligned; no major conflict was detected."],
       netImpact: consensus,
     },
     galaxy: galaxy ? {
@@ -75,3 +79,27 @@ function stance(value: number): VizStance { return value > .12 ? "bullish" : val
 function signed(value: number) { return `${value > 0 ? "+" : ""}${value.toFixed(2)}`; }
 function label(value: number) { return value > .35 ? "Bullish alignment" : value < -.35 ? "Bearish alignment" : "Mixed regime"; }
 function average(values: number[]) { return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0; }
+
+const roleLanguage: Record<string, string> = {
+  technical_trend: "price trend",
+  liquidity: "market liquidity",
+  derivatives: "futures positioning",
+  on_chain: "on-chain activity",
+  news: "news flow",
+  social: "market sentiment",
+  cross_venue_basis: "price gaps across venues",
+  volatility_liquidations: "volatility and liquidation risk",
+  whale_flow: "large-holder activity",
+  macro_correlation: "the macro backdrop",
+  execution_quality: "trade execution conditions",
+  portfolio_exposure: "portfolio exposure",
+  data_quality_skeptic: "the data-quality review",
+  market_integrity: "market integrity checks",
+};
+
+function humanizeConflict(value: string) {
+  let result = value;
+  for (const [role, phrase] of Object.entries(roleLanguage)) result = result.replaceAll(role, phrase);
+  result = result.replaceAll("_", " ").replace(/\s+/g, " ").trim();
+  return result ? result[0].toUpperCase() + result.slice(1) : "The signals disagree, but no clear driver was provided.";
+}

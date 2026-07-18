@@ -3,6 +3,33 @@ export type AgentHealth = {
   live_execution: boolean;
   provider_mode: string;
   degraded: boolean;
+  analysis_mode: "manual";
+  scheduled_analysis_enabled: boolean;
+  thinking_enabled: boolean;
+};
+
+export type AgentCostEstimate = {
+  pricingVersion: string;
+  priceSource: string;
+  currency: "USD";
+  specialistCalls: number;
+  synthesisCalls: number;
+  totalCalls: number;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  estimatedTotalTokens: number;
+  estimatedCostUsd: number;
+  estimatedCostMicrousd: number;
+  maximumCostUsd: number;
+  assumptions: string[];
+};
+
+export type AgentTierContract = {
+  tier: "focus" | "pro" | "max";
+  calls: number;
+  estimatedCredits: number;
+  providerMode: string;
+  estimate: AgentCostEstimate;
 };
 
 export type AgentRun = {
@@ -12,6 +39,9 @@ export type AgentRun = {
   status: "completed" | "failed" | "skipped";
   evidence_ids: string[];
   latency_ms: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  estimated_cost_usd?: number | null;
   error?: string | null;
 };
 

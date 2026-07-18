@@ -17,12 +17,17 @@ class FakeResponse:
         if self.status_code >= 400: raise RuntimeError(str(self.status_code))
 
     def json(self):
-        return {"choices": [{"message": {"content": self.content}}]}
+        return {
+            "choices": [{"message": {"content": self.content}}],
+            "usage": {"prompt_tokens": 120, "prompt_cache_hit_tokens": 20, "completion_tokens": 40},
+        }
 
 
 class FakeClient:
-    def __init__(self, responses): self.responses = iter(responses)
-    async def post(self, *_args, **_kwargs): return next(self.responses)
+    def __init__(self, responses): self.responses, self.bodies = iter(responses), []
+    async def post(self, *_args, **kwargs):
+        self.bodies.append(kwargs.get("json"))
+        return next(self.responses)
 
 
 async def test_deepseek_retries_malformed_json_then_validates():
@@ -35,7 +40,10 @@ async def test_deepseek_retries_malformed_json_then_validates():
     }
     provider.client = FakeClient([FakeResponse("{"), FakeResponse(json.dumps(valid))])
     output = await provider.analyze(assignments_for_tier("focus")[0], "BTC-USD", "")
-    assert output.provider == "deepseek"
+    assert output.value.provider == "deepseek"
+    assert output.usage.input_tokens == 120
+    assert provider.client.bodies[-1]["thinking"] == {"type": "disabled"}
+    assert provider.client.bodies[-1]["max_tokens"] == 700
 
 
 async def test_deepseek_empty_output_is_non_billable_failure():

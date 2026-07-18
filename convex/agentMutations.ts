@@ -25,6 +25,14 @@ function marketId(value: string) {
 }
 
 const CADENCE_MS = { on_demand: 0, "15m": 900_000, "5m": 300_000, "2m": 120_000, "1m": 60_000 } as const;
+const PRICING_VERSION = "deepseek-v4-2026-04-24";
+const ESTIMATED_COST_MICROUSD = { focus: 5_843, pro: 16_044, max: 31_257 } as const;
+
+function requireCostConfirmation(tier: keyof typeof ESTIMATED_COST_MICROUSD, confirmed: boolean, version: string, cost: number) {
+  if (!confirmed || version !== PRICING_VERSION || cost !== ESTIMATED_COST_MICROUSD[tier]) {
+    throw new Error("Confirm the current tier and cost estimate before starting analysis.");
+  }
+}
 
 async function activeJobForMarket(ctx: any, scope: "public" | "private", market: string, strategyAccountId?: string) {
   const rows = await ctx.db.query("analysisJobs")
@@ -72,12 +80,17 @@ export const setAgentProfile = mutation({
 });
 
 export const requestAnalysis = mutation({
-  args: { marketId: v.string(), trigger: v.optional(v.string()) },
+  args: {
+    marketId: v.string(), confirmed: v.boolean(),
+    pricingVersion: v.string(), estimatedCostMicrousd: v.number(),
+  },
   handler: async (ctx, args) => {
     const { user, strategyAccount } = await requireViewer(ctx);
     const market = marketId(args.marketId);
     const profile = await ctx.db.query("agentProfiles")
       .withIndex("by_strategyAccountId", (q: any) => q.eq("strategyAccountId", strategyAccount._id)).first();
+    const tier = profile?.tier ?? "focus";
+    requireCostConfirmation(tier, args.confirmed, args.pricingVersion, args.estimatedCostMicrousd);
     const bucket = Math.floor(Date.now() / 30_000);
     const dedupeKey = `private:${strategyAccount._id}:${market}:${bucket}`;
     const active = await activeJobForMarket(ctx, "private", market, String(strategyAccount._id));
@@ -85,8 +98,10 @@ export const requestAnalysis = mutation({
     const now = Date.now();
     const jobId = await ctx.db.insert("analysisJobs", {
       strategyAccountId: strategyAccount._id, userId: user._id, scope: "private", marketId: market,
-      tier: profile?.tier ?? "focus", trigger: args.trigger ?? "on_demand", status: "queued", dedupeKey,
-      reservedCredits: 0, attempt: 0, createdAt: now, updatedAt: now,
+      tier, trigger: "manual_private", status: "queued", dedupeKey,
+      payloadJson: JSON.stringify({
+        pricingVersion: args.pricingVersion, estimatedCostMicrousd: args.estimatedCostMicrousd,
+      }), reservedCredits: 0, attempt: 0, createdAt: now, updatedAt: now,
     });
     return { jobId, deduplicated: false };
   },
@@ -105,15 +120,42 @@ export const touchPublicMarketDemand = mutation({
 
     const latest = await ctx.db.query("analysisSnapshots")
       .withIndex("by_scope_marketId", (q: any) => q.eq("scope", "public").eq("marketId", market)).order("desc").first();
-    const dedupeKey = `public:${market}:${Math.floor(now / 120_000)}`;
+    return {
+      activeUntil: now + 90_000, analysisId: latest?.analysisId ?? null,
+      manualAnalysisRequired: true,
+    };
+  },
+});
+
+export const requestPublicAnalysis = mutation({
+  args: {
+    marketId: v.string(), sessionHash: v.string(), tier: intelligenceTier,
+    confirmed: v.boolean(), pricingVersion: v.string(), estimatedCostMicrousd: v.number(),
+  },
+  handler: async (ctx, args) => {
+    requireCostConfirmation(args.tier, args.confirmed, args.pricingVersion, args.estimatedCostMicrousd);
+    const market = marketId(args.marketId);
+    const now = Date.now();
+    const demand = await ctx.db.query("publicMarketDemand")
+      .withIndex("by_marketId_sessionHash", (q: any) =>
+        q.eq("marketId", market).eq("sessionHash", args.sessionHash)).first();
+    if (!demand || demand.expiresAt <= now) throw new Error("Refresh the visualization before requesting analysis.");
     const active = await activeJobForMarket(ctx, "public", market);
-    if (!active && (!latest || latest.validUntil <= now)) {
-      await ctx.db.insert("analysisJobs", {
-        scope: "public", marketId: market, tier: "pro", trigger: "viewer_demand", status: "queued",
-        dedupeKey, reservedCredits: 0, attempt: 0, createdAt: now, updatedAt: now,
-      });
+    if (active) return { jobId: active._id, deduplicated: true, reason: "active" };
+    const latest = await ctx.db.query("analysisSnapshots")
+      .withIndex("by_scope_marketId", (q: any) => q.eq("scope", "public").eq("marketId", market))
+      .order("desc").first();
+    if (latest?.validUntil && latest.validUntil > now) {
+      return { jobId: null, deduplicated: true, reason: "fresh" };
     }
-    return { activeUntil: now + 90_000, analysisId: latest?.analysisId ?? null };
+    const jobId = await ctx.db.insert("analysisJobs", {
+      scope: "public", marketId: market, tier: args.tier, trigger: "manual_public",
+      status: "queued", dedupeKey: `manual:${market}:${Math.floor(now / 30_000)}`,
+      payloadJson: JSON.stringify({
+        pricingVersion: args.pricingVersion, estimatedCostMicrousd: args.estimatedCostMicrousd,
+      }), reservedCredits: 0, attempt: 0, createdAt: now, updatedAt: now,
+    });
+    return { jobId, deduplicated: false, reason: "created" };
   },
 });
 

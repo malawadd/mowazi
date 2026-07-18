@@ -7,6 +7,9 @@
 .tabButtons button[aria-selected="true"]{background:var(--surface-sky);transform:translateY(2px)}
 .tabButtons button:focus-visible{outline:4px solid var(--surface-yellow);outline-offset:2px}
 .liveStamp{border:3px solid var(--line);background:var(--surface-mint-tint);box-shadow:var(--shadow-sm);padding:8px 10px;font-family:var(--font-plex-mono),monospace;font-size:.74rem;font-weight:800;text-transform:uppercase}
+.analysisControls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.analysisButton{min-height:38px;border:3px solid var(--line);background:var(--surface-yellow);box-shadow:var(--shadow-sm);padding:7px 10px;color:var(--ink);cursor:pointer;font-family:var(--font-plex-mono),monospace;font-size:.72rem;font-weight:900;text-transform:uppercase}
+.analysisButton:disabled{cursor:not-allowed;opacity:.55}
 .paperPanel{min-width:0;max-width:calc(100% - 16px);margin:8px;overflow:clip}
 .panelTitle{display:flex;justify-content:space-between;align-items:start;gap:16px;padding:18px 20px 12px}
 .panelTitle>div{min-width:0}
@@ -40,6 +43,8 @@
   .tabButtons button{min-width:0;min-height:44px;font-size:.72rem}
   .tabButtons button:last-child{grid-column:1/-1}
   .liveStamp{font-size:.7rem}
+  .analysisControls{justify-content:stretch}
+  .analysisControls>*{flex:1}
   .panelTitle{flex-direction:column;padding:14px 12px 10px}
   .panelTitle h2{font-size:1.55rem}
   .panelTitle p{font-size:.88rem}

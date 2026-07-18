@@ -23,6 +23,11 @@
 .controlPanel textarea { resize: vertical; }
 .runButton { width: 100%; border: 0; background: #171713; color: #fffaf0; padding: 15px; font-weight: 800; cursor: pointer; }
 .runButton:disabled { cursor: not-allowed; opacity: .48; }
+.costCard { margin: 4px 0 14px; padding: 15px; border: 1px solid #aaa397; background: #e6f1e8; }
+.costCard span { display: block; color: #566258; font: 800 10px var(--font-mono, monospace); letter-spacing: .1em; text-transform: uppercase; }
+.costCard strong { display: block; margin-top: 5px; font-size: 23px; }
+.costCard p { margin: 5px 0; color: #3e5144; font-size: 12px; line-height: 1.45; }
+.costCard small { display: block; color: #627167; font-size: 11px; line-height: 1.45; }
 .error { padding: 12px; background: #f2d5cf; color: #8f3227; font-size: 13px; }
 .tabs { display: flex; gap: 0; overflow-x: auto; border-bottom: 1px solid #aaa397; }
 .tabs button { border: 0; border-right: 1px solid #aaa397; background: #e8e2d8; padding: 11px 14px; color: #5f5a52; font: 800 11px var(--font-mono, monospace); text-transform: uppercase; cursor: pointer; }
@@ -30,4 +35,12 @@
 .contractList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-height: 500px; padding-top: 14px; overflow: auto; }
 .contractList pre { margin: 0; padding: 14px; overflow: auto; border: 1px solid #c9c2b6; background: #fffdf8; color: #34312c; font: 11px/1.5 var(--font-mono, monospace); white-space: pre-wrap; }
 .empty { display: grid; place-items: center; min-height: 380px; color: #7c766d; text-align: center; }
-@media (max-width: 900px) { .shell { padding: 0; } .header { align-items: flex-start; flex-direction: column; } .healthStrip { grid-template-columns: 1fr 1fr; } .healthStrip > div:nth-child(2) { border-right: 0; } .workspace { grid-template-columns: 1fr; padding: 0 12px 12px; } .contractList { grid-template-columns: 1fr; } }
+.resultGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 14px; }
+.resultGrid article, .resultList article { border: 1px solid #c9c2b6; background: #fffdf8; padding: 15px; }
+.resultGrid span { display: block; color: #716b62; font: 800 10px var(--font-mono, monospace); letter-spacing: .08em; text-transform: uppercase; }
+.resultGrid strong { display: block; margin-top: 7px; font-size: 17px; }
+.resultGrid p, .resultList p { margin: 6px 0 0; color: #625d55; font-size: 12px; line-height: 1.5; }
+.resultList { display: grid; gap: 10px; padding-top: 14px; }
+.resultList header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.resultList header b { padding: 4px 7px; background: #f1c64f; }
+@media (max-width: 900px) { .shell { padding: 0; } .header { align-items: flex-start; flex-direction: column; } .healthStrip { grid-template-columns: 1fr 1fr; } .healthStrip > div:nth-child(2) { border-right: 0; } .workspace { grid-template-columns: 1fr; padding: 0 12px 12px; } .contractList, .resultGrid { grid-template-columns: 1fr; } }

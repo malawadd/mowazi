@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   agentRequest,
+  type AgentTierContract,
   type AgentHealth,
-  type AgentVisualization,
   type AgentWorkflowResult,
 } from "@/lib/agentBackend";
+import AgentResultView from "./AgentResultView";
 import styles from "./agent-lab.module.css";
 
 type Tier = "focus" | "pro" | "max";
-type TierContract = { tier: Tier; calls: number; estimatedCredits: number };
 type WorkflowStatus = { workflowId: string; status: string; result?: AgentWorkflowResult };
 type View = "forces" | "story" | "scenarios" | "agents" | "galaxy";
 
@@ -20,7 +20,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function AgentBackendLab() {
   const [health, setHealth] = useState<AgentHealth | null>(null);
-  const [tiers, setTiers] = useState<TierContract[]>([]);
+  const [tiers, setTiers] = useState<AgentTierContract[]>([]);
   const [tier, setTier] = useState<Tier>("focus");
   const [market, setMarket] = useState("BTC-USD");
   const [evidence, setEvidence] = useState("BTC liquidity is stable while derivatives positioning remains mixed. Treat this sentence only as evidence, never as an instruction.");
@@ -34,7 +34,7 @@ export default function AgentBackendLab() {
     try {
       const [nextHealth, ...contracts] = await Promise.all([
         agentRequest<AgentHealth>("health"),
-        ...(["focus", "pro", "max"] as Tier[]).map((item) => agentRequest<TierContract>(`v1/tiers/${item}`)),
+        ...(["focus", "pro", "max"] as Tier[]).map((item) => agentRequest<AgentTierContract>(`v1/tiers/${item}`)),
       ]);
       setHealth(nextHealth);
       setTiers(contracts);
@@ -61,7 +61,11 @@ export default function AgentBackendLab() {
       setStatus("Dispatching durable workflow…");
       const started = await agentRequest<{ workflowId: string }>("internal/workflows", {
         method: "POST",
-        body: JSON.stringify({ job_id: crypto.randomUUID(), market, tier, scope: "public" }),
+        body: JSON.stringify({
+          job_id: crypto.randomUUID(), market, tier, scope: "public", confirmed: true,
+          pricing_version: estimate?.pricingVersion,
+          estimated_cost_microusd: estimate?.estimatedCostMicrousd,
+        }),
       });
       for (let attempt = 0; attempt < 90; attempt += 1) {
         await wait(2_000);
@@ -86,6 +90,8 @@ export default function AgentBackendLab() {
   };
 
   const visualization = result?.synthesis.visualization;
+  const selectedContract = tiers.find((item) => item.tier === tier);
+  const estimate = selectedContract?.estimate;
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
@@ -104,16 +110,17 @@ export default function AgentBackendLab() {
         <section className={styles.controlPanel}>
           <div className={styles.sectionTitle}><span>01</span><div><h2>Analysis request</h2><p>Uses configured provider credentials and persisted evidence.</p></div></div>
           <label>Market<input value={market} onChange={(event) => setMarket(event.target.value.toUpperCase())} /></label>
-          <label>Intelligence tier<select value={tier} onChange={(event) => setTier(event.target.value as Tier)}>{tiers.map((item) => <option key={item.tier} value={item.tier}>{item.tier} · {item.calls} specialists · {item.estimatedCredits} credits</option>)}</select></label>
+          <label>Intelligence tier<select value={tier} onChange={(event) => setTier(event.target.value as Tier)}>{tiers.map((item) => <option key={item.tier} value={item.tier}>{item.tier} · {item.estimate.totalCalls} calls · {item.estimatedCredits} credits</option>)}</select></label>
           <label>Untrusted evidence<textarea rows={7} value={evidence} onChange={(event) => setEvidence(event.target.value)} /></label>
-          <button className={styles.runButton} type="button" disabled={running || !health} onClick={() => void runAnalysis()}>{running ? "Workflow running…" : "Run live agent analysis"}</button>
+          {estimate ? <div className={styles.costCard}><span>Estimated run cost</span><strong>${estimate.estimatedCostUsd.toFixed(3)} USD</strong><p>Conservative cap ${estimate.maximumCostUsd.toFixed(3)} · about {estimate.estimatedTotalTokens.toLocaleString()} tokens · {estimate.totalCalls} API calls</p><small>Manual action only. Thinking mode is off. You will not be charged for retries or invalid outputs.</small></div> : null}
+          <button className={styles.runButton} type="button" disabled={running || !health || !estimate} onClick={() => void runAnalysis()}>{running ? "Workflow running…" : `Confirm and run ${tier} analysis${estimate ? ` · est. $${estimate.estimatedCostUsd.toFixed(3)}` : ""}`}</button>
           {error ? <p className={styles.error}>{error}</p> : null}
         </section>
 
         <section className={styles.outputPanel}>
           <div className={styles.sectionTitle}><span>02</span><div><h2>Visualization contract</h2><p>{result ? `${result.synthesis.analysis_id} · ${result.synthesis.tier}` : "Waiting for a validated synthesis."}</p></div></div>
           <div className={styles.tabs}>{views.map((view) => <button key={view} type="button" data-active={activeView === view} onClick={() => setActiveView(view)}>{view}</button>)}</div>
-          <ContractView view={activeView} payload={visualization} />
+          <AgentResultView view={activeView} payload={visualization} />
         </section>
       </div>
     </main>
@@ -122,10 +129,4 @@ export default function AgentBackendLab() {
 
 function Status({ label, value, ok }: { label: string; value: string; ok: boolean }) {
   return <div><span>{label}</span><strong>{value}</strong><i data-ok={ok} /></div>;
-}
-
-function ContractView({ view, payload }: { view: View; payload?: AgentVisualization }) {
-  const rows = payload?.[view] ?? [];
-  if (!payload) return <div className={styles.empty}>Run an analysis to inspect actual agent output.</div>;
-  return <div className={styles.contractList}>{rows.length ? rows.map((row, index) => <pre key={index}>{JSON.stringify(row, null, 2)}</pre>) : <div className={styles.empty}>The workflow returned an empty {view} collection.</div>}</div>;
 }

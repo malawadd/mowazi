@@ -25,7 +25,10 @@ export function dispatch() {
   const id = `${__VU}-${Date.now()}`;
   const response = http.post(
     `${api}/internal/workflows`,
-    JSON.stringify({ job_id: id, market: "BTC-USD", tier: "pro", scope: "private", account_id: `a-${__VU}` }),
+    JSON.stringify({
+      job_id: id, market: "BTC-USD", tier: "pro", scope: "private", account_id: `a-${__VU}`,
+      confirmed: true, pricing_version: "deepseek-v4-2026-04-24", estimated_cost_microusd: 16044,
+    }),
     { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, tags: { kind: "dispatch" } },
   );
   check(response, { "workflow dispatched": (value) => value.status === 200 });

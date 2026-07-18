@@ -8,6 +8,7 @@ from temporalio.client import Client
 from .config import get_settings
 from .convex import ConvexWorkerClient
 from .credits import estimated_credits
+from .costs import tier_estimate
 from .temporal_app import MarketAnalysisWorkflow
 from .policy_draft import draft_from_text, policy_json
 
@@ -40,6 +41,22 @@ async def dispatch_forever() -> None:
             continue
         job_id = job["_id"]
         try:
+            trigger = job.get("trigger", "")
+            automatic = trigger == "viewer_demand" or trigger.startswith("cadence:")
+            if automatic and (trigger == "viewer_demand" or not settings.scheduled_analysis_enabled):
+                await convex.fail(job_id, holder, "Automatic analysis is disabled", retryable=False)
+                continue
+            if trigger in {"manual_public", "manual_private"}:
+                confirmation = json.loads(job.get("payloadJson") or "{}")
+                estimate = tier_estimate(job["tier"])
+                valid_cost = (
+                    settings.provider_mode == "deepseek_only"
+                    and confirmation.get("pricingVersion") == estimate["pricingVersion"]
+                    and confirmation.get("estimatedCostMicrousd") == estimate["estimatedCostMicrousd"]
+                )
+                if not valid_cost:
+                    await convex.fail(job_id, holder, "Current rate card was not confirmed", retryable=False)
+                    continue
             if job.get("trigger") == "policy_draft":
                 source = json.loads(job.get("payloadJson") or "{}").get("sourceText", "")
                 policy, diff = draft_from_text(source)
@@ -59,7 +76,7 @@ async def dispatch_forever() -> None:
             handle = await temporal.start_workflow(
                 MarketAnalysisWorkflow.run,
                 {
-                    "market": job["marketId"], "tier": "pro" if job["scope"] == "public" else job["tier"],
+                    "market": job["marketId"], "tier": job["tier"],
                     "scope": job["scope"], "account_id": job.get("strategyAccountId"),
                     "evidence": job.get("payloadJson", ""), "freshness_ms": 0,
                 },

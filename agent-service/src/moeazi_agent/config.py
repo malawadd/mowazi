@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     provider_max_concurrency: int = Field(default=40, ge=1, le=500)
     provider_retries: int = Field(default=2, ge=0, le=5)
     provider_mode: str = "balanced"
+    deepseek_thinking_enabled: bool = False
+    specialist_max_output_tokens: int = Field(default=700, ge=128, le=4_096)
+    synthesis_max_output_tokens: int = Field(default=1_200, ge=256, le=8_192)
+    evidence_max_items: int = Field(default=8, ge=1, le=30)
+    evidence_max_chars_per_item: int = Field(default=700, ge=100, le=4_000)
+    scheduled_analysis_enabled: bool = False
 
     quicknode_stream_url: str = ""
     cryptopanic_api_key: SecretStr = SecretStr("")

@@ -24,10 +24,12 @@ async def analyze_market_activity(payload: dict) -> dict:
         else {"openai": OpenAIProvider(settings), "deepseek": deepseek}
     )
     repository = AnalysisRepository(settings.postgres_dsn)
-    evidence = await repository.recent_evidence(payload["market"])
+    evidence = await repository.recent_evidence(payload["market"], settings.evidence_max_items)
     request = AnalysisRequest(**{
         **payload,
-        "evidence": evidence_prompt_block([(ref.id, content) for ref, content in evidence]),
+        "evidence": evidence_prompt_block(
+            [(ref.id, content) for ref, content in evidence], settings.evidence_max_chars_per_item,
+        ),
         "evidence_refs": tuple(ref for ref, _ in evidence),
     })
     result = await AnalysisOrchestrator(
