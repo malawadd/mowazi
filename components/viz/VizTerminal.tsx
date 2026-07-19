@@ -26,17 +26,17 @@ import VizTabs from "./VizTabs";
 export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
   const router = useRouter();
   const loadMarkets = useAction(api.trade.getHyperliquidMarkets);
-  const touchPublicDemand = useMutation(api.agentMutations.touchPublicMarketDemand);
   const requestPublicAnalysis = useMutation(api.agentMutations.requestPublicAnalysis);
   const [markets, setMarkets] = useState<PerpMarket[]>([]);
   const [selectedCoin, setSelectedCoin] = useState(() => canonicalHyperliquidCoin(initialCoin));
   const [interval, setInterval] = useState("1h");
   const [busy, setBusy] = useState(true);
   const [marketError, setMarketError] = useState<string | null>(null);
-  const [demandSession, setDemandSession] = useState<string | null>(null);
+  const [demandSession] = useState(() => crypto.randomUUID().replaceAll("-", ""));
   const [focusContract, setFocusContract] = useState<AgentTierContract | null>(null);
   const [analysisState, setAnalysisState] = useState<string | null>(null);
   const [analysisRequestedAt, setAnalysisRequestedAt] = useState<number | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
 
   const selectedMarket = useMemo(
     () => findHyperliquidMarket(markets, selectedCoin) ?? markets[0] ?? null,
@@ -44,6 +44,9 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
   );
   const agentMarketId = `${selectedCoin}-USD`;
   const publicAnalysis = useQuery(api.agentQueries.getPublicMarketAnalysis, { marketId: agentMarketId });
+  const analysisFresh = Boolean(
+    publicAnalysis?.analysis?.validUntil && publicAnalysis.analysis.validUntil > clock,
+  );
   const feed = useHyperliquidFeed(selectedMarket, interval);
   const metrics = useMemo(
     () =>
@@ -70,6 +73,8 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
     void agentRequest<AgentTierContract>("v1/tiers/focus")
       .then(setFocusContract)
       .catch(() => setFocusContract(null));
+    const timer = window.setInterval(() => setClock(Date.now()), 10_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -109,20 +114,6 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
   }, [loadMarkets]);
 
   useEffect(() => {
-    const storageKey = "moeazi-public-demand-session";
-    let sessionHash = window.localStorage.getItem(storageKey);
-    if (!sessionHash) {
-      sessionHash = crypto.randomUUID().replaceAll("-", "");
-      window.localStorage.setItem(storageKey, sessionHash);
-    }
-    setDemandSession(sessionHash);
-    const touch = () => void touchPublicDemand({ marketId: agentMarketId, sessionHash });
-    touch();
-    const timer = window.setInterval(touch, 30_000);
-    return () => window.clearInterval(timer);
-  }, [agentMarketId, touchPublicDemand]);
-
-  useEffect(() => {
     if (analysisRequestedAt && (publicAnalysis?.analysis?.createdAt ?? 0) > analysisRequestedAt) {
       setAnalysisState("Manual analysis complete");
       setAnalysisRequestedAt(null);
@@ -130,7 +121,7 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
   }, [analysisRequestedAt, publicAnalysis?.analysis?.createdAt]);
 
   const runManualAnalysis = async () => {
-    if (!demandSession || !focusContract) return;
+    if (!focusContract) return;
     setAnalysisState("Confirming manual request…");
     try {
       const result = await requestPublicAnalysis({
@@ -142,8 +133,12 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
         setAnalysisState("Current analysis is still fresh");
         return;
       }
+      if (!result.jobId) throw new Error("Analysis job was not created.");
+      await agentRequest("v1/jobs/dispatch", {
+        method: "POST", body: JSON.stringify({ job_id: result.jobId }),
+      });
       setAnalysisRequestedAt(Date.now());
-      setAnalysisState(result.deduplicated ? "Manual analysis already queued" : "Manual Focus analysis queued");
+      setAnalysisState(result.deduplicated ? "Manual analysis resumed" : "Manual Focus analysis dispatched");
     } catch (error) {
       setAnalysisState(error instanceof Error ? error.message : "Could not request analysis");
     }
@@ -191,13 +186,13 @@ export default function VizTerminal({ initialCoin }: { initialCoin: string }) {
         selectedMarket={selectedMarket}
         statusMessage={
           marketError ?? feed.error ?? analysisState ?? (publicAnalysis?.analysis
-            ? `Agent ${publicAnalysis.analysis.tier} · ${publicAnalysis.stale ? "refreshing" : publicAnalysis.analysis.status}`
+            ? `Agent ${publicAnalysis.analysis.tier} · ${analysisFresh ? publicAnalysis.analysis.status : "manual refresh available"}`
             : "Live market view · agent analysis is manual")
         }
         analysisAction={{
           estimate: focusContract?.estimate ?? null,
           running: Boolean(analysisRequestedAt),
-          disabled: publicAnalysis?.stale === false,
+          disabled: analysisFresh,
           onRun: () => void runManualAnalysis(),
         }}
         onIntervalChange={setInterval}

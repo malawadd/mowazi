@@ -75,6 +75,8 @@ http.route({
           return jsonResponse(await ctx.runMutation(internal.mutations.recordIncidentEvent, payload as any));
         case "claimNextAnalysisJob":
           return jsonResponse(await ctx.runMutation(internal.agentWorker.claimNextAnalysisJob, payload as any));
+        case "claimAnalysisJob":
+          return jsonResponse(await ctx.runMutation(internal.agentWorker.claimAnalysisJob, payload as any));
         case "heartbeatAnalysisJob":
           return jsonResponse(await ctx.runMutation(internal.agentWorker.heartbeatAnalysisJob, payload as any));
         case "completeAnalysisJob":

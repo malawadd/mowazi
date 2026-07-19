@@ -6,6 +6,8 @@
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
     "dev:frontend": "next dev -p 3002",
     "dev:backend": "convex dev",
+    "stack:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-all.ps1",
+    "stack:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/shutdown-all.ps1",
     "predev": "convex dev --until-success && convex dashboard",
     "build": "next build",
     "start": "next start",

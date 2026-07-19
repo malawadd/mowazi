@@ -8,6 +8,7 @@ from temporalio.worker import Worker
 
 with workflow.unsafe.imports_passed_through():
     from moeazi_agent.config import get_settings
+    from moeazi_agent.convex import ConvexWorkerClient
     from moeazi_agent.orchestrator import AnalysisOrchestrator, AnalysisRequest
     from moeazi_agent.providers import DeepSeekProvider, OpenAIProvider
     from moeazi_agent.security import evidence_prompt_block
@@ -46,16 +47,74 @@ async def analyze_market_activity(payload: dict) -> dict:
     }
 
 
+@activity.defn
+async def complete_analysis_job_activity(payload: dict) -> None:
+    settings = get_settings()
+    convex = ConvexWorkerClient(settings)
+    job = payload["job"]
+    result = payload["result"]
+    await convex.complete(job["job_id"], job["holder_id"], result["synthesis"], result["calls"])
+    if job["scope"] == "private":
+        specialists = sum(
+            call["status"] == "completed" and call.get("kind") != "synthesis"
+            for call in result["calls"]
+        )
+        syntheses = sum(
+            call["status"] == "completed" and call.get("kind") == "synthesis"
+            for call in result["calls"]
+        )
+        await convex.command(
+            "settleAgentCredits", jobId=job["job_id"],
+            billableAmount=specialists * 3 + syntheses * 7,
+            rateCardVersion=1, metadataJson='{"billing":"validated outputs only"}',
+        )
+
+
+@activity.defn
+async def fail_analysis_job_activity(payload: dict) -> None:
+    settings = get_settings()
+    convex = ConvexWorkerClient(settings)
+    job = payload["job"]
+    if job["scope"] == "private":
+        await convex.command(
+            "releaseAgentCredits", jobId=job["job_id"],
+            reason=payload["error"], rateCardVersion=1,
+        )
+    await convex.fail(
+        job["job_id"], job["holder_id"], payload["error"], retryable=False,
+    )
+
+
 @workflow.defn
 class MarketAnalysisWorkflow:
     @workflow.run
     async def run(self, payload: dict) -> dict:
-        return await workflow.execute_activity(
-            analyze_market_activity,
-            payload,
-            start_to_close_timeout=timedelta(minutes=8),
-            retry_policy=RetryPolicy(maximum_attempts=3),
-        )
+        analysis = payload.get("analysis", payload)
+        job = payload.get("job")
+        try:
+            result = await workflow.execute_activity(
+                analyze_market_activity,
+                analysis,
+                start_to_close_timeout=timedelta(minutes=8),
+                retry_policy=RetryPolicy(maximum_attempts=3),
+            )
+            if job:
+                await workflow.execute_activity(
+                    complete_analysis_job_activity,
+                    {"job": job, "result": result},
+                    start_to_close_timeout=timedelta(minutes=2),
+                    retry_policy=RetryPolicy(maximum_attempts=5),
+                )
+            return result
+        except Exception as exc:
+            if job:
+                await workflow.execute_activity(
+                    fail_analysis_job_activity,
+                    {"job": job, "error": str(exc)[:2_000]},
+                    start_to_close_timeout=timedelta(minutes=1),
+                    retry_policy=RetryPolicy(maximum_attempts=5),
+                )
+            raise
 
 
 async def run_worker() -> None:
@@ -63,7 +122,11 @@ async def run_worker() -> None:
     client = await Client.connect(settings.temporal_address, namespace=settings.temporal_namespace)
     worker = Worker(
         client, task_queue=settings.temporal_task_queue,
-        workflows=[MarketAnalysisWorkflow], activities=[analyze_market_activity],
+        workflows=[MarketAnalysisWorkflow],
+        activities=[
+            analyze_market_activity, complete_analysis_job_activity,
+            fail_analysis_job_activity,
+        ],
     )
     await worker.run()
 

@@ -55,6 +55,8 @@ if ($Build) { $arguments += "--build" }
 $arguments += $services
 Push-Location $root
 try {
+  & docker compose -f docker-compose.agents.yml --profile legacy-polling rm -s -f dispatcher
+  if ($LASTEXITCODE -ne 0) { throw "Could not remove the legacy polling dispatcher." }
   & docker @arguments
   if ($LASTEXITCODE -ne 0) { throw "Docker Compose failed with exit code $LASTEXITCODE" }
   & docker compose -f docker-compose.agents.yml ps

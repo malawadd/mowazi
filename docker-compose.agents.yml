@@ -65,6 +65,7 @@ services:
   dispatcher:
     <<: *agent-service
     command: ["python", "-m", "moeazi_agent.dispatcher"]
+    profiles: ["legacy-polling"]
 
   ingestors:
     <<: *agent-service

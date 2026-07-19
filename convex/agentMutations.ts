@@ -136,10 +136,6 @@ export const requestPublicAnalysis = mutation({
     requireCostConfirmation(args.tier, args.confirmed, args.pricingVersion, args.estimatedCostMicrousd);
     const market = marketId(args.marketId);
     const now = Date.now();
-    const demand = await ctx.db.query("publicMarketDemand")
-      .withIndex("by_marketId_sessionHash", (q: any) =>
-        q.eq("marketId", market).eq("sessionHash", args.sessionHash)).first();
-    if (!demand || demand.expiresAt <= now) throw new Error("Refresh the visualization before requesting analysis.");
     const active = await activeJobForMarket(ctx, "public", market);
     if (active) return { jobId: active._id, deduplicated: true, reason: "active" };
     const latest = await ctx.db.query("analysisSnapshots")

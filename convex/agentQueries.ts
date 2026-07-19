@@ -41,11 +41,8 @@ export const getPublicMarketAnalysis = query({
     const snapshot = await ctx.db.query("analysisSnapshots")
       .withIndex("by_scope_marketId", (q: any) => q.eq("scope", "public").eq("marketId", marketId))
       .order("desc").first();
-    const demand = await ctx.db.query("publicMarketDemand")
-      .withIndex("by_marketId", (q: any) => q.eq("marketId", marketId)).collect();
     return {
       analysis: materialize(snapshot),
-      activeViewers: demand.filter((row: any) => row.expiresAt > Date.now()).length,
       stale: !snapshot || snapshot.validUntil <= Date.now(),
     };
   },

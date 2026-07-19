@@ -23,6 +23,27 @@ export const claimNextAnalysisJob = internalMutation({
   },
 });
 
+export const claimAnalysisJob = internalMutation({
+  args: { jobId: v.id("analysisJobs"), holderId: v.string(), leaseMs: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.jobId);
+    if (!job) return { claimed: false, reason: "not_found", job: null };
+    const now = Date.now();
+    const reclaimable = job.status === "claimed" && (job.leaseExpiresAt ?? 0) <= now;
+    const sameHolder = job.status === "claimed" && job.holderId === args.holderId;
+    if (sameHolder) return { claimed: true, reason: "already_claimed", job };
+    if (job.status !== "queued" && !reclaimable) {
+      return { claimed: false, reason: job.status, job };
+    }
+    const leaseMs = Math.min(Math.max(args.leaseMs ?? 600_000, 60_000), 900_000);
+    await ctx.db.patch(job._id, {
+      status: "claimed", holderId: args.holderId, leaseExpiresAt: now + leaseMs,
+      attempt: job.attempt + 1, startedAt: job.startedAt ?? now, updatedAt: now, error: undefined,
+    });
+    return { claimed: true, reason: "claimed", job: await ctx.db.get(job._id) };
+  },
+});
+
 export const heartbeatAnalysisJob = internalMutation({
   args: { jobId: v.id("analysisJobs"), holderId: v.string(), leaseMs: v.optional(v.number()) },
   handler: async (ctx, args) => {
@@ -42,6 +63,9 @@ export const completeAnalysisJob = internalMutation({
   },
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.jobId);
+    if (job?.status === "completed") {
+      return { snapshotId: null, jobId: job._id, duplicate: true };
+    }
     if (!job || job.holderId !== args.holderId || !["claimed", "running"].includes(job.status)) throw new Error("Analysis job lease is not owned by this worker.");
     JSON.parse(args.payloadJson); JSON.parse(args.providersJson);
     const now = Date.now();
@@ -55,7 +79,7 @@ export const completeAnalysisJob = internalMutation({
       status: args.status === "failed" ? "failed" : "completed", completedAt: now, updatedAt: now,
       leaseExpiresAt: now, error: args.status === "failed" ? "Analysis completed without a valid synthesis." : undefined,
     });
-    return { snapshotId, jobId: job._id };
+    return { snapshotId, jobId: job._id, duplicate: false };
   },
 });
 
@@ -63,7 +87,9 @@ export const failAnalysisJob = internalMutation({
   args: { jobId: v.id("analysisJobs"), holderId: v.string(), error: v.string(), retryable: v.boolean() },
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.jobId);
-    if (!job || job.holderId !== args.holderId) return { failed: false };
+    if (!job || job.holderId !== args.holderId || !["claimed", "running"].includes(job.status)) {
+      return { failed: false };
+    }
     const now = Date.now();
     const retry = args.retryable && job.attempt < 3;
     await ctx.db.patch(job._id, {

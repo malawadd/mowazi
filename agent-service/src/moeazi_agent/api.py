@@ -15,6 +15,7 @@ from .observability import configure_observability
 from .roles import assignments_for_tier
 from .temporal_app import MarketAnalysisWorkflow
 from .data_adapters import PushEvidenceAdapter
+from .job_dispatch import dispatch_analysis_job
 from .storage import AnalysisRepository
 
 
@@ -44,6 +45,10 @@ class WorkflowRequest(BaseModel):
     confirmed: bool = False
     pricing_version: str = ""
     estimated_cost_microusd: int = 0
+
+
+class DispatchJobRequest(BaseModel):
+    job_id: str
 
 
 class PolicyCheckRequest(BaseModel):
@@ -116,6 +121,15 @@ async def start_workflow(request: WorkflowRequest, authorization: str | None = H
         id=f"analysis-{request.job_id}", task_queue=settings.temporal_task_queue,
     )
     return {"workflowId": handle.id}
+
+
+@app.post("/v1/jobs/dispatch")
+async def dispatch_job(request: DispatchJobRequest, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    try:
+        return await dispatch_analysis_job(app.state.temporal, settings, request.job_id)
+    except Exception as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/internal/workflows/{workflow_id}")

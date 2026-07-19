@@ -24,6 +24,11 @@ class ConvexWorkerClient:
     async def claim(self, holder_id: str) -> dict | None:
         return await self.command("claimNextAnalysisJob", holderId=holder_id, leaseMs=120_000)
 
+    async def claim_job(self, job_id: str, holder_id: str) -> dict:
+        return await self.command(
+            "claimAnalysisJob", jobId=job_id, holderId=holder_id, leaseMs=900_000,
+        )
+
     async def heartbeat(self, job_id: str, holder_id: str) -> None:
         await self.command("heartbeatAnalysisJob", jobId=job_id, holderId=holder_id, leaseMs=120_000)
 

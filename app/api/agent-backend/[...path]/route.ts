@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const backendUrl = process.env.AGENT_API_URL ?? "http://127.0.0.1:8100";
 
 function isAllowed(path: string) {
-  return path === "health" || path.startsWith("v1/tiers/") || path === "internal/evidence" || path.startsWith("internal/workflows");
+  return path === "health" || path.startsWith("v1/tiers/") || path === "v1/jobs/dispatch" || path === "internal/evidence" || path.startsWith("internal/workflows");
 }
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
@@ -18,7 +18,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   }
 
   const headers = new Headers({ Accept: "application/json" });
-  if (path.startsWith("internal/")) {
+  if (path.startsWith("internal/") || path === "v1/jobs/dispatch") {
     const secret = process.env.WORKER_SHARED_SECRET;
     if (!secret) return NextResponse.json({ error: "Worker secret is not configured." }, { status: 503 });
     headers.set("Authorization", `Bearer ${secret}`);
