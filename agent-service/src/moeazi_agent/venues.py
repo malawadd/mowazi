@@ -62,6 +62,71 @@ class CertificationBlockedAdapter(VenueAdapter):
     async def health(self): return VenueHealth(venue=self.name, healthy=False, live_submission_enabled=False, reason=self.reason)
 
 
+class HyperliquidAdapter(VenueAdapter):
+    name = "hyperliquid"
+
+    def __init__(self, base_url: str, live_enabled: bool):
+        self.client = httpx.AsyncClient(base_url=base_url, timeout=15)
+        self.live_enabled = live_enabled
+
+    async def quote(self, request: dict[str, Any]) -> Quote:
+        market = str(request.get("market", "")).upper()
+        coin = market.replace("-PERP", "").replace("-USD", "")
+        response = await self.client.post("/info", json={"type": "allMids"})
+        response.raise_for_status()
+        mids = response.json()
+        if coin not in mids:
+            raise ValueError(f"Hyperliquid market not found: {market}")
+        price = str(mids[coin])
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        return Quote(
+            venue=self.name,
+            reference=f"hl:{coin}:{int(now.timestamp() * 1000)}",
+            market=market,
+            input_amount=str(request.get("size_usd", "0")),
+            output_amount=price,
+            expires_at=now + timedelta(seconds=10),
+            raw={"price": price, "coin": coin, "source": "hyperliquid-allMids"},
+        )
+
+    async def balance(self, account: str) -> dict[str, Any]:
+        response = await self.client.post("/info", json={"type": "clearinghouseState", "user": account})
+        response.raise_for_status()
+        return response.json()
+
+    async def positions(self, account: str) -> list[dict[str, Any]]:
+        state = await self.balance(account)
+        return state.get("assetPositions", [])
+
+    async def place(self, request, credential):
+        raise RuntimeError("Hyperliquid signing remains certification-gated")
+
+    async def cancel(self, request, credential):
+        raise RuntimeError("Hyperliquid cancellation remains certification-gated")
+
+    async def close(self, request, credential):
+        raise RuntimeError("Hyperliquid closing remains certification-gated")
+
+    async def reconcile(self, account: str) -> dict[str, Any]:
+        return {"venue": self.name, "account": account, "positions": await self.positions(account)}
+
+    async def health(self) -> VenueHealth:
+        try:
+            response = await self.client.post("/info", json={"type": "meta"})
+            response.raise_for_status()
+            return VenueHealth(
+                venue=self.name, healthy=True,
+                live_submission_enabled=self.live_enabled,
+                reason=None if self.live_enabled else "Public reads ready; signing certification gate is closed",
+            )
+        except Exception as exc:
+            return VenueHealth(
+                venue=self.name, healthy=False, live_submission_enabled=False,
+                reason=str(exc)[:200],
+            )
+
+
 class UniswapTradingApiAdapter(VenueAdapter):
     name = "uniswap"
 

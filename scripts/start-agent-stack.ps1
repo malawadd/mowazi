@@ -1,7 +1,6 @@
 param(
   [switch]$Build,
-  [switch]$InfrastructureOnly,
-  [switch]$EnableScheduledAnalysis
+  [switch]$InfrastructureOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,10 +45,8 @@ foreach ($name in $required) {
 }
 
 $env:AGENT_ENV_FILE = ".env.agents"
-$env:SCHEDULED_ANALYSIS_ENABLED = if ($EnableScheduledAnalysis) { "true" } else { "false" }
 $services = if ($InfrastructureOnly) { @("timescaledb", "redis", "temporal") } else { @() }
 $arguments = @("compose", "-f", "docker-compose.agents.yml")
-if ($EnableScheduledAnalysis) { $arguments += @("--profile", "scheduled-analysis") }
 $arguments += @("up", "-d")
 if ($Build) { $arguments += "--build" }
 $arguments += $services
@@ -57,7 +54,14 @@ Push-Location $root
 try {
   & docker compose -f docker-compose.agents.yml --profile legacy-polling rm -s -f dispatcher
   if ($LASTEXITCODE -ne 0) { throw "Could not remove the legacy polling dispatcher." }
-  & docker @arguments
+  & docker compose -f docker-compose.agents.yml --profile continuous-ingestion rm -s -f ingestors
+  if ($LASTEXITCODE -ne 0) { throw "Could not remove background ingestors." }
+  $legacyScheduler = docker ps -aq --filter "name=^moeazi-agents-scheduler-1$"
+  if ($legacyScheduler) {
+    & docker rm -f $legacyScheduler
+    if ($LASTEXITCODE -ne 0) { throw "Could not remove the legacy scheduler." }
+  }
+  & docker @arguments --remove-orphans
   if ($LASTEXITCODE -ne 0) { throw "Docker Compose failed with exit code $LASTEXITCODE" }
   & docker compose -f docker-compose.agents.yml ps
 } finally {

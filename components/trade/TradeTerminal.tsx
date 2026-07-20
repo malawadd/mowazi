@@ -24,6 +24,7 @@ import { DEFAULT_TRADE_SETTINGS } from "@/lib/trade/markets";
 import { buildTradeTicketLimits } from "@/lib/trade/ticketLimits";
 import type { BestExecutionQuote, PerpMarket, TradeSettings } from "@/lib/trade/types";
 import BestExecutionTable from "./BestExecutionTable";
+import AgentStatusRail from "./AgentStatusRail";
 import LiveChart from "./LiveChart";
 import MarketHeader from "./MarketHeader";
 // import MarketPanel from "./MarketPanel";
@@ -282,6 +283,7 @@ export default function TradeTerminal({ initialCoin }: { initialCoin: string }) 
   return (
     <div className={styles.terminal}>
       <MarketHeader market={selectedMarket} markets={markets} snapshot={feed.snapshot} status={feed.status} action={{ href: vizPathForCoin(selectedCoin), label: "View Viz", kind: "viz" }} onSelectMarket={(coin) => { setSelectedCoin(canonicalHyperliquidCoin(coin)); window.history.replaceState(null, "", tradePathForCoin(coin)); }} />
+      <AgentStatusRail marketId={selectedMarket.id} />
       <div className={styles.terminalGrid}>
         {/* <MarketPanel markets={markets} selectedMarket={selectedMarket} onSelectMarket={(coin) => router.push(tradePathForCoin(coin))} /> */}
         <div className={styles.chartColumn}>

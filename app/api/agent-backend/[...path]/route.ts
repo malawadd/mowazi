@@ -6,14 +6,21 @@ export const dynamic = "force-dynamic";
 const backendUrl = process.env.AGENT_API_URL ?? "http://127.0.0.1:8100";
 
 function isAllowed(path: string) {
-  return path === "health" || path.startsWith("v1/tiers/") || path === "v1/jobs/dispatch" || path === "internal/evidence" || path.startsWith("internal/workflows");
+  return path === "health"
+    || path.startsWith("v1/tiers/")
+    || path === "v1/jobs/dispatch"
+    || path === "internal/evidence"
+    || path === "internal/runtime-controls"
+    || path.startsWith("internal/workflows");
 }
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path: segments } = await context.params;
   const path = segments.join("/");
   if (!isAllowed(path)) return NextResponse.json({ error: "Unsupported agent backend route." }, { status: 404 });
-  if (path.startsWith("internal/") && process.env.AGENT_LAB_ENABLED !== "true") {
+  if (path.startsWith("internal/")
+    && process.env.AGENT_LAB_ENABLED !== "true"
+    && process.env.AGENT_DEV_CONTROLS_ENABLED !== "true") {
     return NextResponse.json({ error: "Agent Lab is disabled." }, { status: 404 });
   }
 
@@ -47,3 +54,4 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
 
 export const GET = proxy;
 export const POST = proxy;
+export const PATCH = proxy;

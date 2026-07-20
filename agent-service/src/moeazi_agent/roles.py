@@ -57,6 +57,13 @@ def assignments_for_tier(tier: str) -> list[Assignment]:
     return result
 
 
+def lite_assignments() -> list[Assignment]:
+    return [
+        Assignment(ROLES[0], "deepseek"),
+        Assignment(ROLES[1], "deepseek"),
+    ]
+
+
 def required_synthesis_steps(tier: str) -> tuple[str, ...]:
     return {
         "focus": ("synthesis",),

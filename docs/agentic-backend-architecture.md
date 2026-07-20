@@ -1,297 +1,221 @@
-# Agentic Trading Backend Architecture
+# Autonomous Agent Backend Architecture
 
-## Goals and non-negotiable rules
-- Analysis starts only after an explicit, price-confirmed user request.
-- An idle system performs zero queue polling and zero visualization heartbeats.
-- Convex is the product-state authority; Postgres stores detailed analytical history.
-- Temporal owns durable long-running work. LLM workers never receive trading credentials.
-- LLM output is evidence and proposals, never authority to sign or submit an order.
-- Every paid run is bounded by a versioned rate card, model route, evidence limit, and token cap.
+## Principles
+
+- Convex owns customer-visible state; Timescale owns detailed history.
+- Temporal schedules and workflows own autonomous work. No process polls Convex.
+- Shadow, Approval, and Autopilot all analyze automatically; only authority differs.
+- Manual Guard and Lite Mode are development controls, not customer modes.
+- Analysis workers never receive credentials or venue execution tools.
+- Runtime authority is the lowest of deployment, user, policy, credits, and health ceilings.
 
 ## Entire system — simplified
+
 ```mermaid
 flowchart LR
-    U[User] -->|Confirm tier and cost| W[Web application]
-    W -->|Create one job| C[Convex control plane]
-    W -->|Dispatch exact job ID| A[Python agent API]
-    A -->|Start durable workflow| T[Temporal]
-    T --> G[Specialist agents]
-    G --> S[Synthesis]
-    S --> C
-    C -->|UI-ready snapshot| W
-    S -->|Optional proposal| P[Deterministic policy engine]
-    P -->|Approved only| E[Execution gateway]
-    E --> V[Trading venues]
+    U["Customer"] --> P["Signed-in portal"]
+    P --> C["Convex product state"]
+    C --> T["Temporal schedules"]
+    T --> A["Specialist team"]
+    A --> S["Typed synthesis + proposal"]
+    S --> M{"Customer mode"}
+    M -->|Shadow| X["Fresh quote + simulated fill"]
+    M -->|Approval| Q["Approval inbox"]
+    M -->|Autopilot| E["Deterministic execution workflow"]
+    Q -->|Approve| E
+    E --> V["Isolated venue gateway"]
 ```
 
-The important boundary is the split between analysis and execution. Agents can recommend; only deterministic code can authorize, sign, and submit.
+The public terminal shows status and explanations. Wallets, strategies, policies, credits,
+approvals, and configuration stay in the portal.
 
 ## Entire system — detailed
+
 ```mermaid
 flowchart TB
-    subgraph Client["Client and application edge"]
-        UI[Five visualization modes]
-        SET[Agent settings]
-        APR[Approval UI]
-        BFF[Next.js backend-for-frontend]
+    subgraph UI["Application surfaces"]
+      TERM["Public terminal + agent rail"]
+      PORTAL["Portal: agent, policy, approvals, activity, credits"]
+      LAB["Development-only Agent Lab"]
+    end
+    subgraph CX["Convex control plane"]
+      PROFILE["One profile / strategy account"]
+      SUB["Indexed subscriptions"]
+      POLICY["Versioned policies"]
+      JOB["Indexed active jobs"]
+      SNAP["One current snapshot / scope"]
+      CREDIT["Reservations + ledger"]
+      TRADE["Proposals, approvals, shadow fills"]
+    end
+    subgraph ORCH["Python + Temporal"]
+      SCHEDULE["Schedule / watched market"]
+      EVENT["Redis event stream"]
+      FLOW["Analysis workflow"]
+      ROUTE["Tier/provider router"]
+      EXEC["Execution workflow"]
+    end
+    subgraph DATA["Evidence plane"]
+      FEEDS["Venue, chain, news, social"]
+      REDIS["Hot state, controls, caps, dedupe"]
+      PG["Timescale history"]
+    end
+    subgraph MODEL["Model providers"]
+      OPENAI["OpenAI"]
+      DEEP["DeepSeek"]
+    end
+    subgraph GATE["Execution boundary"]
+      PY["Python venue adapters"]
+      TS["GMX + Uniswap sidecar"]
+      KMS["KMS envelope unwrap"]
+      VENUES["Six venue APIs"]
     end
 
-    subgraph Control["Convex control plane"]
-        PROFILE[Profiles and policy versions]
-        JOB[Analysis jobs]
-        SNAP[Latest snapshots]
-        CREDIT[Credit reservations and ledger]
-        PROPOSAL[Proposals and approvals]
-        AUDIT[Material audit events]
-    end
-
-    subgraph Agent["Python agent plane"]
-        API[Authenticated agent API]
-        DISPATCH[Exact-job dispatcher]
-        TEMP[Temporal workflows]
-        ROUTER[Provider and tier router]
-        ROLES[Specialist role workers]
-        SYNTH[Synthesis and quorum]
-        POLICY[Deterministic risk policy]
-    end
-
-    subgraph Data["Market intelligence plane"]
-        VENUE[Venue market adapters]
-        CHAIN[QuickNode and on-chain]
-        NEWS[CryptoPanic and GDELT]
-        SOCIAL[X and optional Reddit]
-        REDIS[Redis hot state and dedupe]
-        PG[(Postgres and Timescale)]
-    end
-
-    subgraph Models["Model providers"]
-        OPENAI[OpenAI]
-        DEEPSEEK[DeepSeek]
-    end
-
-    subgraph Execution["Isolated execution plane"]
-        GW[Python execution gateway]
-        SIDE[TypeScript GMX and Uniswap sidecar]
-        KMS[KMS or local key adapter]
-        VENUES[Hyperliquid, Lighter, Orderly, GMX, Ostium, Uniswap]
-    end
-
-    UI --> BFF
-    SET --> BFF
-    APR --> BFF
-    BFF --> PROFILE
-    BFF -->|Manual create| JOB
-    BFF -->|Exact job ID| API
-    API --> DISPATCH --> TEMP
-    TEMP --> ROUTER --> ROLES
-    ROLES --> OPENAI
-    ROLES --> DEEPSEEK
-    ROLES --> SYNTH
-    SYNTH --> TEMP
-    TEMP --> PG
-    TEMP --> SNAP
-    TEMP --> CREDIT
-    SNAP --> UI
-
-    VENUE --> REDIS
-    CHAIN --> REDIS
-    NEWS --> PG
-    SOCIAL --> PG
-    REDIS --> ROLES
-    PG --> ROLES
-
-    SYNTH --> PROPOSAL
-    PROPOSAL --> POLICY
-    POLICY --> GW
-    POLICY --> SIDE
-    GW --> KMS
-    SIDE --> KMS
-    GW --> VENUES
-    SIDE --> VENUES
-    GW --> AUDIT
-    SIDE --> AUDIT
+    TERM --> SNAP & TRADE
+    PORTAL --> PROFILE & SUB & POLICY & CREDIT & TRADE
+    LAB --> REDIS
+    PROFILE --> SCHEDULE --> FLOW
+    EVENT --> FLOW
+    REDIS & PG --> FLOW
+    FLOW --> ROUTE --> OPENAI & DEEP
+    ROUTE --> PG & SNAP & TRADE
+    TRADE --> EXEC
+    EXEC --> POLICY & CREDIT
+    EXEC --> PY & TS
+    PY & TS --> KMS --> VENUES
+    FEEDS --> REDIS & PG
 ```
 
-## Component 1 — manual control and dispatch
+## 1. Modes and runtime authority
+
+```mermaid
+stateDiagram-v2
+    [*] --> Shadow
+    Shadow --> SimulatedFill: proposal + fresh quote
+    [*] --> Approval
+    Approval --> Waiting: proposal
+    Waiting --> Requote: user approves
+    [*] --> Autopilot
+    Autopilot --> Requote: proposal
+    Requote --> Blocked: any check fails
+    Requote --> SimulatedExecution: development gates closed
+    Requote --> SignedSubmission: live + all venues certified
+```
+
+Why: analysis stays consistent while authority remains explicit and auditable. Legacy `insights`
+normalizes to Shadow. Every real submission checks deployment, policy, credits, evidence, quorum,
+venue health, quote freshness, balance/exposure/loss, emergency stop, reconciliation, and idempotency.
+
+Improve next: persist a customer-readable authority-decision object for every proposal.
+
+## 2. Development safeguards
+
+```mermaid
+flowchart LR
+    LAB["Agent Lab switch"] --> RC["Redis RuntimeControls"]
+    RC --> MG{"Manual Guard?"}
+    MG -->|On| PAUSE["Pause schedules + cancel queued automatic jobs"]
+    MG -->|Off| LM{"Lite Mode?"}
+    LM -->|On| CLAMP["1 market, 2 calls, 250 tokens, no retry"]
+    CLAMP --> CAP["4/account + 8/global + $0.10/day"]
+    LM -->|Off| FULL["Configured customer tier"]
+```
+
+Why: missing Redis state resolves to both safeguards on. Disabling either requires typed cost
+confirmation. Manual runs remain possible. One atomic Redis script protects concurrent daily caps.
+
+Improve next: reconcile provider-returned usage against the pre-dispatch maximum reservation.
+
+## 3. Scheduling and dispatch
+
 ```mermaid
 sequenceDiagram
-    actor User
-    participant UI as Web UI
+    participant UI as Portal
     participant CX as Convex
     participant API as Agent API
-    participant TM as Temporal
+    participant TS as Temporal Schedule
+    participant WF as Analysis Workflow
 
-    User->>UI: Click Run after seeing cost
-    UI->>CX: Create job with tier and rate-card proof
-    CX-->>UI: Return exact job ID
-    UI->>API: Dispatch that job ID once
-    API->>CX: Atomically claim exact job
-    API->>TM: Start idempotent workflow
-    API-->>UI: Accepted
-    TM->>CX: Reconcile final snapshot and credits
+    UI->>CX: Save profile + indexed subscriptions
+    UI->>CX: Activate
+    UI->>API: Authenticated schedule sync
+    API->>TS: Upsert schedule per market
+    TS->>WF: Cadence tick
+    WF->>CX: Validate profile revision + enqueue idempotently
+    WF->>CX: Reserve credits
+    WF->>WF: Analyze, synthesize, route
+    WF->>CX: Patch snapshot + settle credits
 ```
 
-Why this design:
+Why: idle workers make zero Convex calls. Revisions invalidate stale ticks, status indexes avoid
+historical scans, and account/market indexes prevent overlap.
 
-- There is no idle `claimNext` loop, so an idle deployment consumes no queue reads.
-- Exact-job claiming prevents one account from taking another account's work.
-- The job ID is also the Temporal idempotency key, preventing duplicate workflows.
-- Rate-card proof is checked in Convex and again in Python before provider use.
+Improve next: complete the Redis material-event consumer and a transactional schedule-sync outbox.
 
-Possible improvements:
+## 4. Agent analysis and evidence
 
-- In cloud environments, replace the browser dispatch hop with a signed Convex-to-agent webhook.
-- Add an outbox table so failed dispatch notifications are retried without scanning the jobs table.
-
-## Component 2 — durable multi-agent analysis
 ```mermaid
 flowchart LR
-    J[Claimed job] --> L[Load bounded evidence]
-    L --> R[Tier router]
-    R --> F[Focus: 6 roles]
-    R --> P[Pro: 16 specialist calls]
-    R --> M[Max: 30 specialist calls]
-    F --> Q[Quorum and validation]
-    P --> Q
-    M --> Q
-    Q --> Y[Compact synthesis inputs]
-    Y --> S[Typed synthesis]
-    S --> X[Snapshot and detailed history]
+    E["Bounded sanitized evidence"] --> R{"Tier router"}
+    R -->|Focus| F["6 roles + synthesis"]
+    R -->|Pro| P["12 roles, 4 dual + critic + synthesis"]
+    R -->|Max| M["20 roles, 10 dual + 2 syntheses + arbiter"]
+    R -->|Lite| L["Technical + liquidity"]
+    F & P & M --> Q["Typed validation + quorum"]
+    L --> D["Deterministic synthesis"]
+    Q & D --> O["Human snapshot + typed proposal"]
 ```
 
-Why this design:
+Why: external text is evidence, never instructions. Provenance and hashes remain attached. Compact
+inputs stop recursive token growth. Provider details are stored for audit but hidden from customer UI.
 
-- Temporal retries recover from worker failure without duplicating a workflow.
-- Tier routing makes cost and latency predictable before the user confirms.
-- Typed outputs and quorum checks prevent one malformed provider response from becoming a trade.
-- Compact synthesis materials prevent reports from recursively repeating all evidence.
+Improve next: outcome-calibrate roles and omit roles whose source freshness misses its objective.
 
-Possible improvements:
+## 5. Credits and current-state storage
 
-- Dynamically skip low-value roles when deterministic data quality is insufficient.
-- Use evaluation scores to route each role to the best-performing model.
-
-## Component 3 — evidence ingestion and trust boundary
-```mermaid
-flowchart LR
-    SRC[External feeds] --> N[Normalize]
-    N --> S[Sanitize untrusted text]
-    S --> H[Hash, timestamp, and provenance]
-    H --> D{Storage path}
-    D -->|Hot market state| R[(Redis)]
-    D -->|History and evidence| P[(Postgres)]
-    R --> B[Bounded evidence bundle]
-    P --> B
-    B --> A[Read-only agent prompt]
-```
-
-Why this design:
-
-- Provenance and content hashes make every conclusion auditable.
-- News and social text remain data; embedded instructions never become system commands.
-- Redis serves current state while Postgres preserves history and evaluation evidence.
-- Evidence count and character limits create a hard cost boundary.
-
-Possible improvements:
-
-- Add source-specific freshness service-level objectives.
-- Detect duplicate stories across providers with semantic fingerprints.
-
-## Component 4 — credits, policy, and authority
 ```mermaid
 stateDiagram-v2
     [*] --> Estimated
-    Estimated --> Reserved: User confirms
-    Reserved --> Settled: Valid outputs produced
-    Reserved --> Refunded: Failure or invalid output
-    Settled --> Proposal
-    Proposal --> Insight: Insights mode
-    Proposal --> WaitingApproval: Approval-required mode
-    Proposal --> PolicyCheck: Autopilot mode
-    WaitingApproval --> PolicyCheck: User approves
-    PolicyCheck --> Blocked: Any deterministic check fails
-    PolicyCheck --> Executable: All checks pass
+    Estimated --> Reserved: before dispatch
+    Reserved --> Settled: validated outputs
+    Reserved --> Released: unused / failed / malformed
 ```
 
-Why this design:
+Convex patches one current public market snapshot and one private account/market snapshot. Timescale
+retains evidence, calls, syntheses, and evaluations. Integer credits plus a versioned rate card preserve
+billing history before checkout exists.
 
-- Reservation prevents a run from exceeding the user's budget.
-- Settlement bills validated output only; operational retries are platform cost.
-- Versioned policy fields are deterministic and can be reproduced during an audit.
-- Authority changes and natural-language policy drafts never activate silently.
+Improve next: add per-role cost/value attribution and automatic Convex IO budgets.
 
-Possible improvements:
+## 6. Execution and custody
 
-- Add per-role cost attribution and cost-versus-value reports.
-- Let users set a monetary ceiling in addition to integer credits.
-
-## Component 5 — isolated trade execution
 ```mermaid
 flowchart LR
-    P[Approved proposal] --> Q[Fresh venue quote]
-    Q --> C[Policy, balance, and exposure recheck]
-    C --> S[Simulation where supported]
-    S --> I[Idempotency and circuit breaker]
-    I --> K[Credential unwrap in memory]
-    K --> O[Sign and submit]
-    O --> R[Confirm and reconcile]
-    R --> A[Audit event]
+    P["Approved proposal"] --> Q["Fresh quote"]
+    Q --> C["Independent checks"]
+    C --> I["Idempotency + circuit breakers"]
+    I --> D{"Live + certified?"}
+    D -->|No| SIM["Dry-run execution"]
+    D -->|Yes| K["KMS unwrap in memory"]
+    K --> S["Sign + submit"]
+    S --> R["Confirm + reconcile"]
 ```
 
-Why this design:
+Why: analysis cannot sign. Raw credentials exist only inside the gateway and are zeroed after use.
+A broadcast Uniswap transaction is reconciled, never described as cancellable.
 
-- Analysis workers have no execution tools or credentials.
-- A fresh quote and second policy check close the gap between analysis time and execution time.
-- Idempotency keys and reconciliation prevent duplicate or phantom orders.
-- KMS-backed envelope encryption limits credential exposure to one process boundary.
+Improve next: finish private signing adapters and move signing into short-lived hardware-backed workers.
+Production remains blocked until all six sandbox suites and funded canaries pass.
 
-Possible improvements:
+## Failure model
 
-- Move signing into isolated short-lived workers or hardware-backed key services.
-- Add venue-specific chaos tests and automatic degradation scoring.
-
-## Component 6 — storage and observability
-```mermaid
-flowchart TB
-    APP[API, workflows, workers, gateways] --> OTEL[OpenTelemetry]
-    OTEL --> TRACE[Distributed traces]
-    OTEL --> METRIC[Metrics and alerts]
-    APP --> LOG[Structured logs]
-    APP --> PG[(Detailed Postgres history)]
-    APP --> CX[(Convex current product state)]
-    METRIC --> RUNBOOK[Operator runbooks]
-    TRACE --> RUNBOOK
-    LOG --> RUNBOOK
-```
-
-Why this design:
-
-- Convex stays small and reactive instead of becoming an analytical warehouse.
-- Postgres retains provider calls, evidence, evaluations, and time-series syntheses.
-- Shared trace IDs connect a user request, Temporal workflow, provider call, and execution.
-
-Possible improvements:
-
-- Add explicit budgets for Convex executions, provider tokens, and venue API calls.
-- Alert on idle background traffic greater than zero.
-- Add per-market freshness, failure-rate, and reconciliation-drift dashboards.
-
-## Scaling and failure model
-| Failure | Expected behavior |
+| Failure | Safe behavior |
 |---|---|
-| Browser closes after dispatch | Temporal continues; result reconciles to Convex |
-| Duplicate Run click | Convex returns the active job; exact claim and workflow ID deduplicate |
-| Agent API restarts | Already-started Temporal workflow continues |
-| Provider timeout | Bounded retry; invalid output is not user-billed |
-| Worker crashes | Temporal replays and schedules the activity elsewhere |
-| Convex unavailable | Workflow reconciliation retries; execution remains blocked |
-| Evidence is stale | Quorum/policy blocks proposal or marks analysis degraded |
-| Venue is degraded | Circuit breaker prevents submission |
-
-## Improvement roadmap
-1. **Now:** event-driven exact-job dispatch, no viewer heartbeat, legacy poller disabled.
-2. **Next:** transactional outbox and signed service webhook for browser-independent dispatch.
-3. **Scale:** autoscale Temporal workers by task-queue depth and split ingestion by source.
-4. **Quality:** continuous role/model evaluations and outcome-calibrated confidence.
-5. **Safety:** isolated signing service, independent reconciliation observer, chaos canaries.
-6. **Cost:** hard daily Convex, token, and provider budgets with automatic operator alerts.
+| Redis state missing | Manual Guard ON and Lite Mode ON |
+| Duplicate tick/approval | Active index + idempotency returns existing work |
+| Worker/API restart | Temporal resumes |
+| Provider invalid/timeout | No user billing; Lite never retries |
+| Credits exhausted | Dispatch/execution blocks |
+| Stale evidence or lost quorum | Autopilot blocks |
+| Emergency stop race | Fresh preflight wins before signing |
+| Venue degraded/drift | Circuit breaker blocks |
+| Live/certification gate closed | State machine records a simulation |

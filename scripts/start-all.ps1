@@ -1,6 +1,5 @@
 param(
-  [switch]$BuildAgents,
-  [switch]$EnableScheduledAnalysis
+  [switch]$BuildAgents
 )
 
 $ErrorActionPreference = "Stop"
@@ -77,7 +76,6 @@ if ($convex) {
 
 $agentArgs = @{}
 if ($BuildAgents) { $agentArgs.Build = $true }
-if ($EnableScheduledAnalysis) { $agentArgs.EnableScheduledAnalysis = $true }
 & (Join-Path $PSScriptRoot "start-agent-stack.ps1") @agentArgs
 
 @{
@@ -91,6 +89,4 @@ Write-Host "Moeazi is ready:"
 Write-Host "  Website: http://127.0.0.1:3002"
 Write-Host "  Agent API: http://127.0.0.1:8100/health"
 Write-Host "  Temporal: http://127.0.0.1:8233"
-if (-not $EnableScheduledAnalysis) {
-  Write-Host "  Scheduled analysis: disabled"
-}
+Write-Host "  Automatic analysis: controlled by Manual Guard in /agent-lab"

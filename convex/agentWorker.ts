@@ -69,12 +69,22 @@ export const completeAnalysisJob = internalMutation({
     if (!job || job.holderId !== args.holderId || !["claimed", "running"].includes(job.status)) throw new Error("Analysis job lease is not owned by this worker.");
     JSON.parse(args.payloadJson); JSON.parse(args.providersJson);
     const now = Date.now();
-    const snapshotId = await ctx.db.insert("analysisSnapshots", {
+    const snapshotValues = {
       strategyAccountId: job.strategyAccountId, scope: job.scope, marketId: job.marketId,
       analysisId: args.analysisId, tier: job.tier, status: args.status, payloadJson: args.payloadJson,
       providersJson: args.providersJson, sourceFreshnessMs: Math.max(0, args.sourceFreshnessMs),
       validUntil: Math.max(now, args.validUntil), createdAt: now,
-    });
+    };
+    const current = job.scope === "public"
+      ? await ctx.db.query("analysisSnapshots")
+        .withIndex("by_scope_marketId", (q) => q.eq("scope", "public").eq("marketId", job.marketId)).first()
+      : await ctx.db.query("analysisSnapshots")
+        .withIndex("by_strategyAccountId_scope_marketId", (q) =>
+          q.eq("strategyAccountId", job.strategyAccountId).eq("scope", "private").eq("marketId", job.marketId),
+        ).first();
+    const snapshotId = current
+      ? (await ctx.db.patch(current._id, snapshotValues), current._id)
+      : await ctx.db.insert("analysisSnapshots", snapshotValues);
     await ctx.db.patch(job._id, {
       status: args.status === "failed" ? "failed" : "completed", completedAt: now, updatedAt: now,
       leaseExpiresAt: now, error: args.status === "failed" ? "Analysis completed without a valid synthesis." : undefined,
@@ -136,8 +146,10 @@ export const recordTradeProposal = internalMutation({
     const profile = await ctx.db.query("agentProfiles")
       .withIndex("by_strategyAccountId", (q) => q.eq("strategyAccountId", args.strategyAccountId)).first();
     if (!profile) throw new Error("Agent profile not configured.");
-    let status: "insight" | "pending_approval" | "approved" | "blocked" =
-      profile.authorityMode === "insights" ? "insight" : profile.authorityMode === "approval_required" ? "pending_approval" : "approved";
+    let status: "simulated" | "pending_approval" | "approved" | "blocked" =
+      profile.authorityMode === "shadow" || profile.authorityMode === "insights"
+        ? "simulated"
+        : profile.authorityMode === "approval_required" ? "pending_approval" : "approved";
     if (profile.paused || strategy.emergencyStop || strategy.status !== "active") status = "blocked";
     const now = Date.now();
     const proposalId = await ctx.db.insert("tradeProposals", {
@@ -168,6 +180,41 @@ export const transitionTradeProposal = internalMutation({
   },
 });
 
+export const recordShadowExecution = internalMutation({
+  args: {
+    proposalId: v.id("tradeProposals"),
+    entryPrice: v.number(),
+    sizeUsd: v.number(),
+    quoteReference: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.query("shadowExecutions")
+      .withIndex("by_proposalId", (q) => q.eq("proposalId", args.proposalId)).first();
+    if (existing) return { executionId: existing._id, duplicate: true };
+    const proposal = await ctx.db.get(args.proposalId);
+    if (!proposal || proposal.status !== "simulated") throw new Error("Shadow proposal not found.");
+    if (args.entryPrice <= 0 || args.sizeUsd <= 0) throw new Error("Invalid simulated fill.");
+    const now = Date.now();
+    const executionId = await ctx.db.insert("shadowExecutions", {
+      proposalId: proposal._id,
+      strategyAccountId: proposal.strategyAccountId,
+      userId: proposal.userId,
+      marketId: proposal.marketId,
+      side: proposal.side,
+      status: "open",
+      entryPrice: args.entryPrice,
+      markPrice: args.entryPrice,
+      sizeUsd: args.sizeUsd,
+      unrealizedPnlUsd: 0,
+      realizedPnlUsd: 0,
+      quoteReference: args.quoteReference,
+      openedAt: now,
+      updatedAt: now,
+    });
+    return { executionId, duplicate: false };
+  },
+});
+
 export const getAnalysisJob = internalQuery({
   args: { jobId: v.id("analysisJobs") },
   handler: async (ctx, args) => await ctx.db.get(args.jobId),
@@ -185,10 +232,11 @@ export const listActivePublicDemand = internalQuery({
 export const cancelAutomaticAnalysisJobs = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const rows = await ctx.db.query("analysisJobs").collect();
-    const automatic = rows.filter((row) =>
-      ["queued", "claimed", "running"].includes(row.status)
-      && (row.trigger === "viewer_demand" || row.trigger.startsWith("cadence:")));
+    const batches = await Promise.all(["queued", "claimed", "running"].map((status) =>
+      ctx.db.query("analysisJobs").withIndex("by_status", (q) => q.eq("status", status as any)).take(100),
+    ));
+    const automatic = batches.flat().filter((row) =>
+      row.trigger === "viewer_demand" || row.trigger.startsWith("cadence:"));
     const now = Date.now();
     for (const row of automatic) {
       await ctx.db.patch(row._id, {

@@ -7,6 +7,7 @@ import StrategyShell from "@/components/StrategyShell";
 import { useParticleSession } from "@/components/ParticleConnectKitProvider";
 import { DataRow, EmptyState, MetricCard, Panel, StatusBadge } from "@/components/strategy-ui";
 import { api } from "@/convex/_generated/api";
+import AgentReadiness from "@/components/agents/AgentReadiness";
 
 type VenueAccountRow = {
   id: string;
@@ -216,6 +217,10 @@ export default function DashboardPage() {
 
   return (
     <StrategyShell title="Overview" subtitle="Managed strategy account health and execution state">
+      <AgentReadiness
+        hasStrategy={Boolean(dashboard?.hasStrategyAccount)}
+        hasWallet={Boolean(dashboard?.hasStrategyAccount && dashboard.walletSummary)}
+      />
       {!dashboard?.hasStrategyAccount ? (
         <Panel title="Provisioning" description="Create the managed wallet set for Moeazi" tone="orange">
           <EmptyState

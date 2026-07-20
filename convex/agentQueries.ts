@@ -11,6 +11,21 @@ function normalizeMarket(value: string) {
   return value.trim().toUpperCase();
 }
 
+function normalizeMode(value: string | undefined) {
+  return value === "insights" || value === "shadow" ? "shadow" : value ?? "shadow";
+}
+
+function readableProfile(profile: any) {
+  if (!profile) return null;
+  return {
+    ...profile,
+    authorityMode: normalizeMode(profile.authorityMode),
+    effectiveAuthority: normalizeMode(profile.effectiveAuthority ?? profile.authorityMode),
+    lifecycleStatus: profile.lifecycleStatus ?? (profile.paused ? "paused" : "draft"),
+    name: profile.name ?? "My market agent",
+  };
+}
+
 async function viewer(ctx: any) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
@@ -69,7 +84,7 @@ export const getAccountMarketAnalysis = query({
     return {
       analysis: materialize(selected),
       personalized: Boolean(privateSnapshot),
-      profile,
+      profile: readableProfile(profile),
       executionBlocked: Boolean(profile?.paused || state.strategyAccount.emergencyStop),
     };
   },
@@ -95,13 +110,118 @@ export const getAgentSettings = query({
         .order("desc").take(20),
     ]);
     return {
-      profile,
+      profile: readableProfile(profile),
       activePolicy: activePolicy ? { ...activePolicy, policy: parseJson(activePolicy.policyJson, {}) } : null,
       drafts: drafts.map((row: any) => ({ ...row, policy: parseJson(row.policyJson, {}), diff: parseJson(row.diffJson, {}) })),
       credits: creditAccount ? { balance: creditAccount.balance, reserved: creditAccount.reserved, available: creditAccount.balance - creditAccount.reserved } : null,
       proposals: proposals.map((row: any) => ({ ...row, payload: parseJson(row.payloadJson, {}) })),
       approvals,
       emergencyStop: state.strategyAccount.emergencyStop,
+    };
+  },
+});
+
+export const getTradeAgentSummary = query({
+  args: { marketId: v.string() },
+  handler: async (ctx, args) => {
+    const state = await viewer(ctx);
+    if (!state) return { signedIn: false, agent: null };
+    const marketId = normalizeMarket(args.marketId);
+    const profile = await ctx.db.query("agentProfiles")
+      .withIndex("by_strategyAccountId", (q: any) => q.eq("strategyAccountId", state.strategyAccount._id)).first();
+    if (!profile) return { signedIn: true, agent: null };
+    const [snapshot, latestProposal, pending, shadow] = await Promise.all([
+      ctx.db.query("analysisSnapshots")
+        .withIndex("by_strategyAccountId_scope_marketId", (q: any) =>
+          q.eq("strategyAccountId", state.strategyAccount._id).eq("scope", "private").eq("marketId", marketId),
+        ).first(),
+      ctx.db.query("tradeProposals")
+        .withIndex("by_strategyAccountId", (q: any) => q.eq("strategyAccountId", state.strategyAccount._id))
+        .order("desc").first(),
+      ctx.db.query("tradeProposals")
+        .withIndex("by_strategyAccountId_status", (q: any) =>
+          q.eq("strategyAccountId", state.strategyAccount._id).eq("status", "pending_approval"),
+        ).take(20),
+      ctx.db.query("shadowExecutions")
+        .withIndex("by_strategyAccountId_status", (q: any) =>
+          q.eq("strategyAccountId", state.strategyAccount._id).eq("status", "open"),
+        ).order("desc").first(),
+    ]);
+    const payload = parseJson(snapshot?.payloadJson, {}) as any;
+    const consensus = Number(payload?.consensus ?? payload?.visualization?.consensus ?? 0);
+    const confidence = Number(payload?.confidence ?? payload?.visualization?.confidence ?? 0);
+    const thesis = payload?.summary ?? payload?.thesis ??
+      (consensus > 0.15 ? "Evidence leans bullish." : consensus < -0.15 ? "Evidence leans bearish." : "Evidence remains mixed.");
+    return {
+      signedIn: true,
+      agent: {
+        profile: readableProfile(profile),
+        marketId,
+        thesis,
+        confidence,
+        freshnessMs: snapshot ? Math.max(0, Date.now() - snapshot.createdAt) : null,
+        latestAction: latestProposal ? {
+          side: latestProposal.side, status: latestProposal.status,
+          createdAt: latestProposal.createdAt, payload: parseJson(latestProposal.payloadJson, {}),
+        } : null,
+        pendingApprovals: pending.length,
+        shadow: shadow ? {
+          sizeUsd: shadow.sizeUsd, unrealizedPnlUsd: shadow.unrealizedPnlUsd,
+          entryPrice: shadow.entryPrice, markPrice: shadow.markPrice,
+        } : null,
+        health: profile.paused || state.strategyAccount.emergencyStop ? "blocked" : "healthy",
+        scenarios: payload?.visualization?.scenarios ?? payload?.scenarios ?? [],
+        conflicts: payload?.conflicts ?? payload?.visualization?.conflicts ?? [],
+      },
+    };
+  },
+});
+
+export const getAgentActivity = query({
+  args: {},
+  handler: async (ctx) => {
+    const state = await viewer(ctx);
+    if (!state) return null;
+    const id = state.strategyAccount._id;
+    const [jobs, proposals, shadowExecutions, audits] = await Promise.all([
+      ctx.db.query("analysisJobs").withIndex("by_strategyAccountId", (q: any) =>
+        q.eq("strategyAccountId", id)).order("desc").take(30),
+      ctx.db.query("tradeProposals").withIndex("by_strategyAccountId", (q: any) =>
+        q.eq("strategyAccountId", id)).order("desc").take(30),
+      ctx.db.query("shadowExecutions").withIndex("by_strategyAccountId", (q: any) =>
+        q.eq("strategyAccountId", id)).order("desc").take(30),
+      ctx.db.query("auditEvents").withIndex("by_strategyAccountId", (q: any) =>
+        q.eq("strategyAccountId", id)).order("desc").take(30),
+    ]);
+    return {
+      jobs,
+      proposals: proposals.map((row: any) => ({ ...row, payload: parseJson(row.payloadJson, {}) })),
+      shadowExecutions,
+      audits: audits.map((row: any) => ({ ...row, detailData: parseJson(row.detail, {}) })),
+    };
+  },
+});
+
+export const getCredits = query({
+  args: {},
+  handler: async (ctx) => {
+    const state = await viewer(ctx);
+    if (!state) return null;
+    const account = await ctx.db.query("creditAccounts")
+      .withIndex("by_userId", (q: any) => q.eq("userId", state.user._id)).first();
+    if (!account) return { balance: 0, reserved: 0, available: 0, ledger: [], claimedStarter: false };
+    const [ledger, claim] = await Promise.all([
+      ctx.db.query("creditLedger").withIndex("by_userId", (q: any) =>
+        q.eq("userId", state.user._id)).order("desc").take(50),
+      ctx.db.query("creditClaims").withIndex("by_userId_kind", (q: any) =>
+        q.eq("userId", state.user._id).eq("kind", "development_starter")).first(),
+    ]);
+    return {
+      balance: account.balance,
+      reserved: account.reserved,
+      available: account.balance - account.reserved,
+      ledger: ledger.map((row: any) => ({ ...row, metadata: parseJson(row.metadataJson, {}) })),
+      claimedStarter: Boolean(claim),
     };
   },
 });

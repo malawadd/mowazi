@@ -5,18 +5,30 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ParticleAccountButton from "@/components/ParticleAccountButton";
 
-const navItems = [
-  { href: "/trade", label: "Trade" },
-  { href: "/agent-lab", label: "Agent Lab" },
-  { href: "/dashboard", label: "Overview" },
-  { href: "/profile/wallet", label: "Wallet" },
-  { href: "/deposits", label: "Deposits" },
-  { href: "/withdrawals", label: "Withdrawals" },
-  { href: "/positions", label: "Positions" },
-  { href: "/risk", label: "Risk" },
-  { href: "/activity", label: "Activity" },
-  { href: "/settings", label: "Settings" },
-  { href: "/kill", label: "Emergency Stop" },
+const navGroups = [
+  { label: "Agent", items: [
+    { href: "/agents", label: "My agent" },
+    { href: "/agents/approvals", label: "Approvals" },
+    { href: "/agents/activity", label: "Agent activity" },
+    { href: "/agents/policy", label: "Guardrails" },
+    { href: "/credits", label: "Credits" },
+  ] },
+  { label: "Account", items: [
+    { href: "/dashboard", label: "Overview" },
+    { href: "/profile/wallet", label: "Wallet" },
+    { href: "/deposits", label: "Deposits" },
+    { href: "/withdrawals", label: "Withdrawals" },
+    { href: "/settings", label: "Settings" },
+  ] },
+  { label: "Trading", items: [
+    { href: "/trade", label: "Terminal" },
+    { href: "/positions", label: "Positions" },
+    { href: "/activity", label: "Execution activity" },
+  ] },
+  { label: "Safety", items: [
+    { href: "/risk", label: "Risk" },
+    { href: "/kill", label: "Emergency stop" },
+  ] },
 ];
 
 function shellToneForPathname(pathname: string) {
@@ -60,14 +72,20 @@ export default function StrategyShell({
         </div>
 
         <nav className="app-nav" aria-label="Primary">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={activePathname === item.href ? "nav-item nav-item-active" : "nav-item"}
-            >
-              {item.label}
-            </Link>
+          {navGroups.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <p className="nav-group-label">{group.label}</p>
+              {group.items.map((item) => {
+                const active = activePathname === item.href
+                  || (item.href === "/agents" && activePathname.startsWith("/agents/"));
+                return (
+                  <Link key={item.href} href={item.href}
+                    className={active ? "nav-item nav-item-active" : "nav-item"}>
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
           ))}
         </nav>
 

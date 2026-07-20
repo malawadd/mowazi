@@ -9,6 +9,7 @@ import {
   type AgentWorkflowResult,
 } from "@/lib/agentBackend";
 import AgentResultView from "./AgentResultView";
+import RuntimeControlsPanel from "./RuntimeControlsPanel";
 import styles from "./agent-lab.module.css";
 
 type Tier = "focus" | "pro" | "max";
@@ -105,6 +106,8 @@ export default function AgentBackendLab() {
         <Status label="Execution" value={health?.live_execution ? "enabled" : "safely disabled"} ok={!health?.live_execution} />
         <Status label="Workflow" value={status} ok={Boolean(result)} />
       </section>
+
+      <RuntimeControlsPanel />
 
       <div className={styles.workspace}>
         <section className={styles.controlPanel}>

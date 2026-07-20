@@ -8,7 +8,13 @@ x-agent-service: &agent-service
     CONVEX_WORKER_URL: ${CONVEX_WORKER_URL:-}
     OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-    SCHEDULED_ANALYSIS_ENABLED: ${SCHEDULED_ANALYSIS_ENABLED:-false}
+    AGENT_DEV_CONTROLS_ENABLED: ${AGENT_DEV_CONTROLS_ENABLED:-true}
+    AGENT_MANUAL_GUARD_DEFAULT: ${AGENT_MANUAL_GUARD_DEFAULT:-true}
+    AGENT_LITE_MODE_DEFAULT: ${AGENT_LITE_MODE_DEFAULT:-true}
+    DEV_STARTER_CREDITS: ${DEV_STARTER_CREDITS:-100}
+    DEV_LITE_ACCOUNT_RUNS_PER_DAY: ${DEV_LITE_ACCOUNT_RUNS_PER_DAY:-4}
+    DEV_LITE_GLOBAL_RUNS_PER_DAY: ${DEV_LITE_GLOBAL_RUNS_PER_DAY:-8}
+    DEV_LITE_PROVIDER_BUDGET_USD: ${DEV_LITE_PROVIDER_BUDGET_USD:-0.10}
   depends_on:
     temporal:
       condition: service_started
@@ -70,11 +76,7 @@ services:
   ingestors:
     <<: *agent-service
     command: ["python", "-m", "moeazi_agent.ingestor"]
-
-  scheduler:
-    <<: *agent-service
-    command: ["python", "-m", "moeazi_agent.scheduler"]
-    profiles: ["scheduled-analysis"]
+    profiles: ["continuous-ingestion"]
 
   execution-gateway:
     <<: *agent-service

@@ -1,5 +1,6 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { requireViewerStrategy } from "./model";
 
 async function accountForUser(ctx: any, userId: any) {
   return await ctx.db.query("creditAccounts").withIndex("by_userId", (q: any) => q.eq("userId", userId)).first();
@@ -104,5 +105,47 @@ export const releaseCredits = internalMutation({
     if (!account) throw new Error("Credit account disappeared during release.");
     await ledger(ctx, account, { kind: "release", amount: reservation.amount, reference: String(args.jobId), rateCardVersion: args.rateCardVersion, metadataJson: JSON.stringify({ reason: args.reason }) });
     return { released: true, amount: reservation.amount };
+  },
+});
+
+export const claimStarterCredits = mutation({
+  args: {},
+  handler: async (ctx) => {
+    if (process.env.AGENT_DEV_CONTROLS_ENABLED !== "true") {
+      throw new Error("Development starter credits are disabled.");
+    }
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Authentication is required.");
+    const state = await requireViewerStrategy(ctx, identity.subject);
+    if (!state.user) throw new Error("User account not found.");
+    const existing = await ctx.db.query("creditClaims")
+      .withIndex("by_userId_kind", (q: any) =>
+        q.eq("userId", state.user._id).eq("kind", "development_starter")).first();
+    if (existing) return { claimed: false, amount: existing.amount };
+    const configured = Number(process.env.DEV_STARTER_CREDITS ?? 100);
+    const amount = Number.isInteger(configured) && configured > 0 ? Math.min(configured, 100_000) : 100;
+    const now = Date.now();
+    let account = await accountForUser(ctx, state.user._id);
+    if (!account) {
+      const id = await ctx.db.insert("creditAccounts", {
+        userId: state.user._id, balance: amount, reserved: 0, version: 1,
+        createdAt: now, updatedAt: now,
+      });
+      account = await ctx.db.get(id);
+    } else {
+      await ctx.db.patch(account._id, {
+        balance: account.balance + amount,
+        version: account.version + 1,
+        updatedAt: now,
+      });
+      account = await ctx.db.get(account._id);
+    }
+    if (!account) throw new Error("Credit account could not be created.");
+    const reference = `development-starter:${state.user._id}`;
+    await ctx.db.insert("creditClaims", {
+      userId: state.user._id, kind: "development_starter", amount, reference, createdAt: now,
+    });
+    await ledger(ctx, account, { kind: "grant", amount, reference, rateCardVersion: 1 });
+    return { claimed: true, amount, balance: account.balance };
   },
 });

@@ -3,9 +3,45 @@ export type AgentHealth = {
   live_execution: boolean;
   provider_mode: string;
   degraded: boolean;
-  analysis_mode: "manual";
+  analysis_mode: "manual_guard" | "autonomous";
   scheduled_analysis_enabled: boolean;
   thinking_enabled: boolean;
+  manual_guard: boolean;
+  lite_mode: boolean;
+};
+
+export type RuntimeControls = {
+  manual_guard: boolean;
+  lite_mode: boolean;
+  version: number;
+  updated_at: string;
+  updated_by: string;
+  enabled: boolean;
+  limits: {
+    specialistCalls: number;
+    synthesisCalls: number;
+    activeMarkets: number;
+    minimumCadenceMinutes: number;
+    accountRunsPerDay: number;
+    globalRunsPerDay: number;
+    providerBudgetUsd: number;
+    maxEvidenceItems: number;
+    maxEvidenceChars: number;
+    maxOutputTokens: number;
+    providerRetries: number;
+    providerConcurrency: number;
+  };
+  usage: {
+    globalRunsToday: number;
+    providerSpendUsd: number;
+    latestRun: null | {
+      provider_calls: number;
+      successful_calls: number;
+      estimated_cost_usd: number;
+      convex_operations: number;
+      completed_at: string;
+    };
+  };
 };
 
 export type AgentCostEstimate = {

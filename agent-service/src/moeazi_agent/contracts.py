@@ -132,6 +132,7 @@ class ExecutionDecision(StrictModel):
 
 
 class AuthorityMode(StrEnum):
+    SHADOW = "shadow"
     INSIGHTS = "insights"
     APPROVAL_REQUIRED = "approval_required"
     AUTOPILOT = "autopilot"

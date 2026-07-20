@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     evidence_max_items: int = Field(default=8, ge=1, le=30)
     evidence_max_chars_per_item: int = Field(default=700, ge=100, le=4_000)
     scheduled_analysis_enabled: bool = False
+    agent_dev_controls_enabled: bool = True
+    agent_manual_guard_default: bool = True
+    agent_lite_mode_default: bool = True
+    dev_starter_credits: int = Field(default=100, ge=0, le=100_000)
+    dev_lite_account_runs_per_day: int = Field(default=4, ge=1, le=100)
+    dev_lite_global_runs_per_day: int = Field(default=8, ge=1, le=1_000)
+    dev_lite_provider_budget_usd: float = Field(default=0.10, ge=0, le=100)
 
     quicknode_stream_url: str = ""
     cryptopanic_api_key: SecretStr = SecretStr("")
@@ -46,6 +53,7 @@ class Settings(BaseSettings):
     master_key: SecretStr = SecretStr("")
     live_execution_enabled: bool = False
     certified_venues: str = ""
+    execution_gateway_url: str = "http://execution-gateway:8200"
 
     @property
     def certified_venue_set(self) -> frozenset[str]:

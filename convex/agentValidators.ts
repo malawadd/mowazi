@@ -7,9 +7,17 @@ export const intelligenceTier = v.union(
 );
 
 export const authorityMode = v.union(
+  v.literal("shadow"),
   v.literal("insights"),
   v.literal("approval_required"),
   v.literal("autopilot"),
+);
+
+export const agentLifecycleStatus = v.union(
+  v.literal("draft"),
+  v.literal("active"),
+  v.literal("paused"),
+  v.literal("blocked"),
 );
 
 export const analysisCadence = v.union(
@@ -33,6 +41,7 @@ export const analysisJobStatus = v.union(
 
 export const proposalStatus = v.union(
   v.literal("insight"),
+  v.literal("simulated"),
   v.literal("pending_approval"),
   v.literal("approved"),
   v.literal("rejected"),

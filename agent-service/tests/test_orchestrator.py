@@ -34,4 +34,18 @@ async def test_deepseek_only_mode_allows_pro_quorum_without_faking_provider_name
     ).run(AnalysisRequest(market="BTC-USD", tier="pro", scope="public"))
     assert len(result.reports) == 16
     assert {call["provider"] for call in result.calls} == {"deterministic"}
+
+
+async def test_lite_mode_runs_two_specialists_and_deterministic_synthesis():
+    provider = DeterministicProvider()
+    result = await AnalysisOrchestrator(
+        {"openai": provider, "deepseek": provider},
+        max_concurrency=1,
+        allow_single_provider=True,
+    ).run(AnalysisRequest(
+        market="BTC-USD", tier="max", scope="private", lite_mode=True,
+    ))
+    assert len(result.reports) == 2
+    assert len(result.calls) == 2
+    assert {report.role for report in result.reports} == {"technical_trend", "liquidity"}
 from moeazi_agent.contracts import EvidenceRef, utc_now

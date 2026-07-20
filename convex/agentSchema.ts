@@ -4,6 +4,7 @@ import {
   analysisCadence,
   analysisJobStatus,
   analysisScope,
+  agentLifecycleStatus,
   authorityMode,
   intelligenceTier,
   proposalStatus,
@@ -15,12 +16,16 @@ export const agentTables = {
     userId: v.id("users"),
     tier: intelligenceTier,
     authorityMode,
+    name: v.optional(v.string()),
+    lifecycleStatus: v.optional(agentLifecycleStatus),
     cadence: analysisCadence,
     watchMarkets: v.array(v.string()),
     eventTriggers: v.array(v.string()),
     dailyCreditLimit: v.number(),
     paused: v.boolean(),
     nextRunAt: v.optional(v.number()),
+    activatedAt: v.optional(v.number()),
+    scheduleRevision: v.optional(v.number()),
     version: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -28,6 +33,19 @@ export const agentTables = {
     .index("by_strategyAccountId", ["strategyAccountId"])
     .index("by_userId", ["userId"])
     .index("by_nextRunAt", ["nextRunAt"]),
+
+  agentMarketSubscriptions: defineTable({
+    profileId: v.id("agentProfiles"),
+    strategyAccountId: v.id("strategyAccounts"),
+    userId: v.id("users"),
+    marketId: v.string(),
+    enabled: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_profileId", ["profileId"])
+    .index("by_marketId_enabled", ["marketId", "enabled"])
+    .index("by_strategyAccountId_marketId", ["strategyAccountId", "marketId"]),
 
   automationPolicies: defineTable({
     strategyAccountId: v.id("strategyAccounts"),
@@ -67,6 +85,8 @@ export const agentTables = {
     .index("by_status", ["status"])
     .index("by_dedupeKey", ["dedupeKey"])
     .index("by_scope_marketId", ["scope", "marketId"])
+    .index("by_scope_marketId_status", ["scope", "marketId", "status"])
+    .index("by_strategyAccountId_marketId_status", ["strategyAccountId", "marketId", "status"])
     .index("by_strategyAccountId", ["strategyAccountId"]),
 
   analysisSnapshots: defineTable({
@@ -83,7 +103,8 @@ export const agentTables = {
     createdAt: v.number(),
   })
     .index("by_scope_marketId", ["scope", "marketId"])
-    .index("by_strategyAccountId_marketId", ["strategyAccountId", "marketId"]),
+    .index("by_strategyAccountId_marketId", ["strategyAccountId", "marketId"])
+    .index("by_strategyAccountId_scope_marketId", ["strategyAccountId", "scope", "marketId"]),
 
   tradeProposals: defineTable({
     strategyAccountId: v.id("strategyAccounts"),
@@ -105,6 +126,27 @@ export const agentTables = {
     .index("by_strategyAccountId", ["strategyAccountId"])
     .index("by_strategyAccountId_status", ["strategyAccountId", "status"])
     .index("by_idempotencyKey", ["idempotencyKey"]),
+
+  shadowExecutions: defineTable({
+    proposalId: v.id("tradeProposals"),
+    strategyAccountId: v.id("strategyAccounts"),
+    userId: v.id("users"),
+    marketId: v.string(),
+    side: v.union(v.literal("long"), v.literal("short")),
+    status: v.union(v.literal("open"), v.literal("closed"), v.literal("expired")),
+    entryPrice: v.number(),
+    markPrice: v.number(),
+    sizeUsd: v.number(),
+    unrealizedPnlUsd: v.number(),
+    realizedPnlUsd: v.number(),
+    quoteReference: v.string(),
+    openedAt: v.number(),
+    updatedAt: v.number(),
+    closedAt: v.optional(v.number()),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_strategyAccountId_status", ["strategyAccountId", "status"])
+    .index("by_proposalId", ["proposalId"]),
 
   approvalRequests: defineTable({
     proposalId: v.id("tradeProposals"),
@@ -164,6 +206,16 @@ export const agentTables = {
     createdAt: v.number(),
   })
     .index("by_userId", ["userId"])
+    .index("by_reference", ["reference"]),
+
+  creditClaims: defineTable({
+    userId: v.id("users"),
+    kind: v.literal("development_starter"),
+    amount: v.number(),
+    reference: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_userId_kind", ["userId", "kind"])
     .index("by_reference", ["reference"]),
 
   publicMarketDemand: defineTable({

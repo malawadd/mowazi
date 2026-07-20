@@ -7,6 +7,7 @@ export const metadata = {
 };
 
 export default function AgentLabPage() {
-  if (process.env.AGENT_LAB_ENABLED !== "true") notFound();
+  if (process.env.AGENT_LAB_ENABLED !== "true"
+    && process.env.AGENT_DEV_CONTROLS_ENABLED !== "true") notFound();
   return <AgentBackendLab />;
 }

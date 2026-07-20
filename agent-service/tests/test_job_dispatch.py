@@ -36,6 +36,14 @@ class FakeConvex:
         self.failures.append((job_id, holder_id, error, retryable))
 
 
+class FakeRuntime:
+    def __init__(self, redis, settings):
+        self.controls = type("Controls", (), {"lite_mode": False})()
+
+    async def get(self):
+        return self.controls
+
+
 def manual_job(trigger="manual_public"):
     estimate = tier_estimate("focus")
     return {
@@ -51,6 +59,7 @@ async def test_manual_job_dispatches_one_exact_temporal_workflow(monkeypatch):
     convex = FakeConvex(manual_job())
     temporal = FakeTemporal()
     monkeypatch.setattr("moeazi_agent.job_dispatch.ConvexWorkerClient", lambda settings: convex)
+    monkeypatch.setattr("moeazi_agent.job_dispatch.RuntimeControlStore", FakeRuntime)
 
     result = await dispatch_analysis_job(
         temporal, Settings(provider_mode="deepseek_only"), "job-1",
@@ -67,6 +76,7 @@ async def test_non_manual_job_is_rejected_before_workflow_start(monkeypatch):
     convex = FakeConvex(manual_job("viewer_demand"))
     temporal = FakeTemporal()
     monkeypatch.setattr("moeazi_agent.job_dispatch.ConvexWorkerClient", lambda settings: convex)
+    monkeypatch.setattr("moeazi_agent.job_dispatch.RuntimeControlStore", FakeRuntime)
 
     with pytest.raises(RuntimeError, match="explicitly requested manual"):
         await dispatch_analysis_job(

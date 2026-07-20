@@ -6,7 +6,7 @@ from typing import Any
 from .contracts import AgentRunView, EvidenceRef, MarketSynthesis, SignalReport
 from .costs import Usage, deepseek_cost
 from .providers import ProviderFailure, ProviderResponse, SignalProvider
-from .roles import Assignment, assignments_for_tier
+from .roles import Assignment, assignments_for_tier, lite_assignments
 from .synthesis import synthesize
 
 
@@ -19,6 +19,7 @@ class AnalysisRequest:
     evidence: str = ""
     evidence_refs: tuple[EvidenceRef, ...] = ()
     freshness_ms: int = 0
+    lite_mode: bool = False
 
 
 @dataclass(frozen=True)
@@ -38,15 +39,17 @@ class AnalysisOrchestrator:
         self.allow_single_provider = allow_single_provider
 
     async def run(self, request: AnalysisRequest) -> AnalysisResult:
-        assignments = assignments_for_tier(request.tier)
+        assignments = lite_assignments() if request.lite_mode else assignments_for_tier(request.tier)
         outcomes = await asyncio.gather(
             *(self._one(item, request.market, request.evidence, request.evidence_refs) for item in assignments),
             return_exceptions=False,
         )
         reports = [report for report, _ in outcomes if report]
         calls = [call for _, call in outcomes]
-        self._enforce_quorum(request.tier, assignments, reports)
-        draft, synthesis_calls = await self._run_synthesis(request, reports)
+        self._enforce_quorum(request.tier, assignments, reports, request.lite_mode)
+        draft, synthesis_calls = (
+            (None, []) if request.lite_mode else await self._run_synthesis(request, reports)
+        )
         calls.extend(synthesis_calls)
         runs = [
             AgentRunView(
@@ -122,7 +125,17 @@ class AnalysisOrchestrator:
             **_usage_fields(provider.name, getattr(provider, "synthesis_model", "deterministic-v1"), usage),
         }
 
-    def _enforce_quorum(self, tier: str, assignments: list[Assignment], reports: list[SignalReport]) -> None:
+    def _enforce_quorum(
+        self,
+        tier: str,
+        assignments: list[Assignment],
+        reports: list[SignalReport],
+        lite_mode: bool = False,
+    ) -> None:
+        if lite_mode:
+            if len(reports) < 1:
+                raise ProviderFailure("quorum", "Lite Mode requires one successful specialist")
+            return
         completed = {(report.role, report.provider) for report in reports}
         if tier == "focus" and len(reports) < 4:
             raise ProviderFailure("quorum", "Focus requires four successful specialists")

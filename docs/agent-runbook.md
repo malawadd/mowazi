@@ -1,5 +1,24 @@
 # Agent Platform Runbook
 
+## Development safe defaults
+
+Open `/agent-lab` and verify Manual Guard and Lite Mode are ON. “Restore safe defaults” pauses
+agent schedules, cancels queued automatic jobs, and restores Lite limits. If Redis is unavailable,
+the API reports safe defaults; do not disable a safeguard until Redis health is restored.
+
+## Production autonomous start
+
+Disable development controls at deployment, synchronize every active profile schedule, and verify
+schedule count matches enabled subscriptions. Keep `LIVE_EXECUTION_ENABLED=false` until all six
+venue certifications exist. Watch dispatch latency, provider budget, credit reservations, snapshot
+freshness, and reconciliation drift during rollout.
+
+## Lite Mode budget exhausted
+
+Keep Lite Mode on. Confirm Redis daily run and provider-microusd keys match Agent Lab. Do not reset
+counters to continue testing; wait for the UTC boundary or deliberately raise the environment ceiling
+with an operator audit record.
+
 ## Provider quorum failure
 
 Pause autopilot for affected accounts, inspect provider-call status by analysis ID, and check
@@ -25,6 +44,12 @@ key; never generate a new key for an uncertain submission.
 Find the analysis job and Temporal workflow. If the workflow is active, restore its worker.
 If it is terminal without a validated synthesis, fail the job and release the full reservation.
 Settle only validated successful specialist/synthesis outputs and refund the remainder.
+
+## Manual Guard race
+
+Turning Manual Guard on pauses schedules and cancels queued automatic Convex jobs. A workflow already
+inside a provider call stops at the next safe checkpoint; do not terminate an activity that may be
+reconciling state. Explicit manual runs remain allowed.
 
 ## Emergency stop race
 

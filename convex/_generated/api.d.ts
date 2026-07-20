@@ -10,9 +10,12 @@
 
 import type * as accountWallets from "../accountWallets.js";
 import type * as actions from "../actions.js";
+import type * as agentActions from "../agentActions.js";
 import type * as agentCredits from "../agentCredits.js";
 import type * as agentMutations from "../agentMutations.js";
+import type * as agentProfiles from "../agentProfiles.js";
 import type * as agentQueries from "../agentQueries.js";
+import type * as agentRuntime from "../agentRuntime.js";
 import type * as agentScheduler from "../agentScheduler.js";
 import type * as agentSchema from "../agentSchema.js";
 import type * as agentValidators from "../agentValidators.js";
@@ -53,9 +56,12 @@ import type {
 declare const fullApi: ApiFromModules<{
   accountWallets: typeof accountWallets;
   actions: typeof actions;
+  agentActions: typeof agentActions;
   agentCredits: typeof agentCredits;
   agentMutations: typeof agentMutations;
+  agentProfiles: typeof agentProfiles;
   agentQueries: typeof agentQueries;
+  agentRuntime: typeof agentRuntime;
   agentScheduler: typeof agentScheduler;
   agentSchema: typeof agentSchema;
   agentValidators: typeof agentValidators;

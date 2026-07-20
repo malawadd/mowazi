@@ -1,0 +1,53 @@
+.modeGrid, .metricGrid, .wizardModes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.modeCard, .summaryCard, .stepCard, .activityCard { border: 4px solid var(--line); padding: 18px; background: var(--surface-paper); box-shadow: var(--shadow-md); }
+.modeCard[data-mode="shadow"] { background: var(--surface-sky); }
+.modeCard[data-mode="approval_required"] { background: var(--surface-yellow); }
+.modeCard[data-mode="autopilot"] { background: var(--surface-mint); }
+.modeCard h3, .summaryCard h3, .activityCard h3 { margin: 0; font-size: 1.25rem; }
+.modeCard p, .summaryCard p, .stepCard p, .activityCard p { color: var(--muted); line-height: 1.5; }
+.modeCard button { width: 100%; border: 3px solid var(--line); background: var(--surface-paper); padding: 10px; font-weight: 900; cursor: pointer; }
+.eyebrow { margin: 0 0 8px; color: var(--muted); font: 800 .7rem var(--font-plex-mono), monospace; letter-spacing: .12em; text-transform: uppercase; }
+.heroRow, .cardHead, .wizardHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.heroRow { margin-bottom: 18px; }
+.heroRow h3 { margin: 0; font-size: clamp(1.7rem, 3vw, 2.8rem); }
+.statusDot { display: inline-flex; align-items: center; gap: 8px; border: 3px solid var(--line); background: var(--surface-mint); padding: 7px 10px; font: 800 .72rem var(--font-plex-mono), monospace; text-transform: uppercase; }
+.statusDot[data-blocked="true"] { background: var(--surface-red); color: white; }
+.dataList { display: grid; gap: 0; border: 3px solid var(--line); }
+.dataList > div { display: flex; justify-content: space-between; gap: 18px; padding: 12px 14px; border-bottom: 2px solid var(--line); }
+.dataList > div:last-child { border-bottom: 0; }
+.dataList span { color: var(--muted); }
+.dataList strong { text-align: right; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.actions a, .actions button { border: 3px solid var(--line); background: var(--surface-paper); color: var(--ink); padding: 10px 14px; box-shadow: var(--shadow-sm); font-weight: 900; text-decoration: none; cursor: pointer; }
+.actions .primary { background: var(--surface-yellow); }
+.actions .danger { background: var(--surface-red); color: white; }
+.wizard { display: grid; gap: 16px; }
+.progress { display: grid; grid-template-columns: repeat(4, 1fr); border: 3px solid var(--line); }
+.progress span { padding: 10px; border-right: 2px solid var(--line); background: var(--surface-paper); font: 800 .7rem var(--font-plex-mono), monospace; text-align: center; text-transform: uppercase; }
+.progress span:last-child { border-right: 0; }
+.progress span[data-active="true"] { background: var(--surface-yellow); }
+.progress > a span { display: block; height: 100%; box-sizing: border-box; }
+.formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.field { display: grid; gap: 7px; font: 800 .75rem var(--font-plex-mono), monospace; text-transform: uppercase; }
+.field input, .field select, .field textarea { width: 100%; box-sizing: border-box; border: 3px solid var(--line); background: var(--surface-paper); padding: 11px; color: var(--ink); font: 600 .9rem var(--font-plex-mono), monospace; text-transform: none; }
+.field small { color: var(--muted); line-height: 1.45; text-transform: none; }
+.full { grid-column: 1 / -1; }
+.reviewBox { border: 4px solid var(--line); background: var(--surface-cream); padding: 18px; box-shadow: var(--shadow-md); }
+.costBox { border: 4px solid var(--line); background: var(--surface-mint); padding: 16px; }
+.costBox strong { display: block; font-size: 1.7rem; }
+.costBox p { margin-bottom: 0; color: var(--muted); }
+.checkRow { display: flex; align-items: flex-start; gap: 10px; font-weight: 800; line-height: 1.45; }
+.checkRow input { width: 20px; height: 20px; accent-color: var(--ink); }
+.notice, .error { border: 3px solid var(--line); padding: 12px; background: var(--surface-sky); }
+.error { background: var(--surface-red); color: white; }
+.activityList { display: grid; gap: 12px; }
+.activityCard { box-shadow: var(--shadow-sm); }
+.activityCard header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.activityCard time { color: var(--muted); font: 700 .72rem var(--font-plex-mono), monospace; }
+.policyGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.diff { display: grid; gap: 8px; }
+.diffRow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; border: 2px solid var(--line); padding: 10px; font: 700 .75rem var(--font-plex-mono), monospace; }
+.ledger { width: 100%; border-collapse: collapse; }
+.ledger th, .ledger td { padding: 11px; border: 2px solid var(--line); text-align: left; }
+.ledger th { background: var(--surface-yellow); font: 800 .72rem var(--font-plex-mono), monospace; text-transform: uppercase; }
+@media (max-width: 900px) { .modeGrid, .metricGrid, .wizardModes, .policyGrid { grid-template-columns: 1fr; } .formGrid { grid-template-columns: 1fr; } .full { grid-column: auto; } .heroRow, .wizardHead { flex-direction: column; } .diffRow { grid-template-columns: 1fr; } }

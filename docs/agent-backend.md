@@ -16,9 +16,10 @@ signing adapter to submit.
 
 - `api`: health, internal workflow dispatch, policy checks, and push evidence ingestion.
 - `worker`: Temporal worker that runs bounded concurrent specialist and synthesis calls.
-- `dispatcher`: claims leased Convex jobs, reserves/settles credits, starts workflows, and
-  publishes the current visualization snapshot back to Convex.
-- `scheduler`: enqueues configured 15m/5m/2m/1m account cycles without account-market overlap.
+- `api`: synchronizes Temporal schedules and exposes development runtime controls.
+- `worker`: executes cadence/event workflows, reserves/settles credits, and patches snapshots.
+- The old dispatcher and Convex-scanning scheduler are compatibility modules and are not started
+  by the default stack.
 - `ingestors`: normalizes direct venue/news feeds and stores sanitized evidence.
 - `execution-gateway`: quote plus deterministic preflight and credential isolation.
 - `execution-sidecar`: official GMX TypeScript SDK boundary and future Uniswap broadcast path.
@@ -32,7 +33,7 @@ recorded in every provider-call entry.
 
 1. Copy `.env.agents.example` to `.env.agents` and set the shared Convex secret and provider keys.
 2. Start the Next/Convex app normally.
-3. Run `docker compose -f docker-compose.agents.yml up --build`.
+3. Run `npm run stack:start -- --BuildAgents`.
 4. Open Temporal UI on `http://localhost:8233`, API health on `http://localhost:8100/health`,
    and execution health on `http://localhost:8200/health`.
 
@@ -56,8 +57,8 @@ job, account, market, provider, analysis, and venue fields when available.
 `LIVE_EXECUTION_ENABLED` defaults to false. A venue additionally must appear in
 `CERTIFIED_VENUES`. Hyperliquid, Lighter, Orderly, GMX, Ostium, and Uniswap must each pass the
 venue contract suite on sandbox/testnet and a deliberately small funded mainnet canary before
-being added. The checked-in Python adapters for venues lacking certified signing flows remain
-`CertificationBlockedAdapter`; this is a release blocker, not a soft warning.
+being added. Adapters without certified private signing flows remain behind a hard gate. Public reads
+and dry-run simulations do not count as certification; this is a release blocker, not a soft warning.
 
 Run verification:
 

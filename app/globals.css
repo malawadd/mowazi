@@ -647,6 +647,27 @@ textarea {
   gap: 12px;
 }
 
+.nav-group {
+  display: grid;
+  gap: 7px;
+}
+
+.nav-group + .nav-group {
+  margin-top: 7px;
+  padding-top: 13px;
+  border-top: 2px solid color-mix(in srgb, var(--line), transparent 72%);
+}
+
+.nav-group-label {
+  margin: 0 4px;
+  color: var(--muted);
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
 .stack-list > * {
   min-width: 0;
 }
@@ -1872,6 +1893,37 @@ textarea {
 
   .app-sidebar {
     min-height: auto;
+    gap: 14px;
+    overflow: visible;
+  }
+
+  .app-sidebar .brand-copy,
+  .app-sidebar .sidebar-footnote,
+  .app-sidebar .nav-group-label {
+    display: none;
+  }
+
+  .app-sidebar .app-nav {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 4px 2px 10px;
+  }
+
+  .app-sidebar .nav-group {
+    display: contents;
+  }
+
+  .app-sidebar .nav-item {
+    flex: 0 0 auto;
+    padding: 9px 11px;
+  }
+
+  .app-sidebar .nav-group + .nav-group {
+    margin: 0;
+    padding: 0;
+    border: 0;
   }
 
   .hero-panel,

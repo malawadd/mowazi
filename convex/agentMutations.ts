@@ -8,7 +8,7 @@ import {
 import { parseAutomationPolicy, validateProfileInput } from "./helpers/agentPolicy";
 import { requireViewerStrategy } from "./model";
 
-const ACTIVE_JOBS = new Set(["queued", "claimed", "running"]);
+const ACTIVE_JOB_STATUSES = ["queued", "claimed", "running"] as const;
 
 async function requireViewer(ctx: any) {
   const identity = await ctx.auth.getUserIdentity();
@@ -35,10 +35,19 @@ function requireCostConfirmation(tier: keyof typeof ESTIMATED_COST_MICROUSD, con
 }
 
 async function activeJobForMarket(ctx: any, scope: "public" | "private", market: string, strategyAccountId?: string) {
-  const rows = await ctx.db.query("analysisJobs")
-    .withIndex("by_scope_marketId", (q: any) => q.eq("scope", scope).eq("marketId", market)).collect();
-  return rows.find((job: any) =>
-    ACTIVE_JOBS.has(job.status) && (scope === "public" || job.strategyAccountId === strategyAccountId)) ?? null;
+  for (const status of ACTIVE_JOB_STATUSES) {
+    const job = scope === "public"
+      ? await ctx.db.query("analysisJobs")
+        .withIndex("by_scope_marketId_status", (q: any) =>
+          q.eq("scope", "public").eq("marketId", market).eq("status", status),
+        ).first()
+      : await ctx.db.query("analysisJobs")
+        .withIndex("by_strategyAccountId_marketId_status", (q: any) =>
+          q.eq("strategyAccountId", strategyAccountId).eq("marketId", market).eq("status", status),
+        ).first();
+    if (job) return job;
+  }
+  return null;
 }
 
 export const setAgentProfile = mutation({

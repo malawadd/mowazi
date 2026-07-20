@@ -91,6 +91,16 @@ http.route({
           return jsonResponse(await ctx.runMutation(internal.agentWorker.transitionTradeProposal, payload as any));
         case "getAnalysisJob":
           return jsonResponse(await ctx.runQuery(internal.agentWorker.getAnalysisJob, payload as any));
+        case "getAgentScheduleProfile":
+          return jsonResponse(await ctx.runQuery(internal.agentRuntime.getScheduleProfile, payload as any));
+        case "getAgentExecutionContext":
+          return jsonResponse(await ctx.runQuery(internal.agentRuntime.getAgentExecutionContext, payload as any));
+        case "getTradeProposalExecutionContext":
+          return jsonResponse(await ctx.runQuery(internal.agentRuntime.getTradeProposalExecutionContext, payload as any));
+        case "enqueueScheduledAnalysis":
+          return jsonResponse(await ctx.runMutation(internal.agentRuntime.enqueueScheduledAnalysis, payload as any));
+        case "recordShadowExecution":
+          return jsonResponse(await ctx.runMutation(internal.agentWorker.recordShadowExecution, payload as any));
         case "listActivePublicDemand":
           return jsonResponse(await ctx.runQuery(internal.agentWorker.listActivePublicDemand, {}));
         case "grantAgentCredits":
