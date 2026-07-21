@@ -37,6 +37,7 @@ import type * as publicActions from "../publicActions.js";
 import type * as queries from "../queries.js";
 import type * as trade from "../trade.js";
 import type * as tradeHelpers from "../tradeHelpers.js";
+import type * as venueIntegrations from "../venueIntegrations.js";
 import type * as worker from "../worker.js";
 
 import type {
@@ -83,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   queries: typeof queries;
   trade: typeof trade;
   tradeHelpers: typeof tradeHelpers;
+  venueIntegrations: typeof venueIntegrations;
   worker: typeof worker;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

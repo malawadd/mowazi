@@ -11,7 +11,7 @@ const gmx = new GmxApiSdk({ chainId: 42161 });
 
 function json(res: ServerResponse, status: number, value: unknown) {
   res.writeHead(status, { "content-type": "application/json" });
-  res.end(JSON.stringify(value));
+  res.end(JSON.stringify(value, (_key, item) => typeof item === "bigint" ? item.toString() : item));
 }
 
 function authorized(req: IncomingMessage) {
@@ -43,8 +43,13 @@ async function uniswap(path: string, payload: unknown) {
   return result;
 }
 
-function validatedSwap(result: any, expectedChainId?: number) {
-  const transaction = result?.swap ?? result?.transaction ?? result;
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function validatedSwap(result: unknown, expectedChainId?: number) {
+  const root = record(result);
+  const transaction = record(root?.swap) ?? record(root?.transaction) ?? root;
   if (!transaction || typeof transaction !== "object") throw new Error("Missing swap transaction");
   if (typeof transaction.to !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(transaction.to)) {
     throw new Error("Invalid swap transaction target");
@@ -73,6 +78,22 @@ const server = createServer(async (req, res) => {
     if (!authorized(req)) return json(res, 401, { error: "Unauthorized" });
     if (req.method === "GET" && req.url === "/internal/gmx/markets") {
       return json(res, 200, { markets: await gmx.fetchMarkets() });
+    }
+    if (req.method === "GET" && req.url?.startsWith("/internal/gmx/snapshots")) {
+      const requested = new URL(req.url, "http://sidecar").searchParams.get("symbol")?.toUpperCase();
+      const [markets, tickers] = await Promise.all([
+        gmx.fetchMarkets(),
+        gmx.fetchMarketsTickers(),
+      ]);
+      const listed = new Map(markets.filter((market) => market.isListed && !market.isSpotOnly).map((market) => [market.symbol, market]));
+      return json(res, 200, {
+        snapshots: tickers.filter((ticker) => listed.has(ticker.symbol)
+          && (!requested || ticker.symbol.split("/")[0].toUpperCase() === requested)).map((ticker) => ({
+          ...ticker,
+          minPositionSizeUsd: listed.get(ticker.symbol)?.minPositionSizeUsd,
+          maxLeverage: listed.get(ticker.symbol)?.leverageTiers?.[0]?.maxLeverage,
+        })),
+      });
     }
     if (req.method === "POST" && req.url === "/internal/uniswap/check-approval") {
       return json(res, 200, await uniswap("check_approval", await body(req)));

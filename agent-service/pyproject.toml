@@ -23,6 +23,7 @@ dependencies = [
   "cryptography>=44,<46",
   "temporalio>=1.9,<2",
   "uvicorn[standard]>=0.34,<1",
+  "ostium-python-sdk>=3.3,<4",
 ]
 
 [project.optional-dependencies]

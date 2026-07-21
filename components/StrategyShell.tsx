@@ -22,6 +22,8 @@ const navGroups = [
   ] },
   { label: "Trading", items: [
     { href: "/trade", label: "Terminal" },
+    { href: "/swap", label: "Spot swap" },
+    { href: "/venues", label: "Venues" },
     { href: "/positions", label: "Positions" },
     { href: "/activity", label: "Execution activity" },
   ] },

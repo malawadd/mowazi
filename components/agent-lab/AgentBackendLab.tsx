@@ -10,6 +10,7 @@ import {
 } from "@/lib/agentBackend";
 import AgentResultView from "./AgentResultView";
 import RuntimeControlsPanel from "./RuntimeControlsPanel";
+import RoutingLab from "./RoutingLab";
 import styles from "./agent-lab.module.css";
 
 type Tier = "focus" | "pro" | "max";
@@ -108,6 +109,7 @@ export default function AgentBackendLab() {
       </section>
 
       <RuntimeControlsPanel />
+      <RoutingLab />
 
       <div className={styles.workspace}>
         <section className={styles.controlPanel}>

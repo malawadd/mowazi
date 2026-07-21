@@ -63,3 +63,14 @@ Remove the venue from `CERTIFIED_VENUES` or open its runtime circuit breaker, th
 the execution gateway. Analysis may continue with degraded evidence, but Pro/Max execution
 requires quorum and healthy critical inputs. Re-enable only after sandbox replay, reconnect,
 nonce/idempotency checks, and a funded canary succeed.
+
+## Read-only venue routing
+
+- Open `/agent-lab` and use **Venue routing lab** to exercise mainnet public quotes without a transaction.
+- Open `/venues` to configure account readiness. Enabling a venue records setup intent only; it does not
+  create credentials, fund an account, or authorize trading.
+- Open `/trade/BTC`, preview a route, and verify the table distinguishes **ready**, **setup needed**, and
+  **excluded** venues. The simulation button must state that no funds moved.
+- Open `/swap` to request a Uniswap quote. Do not enable approval, signing, or broadcast during this phase.
+- If a venue adapter degrades, leave it excluded. Do not substitute a fixture or claim executable depth.
+- Redis keys use `routing:markets:v1` and `routing:preview:v1:*`; clearing them forces safe rediscovery.

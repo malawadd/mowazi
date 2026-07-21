@@ -53,6 +53,16 @@
 .costCard p { margin: 5px 0; color: #3e5144; font-size: 12px; line-height: 1.45; }
 .costCard small { display: block; color: #627167; font-size: 11px; line-height: 1.45; }
 .error { padding: 12px; background: #f2d5cf; color: #8f3227; font-size: 13px; }
+.routingLab { margin: 18px 0; border: 2px solid #171713; background: #f4d675; padding: 18px; box-shadow: 6px 6px 0 #171713; }
+.routingControls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.routingControls label { display: grid; gap: 6px; font: 800 10px var(--font-mono, monospace); text-transform: uppercase; }
+.routingControls input, .routingControls select { border: 1px solid #171713; background: #fffdf8; padding: 10px; }
+.venueChecks { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0; border: 1px solid #171713; background: #fffdf8; }
+.venueChecks label { display: flex; align-items: center; gap: 5px; font-weight: 800; }
+.routingResults { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.routingResults article { display: grid; gap: 6px; border: 1px solid #171713; background: #fffdf8; padding: 12px; }
+.routingResults article[data-selected="true"] { background: #dff1df; }
+.routingResults span, .routingResults small { color: #716b62; }
 .tabs { display: flex; gap: 0; overflow-x: auto; border-bottom: 1px solid #aaa397; }
 .tabs button { border: 0; border-right: 1px solid #aaa397; background: #e8e2d8; padding: 11px 14px; color: #5f5a52; font: 800 11px var(--font-mono, monospace); text-transform: uppercase; cursor: pointer; }
 .tabs button[data-active="true"] { background: #171713; color: #fffaf0; }
@@ -67,4 +77,4 @@
 .resultList { display: grid; gap: 10px; padding-top: 14px; }
 .resultList header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .resultList header b { padding: 4px 7px; background: #f1c64f; }
-@media (max-width: 900px) { .shell { padding: 0; } .header { align-items: flex-start; flex-direction: column; } .healthStrip { grid-template-columns: 1fr 1fr; } .healthStrip > div:nth-child(2) { border-right: 0; } .safetyPanel { margin: 12px; box-shadow: 3px 3px 0 #171713; } .safetyHead { align-items: start; flex-direction: column; } .switchGrid { grid-template-columns: 1fr; } .safetySwitch { border-right: 0; border-bottom: 1px solid #aaa397; } .workspace { grid-template-columns: 1fr; padding: 0 12px 12px; } .contractList, .resultGrid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .shell { padding: 0; } .header { align-items: flex-start; flex-direction: column; } .healthStrip { grid-template-columns: 1fr 1fr; } .healthStrip > div:nth-child(2) { border-right: 0; } .safetyPanel { margin: 12px; box-shadow: 3px 3px 0 #171713; } .safetyHead { align-items: start; flex-direction: column; } .switchGrid { grid-template-columns: 1fr; } .safetySwitch { border-right: 0; border-bottom: 1px solid #aaa397; } .workspace { grid-template-columns: 1fr; padding: 0 12px 12px; } .contractList, .resultGrid, .routingControls, .routingResults { grid-template-columns: 1fr; } }

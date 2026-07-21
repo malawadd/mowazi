@@ -82,6 +82,24 @@ export default defineSchema({
     .index("by_strategyAccountId_role", ["strategyAccountId", "role"])
     .index("by_accountRef", ["accountRef"]),
 
+  venueIntegrations: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venue: managedTradingVenue,
+    enabled: v.boolean(),
+    status: v.union(
+      v.literal("disabled"),
+      v.literal("authorization_required"),
+      v.literal("ready"),
+      v.literal("degraded"),
+    ),
+    lastHealthAt: v.optional(v.number()),
+    lastHealthMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_strategyAccountId_venue", ["strategyAccountId", "venue"]),
+
   walletSecrets: defineTable({
     venueAccountId: v.id("venueAccounts"),
     address: v.string(),

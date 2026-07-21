@@ -96,6 +96,9 @@ export type VenueQuote = {
   venueLabel: string;
   kind: "clob" | "onchain";
   eligible: boolean;
+  accountReady?: boolean;
+  executable?: boolean;
+  setupRequirement?: string | null;
   reason?: string;
   source: "public" | "fixture" | "none";
   midPrice: number | null;
@@ -116,6 +119,11 @@ export type BestExecutionQuote = {
   notionalUsd: number;
   benchmarkVenue: TradeVenueId | null;
   winningVenue: TradeVenueId | null;
+  bestMarketVenue?: TradeVenueId | null;
+  bestExecutableVenue?: TradeVenueId | null;
+  selectedVenue?: TradeVenueId | null;
+  overrideApplied?: boolean;
+  warnings?: string[];
   quotes: VenueQuote[];
   createdAt: number;
 };

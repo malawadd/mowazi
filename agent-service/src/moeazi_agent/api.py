@@ -22,6 +22,9 @@ from .runtime_controls import RuntimeControlStore, RuntimeControlUpdate
 from .schedule_manager import set_agent_schedules_paused, sync_profile_schedules
 from .convex import ConvexWorkerClient
 from .storage import AnalysisRepository
+from .routing_contracts import RouteRequest, SwapQuoteRequest
+from .routing_service import RoutingService
+import httpx
 
 
 settings = get_settings()
@@ -34,6 +37,7 @@ async def lifespan(app: FastAPI):
     app.state.repository = AnalysisRepository(settings.postgres_dsn)
     app.state.redis = Redis.from_url(settings.redis_url)
     app.state.runtime_controls = RuntimeControlStore(app.state.redis, settings)
+    app.state.routing = RoutingService(app.state.redis, settings)
     yield
     await app.state.redis.aclose()
 
@@ -106,6 +110,42 @@ async def health():
         "manual_guard": controls.manual_guard,
         "lite_mode": controls.lite_mode,
     }
+
+
+@app.get("/v1/routing/markets")
+async def routing_markets(authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    markets = await app.state.routing.markets()
+    return {"markets": [item.model_dump(mode="json") for item in markets]}
+
+
+@app.post("/v1/routing/preview")
+async def routing_preview(request: RouteRequest, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    try:
+        return await app.state.routing.preview(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/v1/swap/quote")
+async def swap_quote(request: SwapQuoteRequest, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    payload = {
+        "tokenIn": request.token_in, "tokenOut": request.token_out, "amount": request.amount,
+        "type": request.type, "tokenInChainId": request.token_in_chain_id,
+        "tokenOutChainId": request.token_out_chain_id, "swapper": request.swapper,
+    }
+    if request.slippage_tolerance is not None:
+        payload["slippageTolerance"] = request.slippage_tolerance
+    async with httpx.AsyncClient(timeout=settings.routing_timeout_seconds) as client:
+        response = await client.post(
+            f"{settings.execution_sidecar_url}/internal/uniswap/quote", json=payload,
+            headers={"Authorization": f"Bearer {settings.worker_shared_secret.get_secret_value()}"},
+        )
+    if not response.is_success:
+        raise HTTPException(status_code=502, detail="Uniswap quote is temporarily unavailable")
+    return response.json()
 
 
 @app.get("/v1/tiers/{tier}")

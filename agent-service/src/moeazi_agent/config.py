@@ -54,6 +54,20 @@ class Settings(BaseSettings):
     live_execution_enabled: bool = False
     certified_venues: str = ""
     execution_gateway_url: str = "http://execution-gateway:8200"
+    execution_sidecar_url: str = "http://execution-sidecar:8300"
+    hyperliquid_api_url: str = "https://api.hyperliquid.xyz/info"
+    lighter_api_url: str = "https://mainnet.zklighter.elliot.ai"
+    orderly_api_url: str = "https://api.orderly.org"
+    ostium_rpc_url: str = ""
+    routing_timeout_seconds: float = Field(default=8, ge=1, le=30)
+    routing_preview_cache_seconds: int = Field(default=10, ge=1, le=60)
+    routing_market_cache_seconds: int = Field(default=300, ge=30, le=3600)
+    hyperliquid_taker_fee_bps: float = Field(default=4.5, ge=0, le=100)
+    orderly_taker_fee_bps: float = Field(default=6, ge=0, le=100)
+    orderly_proxy_spread_bps: float = Field(default=2, ge=0, le=100)
+    gmx_position_fee_bps: float = Field(default=6, ge=0, le=100)
+    gmx_proxy_spread_bps: float = Field(default=4, ge=0, le=100)
+    ostium_proxy_spread_bps: float = Field(default=6, ge=0, le=100)
 
     @property
     def certified_venue_set(self) -> frozenset[str]:

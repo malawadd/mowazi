@@ -44,7 +44,7 @@ export default function TradeTicket({
 }) {
   const notional = Number(state.marginUsd || 0) * Number(state.leverage || 0);
   const winner = quote?.quotes.find((item) => item.venue === quote.winningVenue);
-  const liveWinner = winner?.venue === "hyperliquid" && winner.eligible;
+  const executableWinner = Boolean(winner?.executable);
 
   return (
     <section className={styles.ticket}>
@@ -116,8 +116,8 @@ export default function TradeTicket({
         <button className={styles.primaryAction} type="button" disabled={previewing} onClick={onPreview}>
           {previewing ? "Previewing..." : "Preview route"}
         </button>
-        <button className={styles.longAction} type="button" disabled={submitting || !liveWinner || limits.maxMarginUsd <= 0} onClick={onSubmit}>
-          {submitting ? "Submitting..." : signedIn ? "Submit trade" : "Sign in to trade"}
+        <button className={styles.longAction} type="button" disabled={submitting || !executableWinner || limits.maxMarginUsd <= 0} onClick={onSubmit}>
+          {submitting ? "Simulating..." : signedIn ? "Simulate selected route" : "Sign in to simulate"}
         </button>
         <button className={styles.ghostAction} type="button" disabled={saving || !signedIn} onClick={onSaveDefaults}>
           {saving ? "Saving..." : "Save defaults"}
