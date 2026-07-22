@@ -20,6 +20,7 @@ dependencies = [
   "redis>=5.2,<6",
   "sqlalchemy[asyncio]>=2.0,<3",
   "asyncpg>=0.30,<1",
+  "boto3>=1.39,<2",
   "cryptography>=44,<46",
   "temporalio>=1.9,<2",
   "uvicorn[standard]>=0.34,<1",

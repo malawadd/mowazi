@@ -52,14 +52,17 @@ class AnalysisRepository:
         provider_calls: list[dict[str, Any]],
         scope: str,
         account_id: str | None,
+        model_configuration_version: int | None = None,
     ) -> None:
         async with self.engine.begin() as conn:
             await conn.execute(text("""
                 INSERT INTO analysis_runs
                   (analysis_id, market, tier, scope, account_id, consensus, confidence,
-                   disagreement, freshness_ms, synthesis, created_at, valid_until)
+                   disagreement, freshness_ms, synthesis, created_at, valid_until,
+                   model_configuration_version, billing_route)
                 VALUES (:id, :market, :tier, :scope, :account, :consensus, :confidence,
-                        :disagreement, :freshness, CAST(:synthesis AS jsonb), :created, :valid)
+                        :disagreement, :freshness, CAST(:synthesis AS jsonb), :created, :valid,
+                        :config_version, CAST(:billing_route AS jsonb))
                 ON CONFLICT DO NOTHING
             """), {
                 "id": synthesis.analysis_id, "market": synthesis.market, "tier": synthesis.tier,
@@ -67,6 +70,12 @@ class AnalysisRepository:
                 "confidence": synthesis.confidence, "disagreement": synthesis.disagreement,
                 "freshness": synthesis.freshness_ms, "synthesis": synthesis.model_dump_json(),
                 "created": synthesis.created_at, "valid": synthesis.valid_until,
+                "config_version": model_configuration_version,
+                "billing_route": json.dumps({
+                    "credentialSources": sorted(set(item.get("credential_source", "platform") for item in provider_calls)),
+                    "platformCredits": sum(int(item.get("platform_credits", 0)) for item in provider_calls if item.get("status") == "completed"),
+                    "providerCostMicrousd": sum(int(item.get("provider_cost_microusd", 0)) for item in provider_calls),
+                }),
             })
             for report in reports:
                 await conn.execute(text("""
@@ -82,12 +91,18 @@ class AnalysisRepository:
             for call in provider_calls:
                 await conn.execute(text("""
                     INSERT INTO provider_calls
-                      (analysis_id, role, provider, model, status, latency_ms, error, metadata)
+                      (analysis_id, role, provider, model, status, latency_ms, error, metadata,
+                       credential_source, input_tokens, cached_input_tokens, output_tokens,
+                       provider_cost_microusd, platform_credits)
                     VALUES (:analysis, :role, :provider, :model, :status, :latency, :error,
-                            CAST(:metadata AS jsonb))
+                            CAST(:metadata AS jsonb), :source, :input, :cached, :output, :cost, :credits)
                 """), {
                     "analysis": synthesis.analysis_id, "role": call["role"], "provider": call["provider"],
                     "model": call.get("model", "unknown"), "status": call["status"],
                     "latency": call.get("latency_ms", 0), "error": call.get("error"),
                     "metadata": json.dumps(call.get("metadata", {})),
+                    "source": call.get("credential_source", "platform"),
+                    "input": call.get("input_tokens", 0), "cached": call.get("cached_input_tokens", 0),
+                    "output": call.get("output_tokens", 0), "cost": call.get("provider_cost_microusd", 0),
+                    "credits": call.get("platform_credits", 0),
                 })

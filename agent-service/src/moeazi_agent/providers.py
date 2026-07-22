@@ -36,7 +36,14 @@ class SignalProvider(ABC):
     async def analyze(self, assignment: Assignment, market: str, evidence: str) -> SignalReport | ProviderResponse: ...
 
     @abstractmethod
-    async def synthesize(self, market: str, tier: str, step: str, materials: list[dict]) -> SynthesisDraft | ProviderResponse: ...
+    async def synthesize(
+        self, market: str, tier: str, step: str, materials: list[dict],
+        model: str | None = None, max_output_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+    ) -> SynthesisDraft | ProviderResponse: ...
+
+    async def close(self) -> None:
+        return None
 
 
 def specialist_prompt(assignment: Assignment, market: str, evidence: str) -> str:
@@ -44,6 +51,7 @@ def specialist_prompt(assignment: Assignment, market: str, evidence: str) -> str
     return (
         f"Market: {market}\nRole: {assignment.role.name}\nHorizon: {assignment.role.horizon}\n"
         "Score from -1 to 1. Calibrate confidence to evidence quality. Cite only supplied evidence IDs. "
+        "Explain the conclusion using a concise decision_summary, key_factors, and uncertainties; do not expose hidden reasoning. "
         f"Return JSON matching this schema exactly: {schema}\n"
         f"{evidence}"
     )
@@ -52,25 +60,30 @@ def specialist_prompt(assignment: Assignment, market: str, evidence: str) -> str
 class OpenAIProvider(SignalProvider):
     name = "openai"
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, api_key: str | None = None):
         self.settings = settings
         self.model = settings.openai_specialist_model
         self.synthesis_model = settings.openai_synthesis_model
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value(), timeout=settings.provider_timeout_seconds)
+        self.client = AsyncOpenAI(api_key=api_key or settings.openai_api_key.get_secret_value(), timeout=settings.provider_timeout_seconds)
 
     async def analyze(self, assignment: Assignment, market: str, evidence: str) -> SignalReport:
         try:
+            request = {
+                "model": assignment.model or self.model,
+                "instructions": SYSTEM_BOUNDARY,
+                "input": specialist_prompt(assignment, market, evidence),
+                "text_format": SignalReport,
+                "max_output_tokens": assignment.max_output_tokens or self.settings.specialist_max_output_tokens,
+            }
+            if assignment.reasoning_effort:
+                request["reasoning"] = {"effort": assignment.reasoning_effort}
             response = await self.client.responses.parse(
-                model=self.model,
-                instructions=SYSTEM_BOUNDARY,
-                input=specialist_prompt(assignment, market, evidence),
-                text_format=SignalReport,
-                max_output_tokens=self.settings.specialist_max_output_tokens,
+                **request,
             )
             if response.output_parsed is None:
                 raise ProviderFailure(self.name, "OpenAI returned no typed output")
             return ProviderResponse(
-                response.output_parsed.model_copy(update={"provider": self.name, "model": self.model}),
+                response.output_parsed.model_copy(update={"provider": self.name, "model": assignment.model or self.model}),
                 _openai_usage(response),
             )
         except ProviderFailure:
@@ -78,13 +91,20 @@ class OpenAIProvider(SignalProvider):
         except Exception as exc:
             raise ProviderFailure(self.name, str(exc)) from exc
 
-    async def synthesize(self, market: str, tier: str, step: str, materials: list[dict]) -> SynthesisDraft:
+    async def synthesize(
+        self, market: str, tier: str, step: str, materials: list[dict],
+        model: str | None = None, max_output_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+    ) -> SynthesisDraft:
         try:
-            response = await self.client.responses.parse(
-                model=self.synthesis_model, instructions=SYSTEM_BOUNDARY,
-                input=_synthesis_prompt(market, tier, step, materials), text_format=SynthesisDraft,
-                max_output_tokens=self.settings.synthesis_max_output_tokens,
-            )
+            request = {
+                "model": model or self.synthesis_model, "instructions": SYSTEM_BOUNDARY,
+                "input": _synthesis_prompt(market, tier, step, materials), "text_format": SynthesisDraft,
+                "max_output_tokens": max_output_tokens or self.settings.synthesis_max_output_tokens,
+            }
+            if reasoning_effort:
+                request["reasoning"] = {"effort": reasoning_effort}
+            response = await self.client.responses.parse(**request)
             if response.output_parsed is None:
                 raise ProviderFailure(self.name, "OpenAI returned no typed synthesis")
             return ProviderResponse(response.output_parsed, _openai_usage(response))
@@ -93,31 +113,34 @@ class OpenAIProvider(SignalProvider):
         except Exception as exc:
             raise ProviderFailure(self.name, str(exc)) from exc
 
+    async def close(self) -> None:
+        await self.client.close()
+
 
 class DeepSeekProvider(SignalProvider):
     name = "deepseek"
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, api_key: str | None = None):
         self.settings = settings
         self.model = settings.deepseek_specialist_model
         self.synthesis_model = settings.deepseek_synthesis_model
         self.retries = settings.provider_retries
         self.client = httpx.AsyncClient(
             base_url=settings.deepseek_base_url,
-            headers={"Authorization": f"Bearer {settings.deepseek_api_key.get_secret_value()}"},
+            headers={"Authorization": f"Bearer {api_key or settings.deepseek_api_key.get_secret_value()}"},
             timeout=settings.provider_timeout_seconds,
         )
 
     async def analyze(self, assignment: Assignment, market: str, evidence: str) -> SignalReport:
         body = {
-            "model": self.model,
+            "model": assignment.model or self.model,
             "messages": [
                 {"role": "system", "content": SYSTEM_BOUNDARY},
                 {"role": "user", "content": specialist_prompt(assignment, market, evidence)},
             ],
             "response_format": {"type": "json_object"},
             "thinking": {"type": "enabled" if self.settings.deepseek_thinking_enabled else "disabled"},
-            "max_tokens": self.settings.specialist_max_output_tokens,
+            "max_tokens": assignment.max_output_tokens or self.settings.specialist_max_output_tokens,
         }
         if not self.settings.deepseek_thinking_enabled:
             body["temperature"] = 0.1
@@ -135,7 +158,7 @@ class DeepSeekProvider(SignalProvider):
                 document["evidence"] = []
                 report = SignalReport.model_validate(document)
                 return ProviderResponse(
-                    report.model_copy(update={"provider": self.name, "model": self.model}),
+                    report.model_copy(update={"provider": self.name, "model": assignment.model or self.model}),
                     _deepseek_usage(payload),
                 )
             except (KeyError, json.JSONDecodeError, ValidationError, httpx.HTTPError, ProviderFailure) as exc:
@@ -144,16 +167,20 @@ class DeepSeekProvider(SignalProvider):
                 await asyncio.sleep(min(2**attempt, 4))
         raise ProviderFailure(self.name, "DeepSeek retry loop exhausted")
 
-    async def synthesize(self, market: str, tier: str, step: str, materials: list[dict]) -> SynthesisDraft:
+    async def synthesize(
+        self, market: str, tier: str, step: str, materials: list[dict],
+        model: str | None = None, max_output_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+    ) -> SynthesisDraft:
         body = {
-            "model": self.synthesis_model,
+            "model": model or self.synthesis_model,
             "messages": [
                 {"role": "system", "content": SYSTEM_BOUNDARY},
                 {"role": "user", "content": _synthesis_prompt(market, tier, step, materials)},
             ],
             "response_format": {"type": "json_object"},
             "thinking": {"type": "enabled" if self.settings.deepseek_thinking_enabled else "disabled"},
-            "max_tokens": self.settings.synthesis_max_output_tokens,
+            "max_tokens": max_output_tokens or self.settings.synthesis_max_output_tokens,
         }
         if not self.settings.deepseek_thinking_enabled:
             body["temperature"] = 0.1
@@ -173,6 +200,9 @@ class DeepSeekProvider(SignalProvider):
                 if attempt >= self.retries: raise ProviderFailure(self.name, str(exc)) from exc
                 await asyncio.sleep(min(2**attempt, 4))
         raise ProviderFailure(self.name, "DeepSeek synthesis retry loop exhausted")
+
+    async def close(self) -> None:
+        await self.client.aclose()
 
 
 class DeterministicProvider(SignalProvider):
@@ -195,7 +225,11 @@ class DeterministicProvider(SignalProvider):
             expires_at=utc_now() + timedelta(minutes=5),
         )
 
-    async def synthesize(self, market: str, tier: str, step: str, materials: list[dict]) -> SynthesisDraft:
+    async def synthesize(
+        self, market: str, tier: str, step: str, materials: list[dict],
+        model: str | None = None, max_output_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+    ) -> SynthesisDraft:
         scores = [float(item.get("score", item.get("consensus", 0))) for item in materials]
         consensus = sum(scores) / max(1, len(scores))
         from .synthesis import DISCLAIMER
@@ -214,6 +248,7 @@ def _synthesis_prompt(market: str, tier: str, step: str, materials: list[dict]) 
     data = json.dumps(materials, separators=(",", ":"), default=str)
     return (
         f"Market: {market}\nTier: {tier}\nStep: {step}. Reconcile the validated analytical materials. "
+        "Include a concise decision_summary, key_factors, and uncertainties without hidden chain-of-thought. "
         "Scenario probabilities must sum to 1. Return JSON matching this schema exactly:\n"
         f"{schema}\nMaterials:\n{data}"
     )

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import json
 
 from redis.asyncio import Redis
 from temporalio import activity
@@ -9,6 +10,8 @@ from .convex import ConvexWorkerClient
 from .execution_workflow import gateway_call
 from .proposal_routing import proposal_from_synthesis
 from .runtime_controls import RuntimeControlStore, RuntimeRunMetrics
+from .storage import AnalysisRepository
+from .tracing import TraceRepository
 
 
 @activity.defn
@@ -20,20 +23,21 @@ async def complete_analysis_job_activity(payload: dict) -> dict | None:
     await convex.complete(job["job_id"], job["holder_id"], result["synthesis"], result["calls"])
     proposal_result = None
     if job["scope"] == "private":
-        specialists = sum(
-            call["status"] == "completed" and call.get("kind") != "synthesis"
-            for call in result["calls"]
-        )
-        syntheses = sum(
-            call["status"] == "completed" and call.get("kind") == "synthesis"
-            for call in result["calls"]
+        billable = sum(
+            int(call.get("platform_credits", 0))
+            for call in result["calls"] if call["status"] == "completed"
         )
         await convex.command(
             "settleAgentCredits",
             jobId=job["job_id"],
-            billableAmount=specialists * 3 + syntheses * 7,
-            rateCardVersion=1,
-            metadataJson='{"billing":"validated outputs only"}',
+            billableAmount=billable,
+            rateCardVersion=2 if result.get("model_configuration_version") else 1,
+            metadataJson=json.dumps({
+                "billing": "validated outputs only",
+                "modelConfigurationVersion": result.get("model_configuration_version"),
+                "credentialSources": sorted(set(call.get("credential_source", "platform") for call in result["calls"])),
+                "providerCostMicrousd": sum(int(call.get("provider_cost_microusd", 0)) for call in result["calls"]),
+            }, separators=(",", ":")),
         )
         convex_operations += 1
         context = None
@@ -64,15 +68,16 @@ async def complete_analysis_job_activity(payload: dict) -> dict | None:
                     expiresAt=int(proposal.expires_at.timestamp() * 1000),
                 )
                 convex_operations += 1
+                await _record_proposal_trace(settings, synthesis, proposal, proposal_result)
                 if proposal_result.get("status") == "simulated":
                     convex_operations += await _record_shadow_fill(
-                        convex, proposal, proposal_result["proposalId"],
+                        convex, proposal, proposal_result["proposalId"], settings,
                     )
     await _record_metrics(settings, result, convex_operations)
     return proposal_result
 
 
-async def _record_shadow_fill(convex, proposal, proposal_id: str) -> int:
+async def _record_shadow_fill(convex, proposal, proposal_id: str, settings) -> int:
     try:
         quote = await gateway_call("/internal/quote", {
             "venue": proposal.candidate_venues[0],
@@ -89,9 +94,45 @@ async def _record_shadow_fill(convex, proposal, proposal_id: str) -> int:
             sizeUsd=proposal.size_usd,
             quoteReference=quote["reference"],
         )
+        redis = Redis.from_url(settings.redis_url)
+        try:
+            repository = AnalysisRepository(settings.postgres_dsn)
+            await TraceRepository(repository.engine, redis).append({
+                "event_id": f"{proposal.analysis_id}:simulation",
+                "analysis_id": proposal.analysis_id, "account_id": proposal.account_id,
+                "event_type": "simulation", "status": "completed",
+                "input_summary": {"venue": proposal.candidate_venues[0], "sizeUsd": proposal.size_usd},
+                "output_summary": {"entryPrice": float(quote["raw"]["price"]), "quoteReference": quote["reference"]},
+                "decision_summary": f"Recorded a shadow fill at {float(quote['raw']['price']):,.4f} without signing.",
+            })
+        finally:
+            await redis.aclose()
         return 1
     except Exception:
         return 0
+
+
+async def _record_proposal_trace(settings, synthesis, proposal, result) -> None:
+    redis = Redis.from_url(settings.redis_url)
+    try:
+        repository = AnalysisRepository(settings.postgres_dsn)
+        await TraceRepository(repository.engine, redis).append({
+            "event_id": f"{synthesis.analysis_id}:proposal",
+            "analysis_id": synthesis.analysis_id, "account_id": proposal.account_id,
+            "event_type": "proposal", "status": result.get("status", "recorded"),
+            "input_summary": {
+                "evidenceIds": proposal.evidence_ids, "candidateVenues": proposal.candidate_venues,
+            },
+            "output_summary": proposal.model_dump(mode="json"),
+            "decision_summary": (
+                f"Proposed a {proposal.side} position sized at ${proposal.size_usd:,.2f}; "
+                f"routing state is {result.get('status', 'recorded').replace('_', ' ')}."
+            ),
+        })
+    except Exception:
+        return
+    finally:
+        await redis.aclose()
 
 
 async def _record_metrics(settings, result: dict, convex_operations: int) -> None:

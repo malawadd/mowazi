@@ -95,7 +95,7 @@ export const getAgentSettings = query({
   handler: async (ctx) => {
     const state = await viewer(ctx);
     if (!state) return null;
-    const [profile, activePolicy, drafts, creditAccount, proposals, approvals] = await Promise.all([
+    const [profile, activePolicy, drafts, creditAccount, proposals, approvals, modelConfiguration] = await Promise.all([
       ctx.db.query("agentProfiles")
         .withIndex("by_strategyAccountId", (q: any) => q.eq("strategyAccountId", state.strategyAccount._id)).first(),
       ctx.db.query("automationPolicies")
@@ -108,6 +108,8 @@ export const getAgentSettings = query({
         .order("desc").take(20),
       ctx.db.query("approvalRequests").withIndex("by_userId_status", (q: any) => q.eq("userId", state.user._id).eq("status", "pending"))
         .order("desc").take(20),
+      ctx.db.query("agentModelConfigurations").withIndex("by_strategyAccountId_status", (q: any) =>
+        q.eq("strategyAccountId", state.strategyAccount._id).eq("status", "active")).first(),
     ]);
     return {
       profile: readableProfile(profile),
@@ -116,6 +118,9 @@ export const getAgentSettings = query({
       credits: creditAccount ? { balance: creditAccount.balance, reserved: creditAccount.reserved, available: creditAccount.balance - creditAccount.reserved } : null,
       proposals: proposals.map((row: any) => ({ ...row, payload: parseJson(row.payloadJson, {}) })),
       approvals,
+      modelConfiguration: modelConfiguration ? {
+        ...modelConfiguration, routes: parseJson(modelConfiguration.routesJson, {}),
+      } : null,
       emergencyStop: state.strategyAccount.emergencyStop,
     };
   },

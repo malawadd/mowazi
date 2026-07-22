@@ -37,7 +37,8 @@ export default function AgentsPage() {
   const available = settings.credits?.available ?? 0;
   const mode = modeNames[profile.authorityMode] ?? "Shadow";
   const active = profile.lifecycleStatus === "active" && !profile.paused;
-  const perRun = profile.tier === "max" ? 113 : profile.tier === "pro" ? 62 : 25;
+  const perRun = settings.modelConfiguration?.estimatedCredits
+    ?? (profile.tier === "max" ? 113 : profile.tier === "pro" ? 62 : 25);
   const runs = Math.floor(available / perRun);
 
   return (
@@ -69,6 +70,8 @@ export default function AgentsPage() {
               : <button className={styles.primary} onClick={() => void activate({}).then((result) =>
                 syncSchedule({ profileId: result.profileId }))}>Activate agent</button>}
             <Link href="/agents/create">Edit setup</Link>
+            <Link href="/agents/models">Models & keys</Link>
+            <Link href="/agents/monitoring">Monitor decisions</Link>
             <Link href="/agents/policy">Edit guardrails</Link>
           </div>
         </Panel>

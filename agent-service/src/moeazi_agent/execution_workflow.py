@@ -11,6 +11,8 @@ with workflow.unsafe.imports_passed_through():
     from moeazi_agent.convex import ConvexWorkerClient
     from moeazi_agent.policy import AutomationPolicy, RiskContext
     from moeazi_agent.runtime_controls import RuntimeControlStore
+    from moeazi_agent.storage import AnalysisRepository
+    from moeazi_agent.tracing import TraceRepository
 
 
 async def gateway_call(path: str, payload: dict) -> dict:
@@ -44,6 +46,7 @@ async def execute_proposal_activity(payload: dict) -> dict:
     if not context:
         raise RuntimeError("Trade proposal execution context is unavailable")
     row = context["proposal"]
+    proposal = TradeProposal.model_validate(row["payload"])
     if row["status"] not in {"approved", "executing"}:
         raise RuntimeError(f"Proposal is not executable: {row['status']}")
     if row["expiresAt"] <= int(datetime.now(timezone.utc).timestamp() * 1000):
@@ -65,7 +68,6 @@ async def execute_proposal_activity(payload: dict) -> dict:
                 return {"status": "blocked", "reason": "Manual Guard blocks automatic execution"}
         finally:
             await redis.aclose()
-    proposal = TradeProposal.model_validate(row["payload"])
     venue = proposal.candidate_venues[0]
     quote = await gateway_call("/internal/quote", {
         "venue": venue,
@@ -76,6 +78,12 @@ async def execute_proposal_activity(payload: dict) -> dict:
         },
     })
     price = float(quote["raw"]["price"])
+    await record_execution_trace(
+        settings, proposal, "quote", "completed",
+        {"venue": venue, "market": proposal.market, "sizeUsd": proposal.size_usd},
+        {"reference": quote.get("reference"), "price": price},
+        f"Fetched a fresh executable {venue} quote at {price:,.4f}.",
+    )
     proposal = proposal.model_copy(update={"protective_exits": protective_exits(proposal, price)})
     policy = AutomationPolicy.from_convex({
         **context["policy"]["policy"],
@@ -114,6 +122,12 @@ async def execute_proposal_activity(payload: dict) -> dict:
         "idempotency_key": idempotency_key,
     })
     decision = checked["decision"]
+    await record_execution_trace(
+        settings, proposal, "policy_check", "completed" if decision["result"] == "pass" else "blocked",
+        {"policyVersion": policy.version, "quoteReference": quote.get("reference")},
+        {"result": decision["result"], "checks": decision["checks"]},
+        f"Deterministic execution policy {decision['result']}ed the fresh quote.",
+    )
     if decision["result"] != "pass":
         await convex.command("transitionTradeProposal", proposalId=row["_id"], status="blocked")
         return {"status": "blocked", "checks": decision["checks"]}
@@ -123,8 +137,34 @@ async def execute_proposal_activity(payload: dict) -> dict:
         "decision": decision,
         "idempotency_key": idempotency_key,
     })
+    await record_execution_trace(
+        settings, proposal, "execution", execution.get("status", "completed"),
+        {"venue": venue, "idempotencyKey": idempotency_key}, execution,
+        f"Execution gateway returned {execution.get('status', 'completed')} for {venue}.",
+    )
     await convex.command("transitionTradeProposal", proposalId=row["_id"], status="executed")
     return {"status": execution["status"], "execution": execution, "checks": decision["checks"]}
+
+
+async def record_execution_trace(
+    settings, proposal: TradeProposal, event_type: str, status: str,
+    input_summary: dict, output_summary: dict, decision_summary: str,
+) -> None:
+    from redis.asyncio import Redis
+    redis = Redis.from_url(settings.redis_url)
+    try:
+        repository = AnalysisRepository(settings.postgres_dsn)
+        await TraceRepository(repository.engine, redis).append({
+            "event_id": f"{proposal.analysis_id}:{event_type}",
+            "analysis_id": proposal.analysis_id, "account_id": proposal.account_id,
+            "event_type": event_type, "status": status,
+            "input_summary": input_summary, "output_summary": output_summary,
+            "decision_summary": decision_summary,
+        })
+    except Exception:
+        return
+    finally:
+        await redis.aclose()
 
 
 @workflow.defn

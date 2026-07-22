@@ -33,6 +33,9 @@ class SignalReport(StrictModel):
     confidence: float = Field(ge=0, le=1)
     evidence: list[EvidenceRef] = Field(max_length=30)
     risks: list[str] = Field(max_length=20)
+    decision_summary: str = Field(default="", max_length=500)
+    key_factors: list[str] = Field(default_factory=list, max_length=8)
+    uncertainties: list[str] = Field(default_factory=list, max_length=8)
     expires_at: datetime
 
 
@@ -49,6 +52,9 @@ class SynthesisDraft(StrictModel):
     confidence: float = Field(ge=0, le=1)
     scenarios: list[Scenario] = Field(min_length=3, max_length=5)
     conflicts: list[str] = Field(max_length=20)
+    decision_summary: str = Field(default="", max_length=700)
+    key_factors: list[str] = Field(default_factory=list, max_length=10)
+    uncertainties: list[str] = Field(default_factory=list, max_length=10)
 
 
 class AgentRunView(StrictModel):
@@ -59,8 +65,13 @@ class AgentRunView(StrictModel):
     evidence_ids: list[str] = []
     latency_ms: int = Field(default=0, ge=0)
     input_tokens: int = Field(default=0, ge=0)
+    cached_input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
     estimated_cost_usd: float | None = Field(default=None, ge=0)
+    provider_cost_microusd: int = Field(default=0, ge=0)
+    platform_credits: int = Field(default=0, ge=0)
+    credential_source: str = "platform"
+    decision_summary: str = ""
     error: str | None = None
 
 

@@ -27,6 +27,7 @@ def synthesize(
     galaxy: list[dict] | None = None,
     private_overlay: dict | None = None,
     draft: SynthesisDraft | None = None,
+    analysis_id: str | None = None,
 ) -> MarketSynthesis:
     if not reports:
         raise ValueError("At least one validated signal is required")
@@ -58,7 +59,7 @@ def synthesize(
         risk_overlay=private_overlay.get("risk_overlay") if private_overlay else None,
     )
     return MarketSynthesis(
-        analysis_id=str(uuid4()), market=market, tier=tier, consensus=max(-1, min(1, consensus)),
+        analysis_id=analysis_id or str(uuid4()), market=market, tier=tier, consensus=max(-1, min(1, consensus)),
         confidence=confidence, disagreement=disagreement, freshness_ms=freshness_ms,
         scenarios=scenarios, conflicts=conflicts, visualization=payload,
         valid_until=utc_now() + timedelta(minutes=2 if tier in {"pro", "max"} else 5),

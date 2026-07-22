@@ -10,12 +10,16 @@ import styles from "@/components/agents/agent-portal.module.css";
 export default function CreditsPage() {
   const credits = useQuery(api.agentQueries.getCredits, {});
   const settings = useQuery(api.agentQueries.getAgentSettings, {});
+  const models = useQuery(api.agentModels.getModelSettings, {});
   const claim = useMutation(api.agentCredits.claimStarterCredits);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const tier = settings?.profile?.tier ?? "focus";
-  const perRun = tier === "max" ? 113 : tier === "pro" ? 62 : 25;
-  const usdPerRun = tier === "max" ? 0.031257 : tier === "pro" ? 0.016044 : 0.005843;
+  const effectiveModel = models?.effective as { estimatedCredits?: number; credits?: number; estimatedProviderCostMicrousd?: number } | undefined;
+  const perRun = effectiveModel?.estimatedCredits ?? effectiveModel?.credits
+    ?? (tier === "max" ? 113 : tier === "pro" ? 62 : 25);
+  const providerMicrousd = effectiveModel?.estimatedProviderCostMicrousd ?? 0;
+  const usdPerRun = providerMicrousd / 1_000_000;
   const available = credits?.available ?? 0;
   const runs = Math.floor(available / perRun);
 
@@ -33,7 +37,7 @@ export default function CreditsPage() {
       <MetricCard label="Available" value={available.toLocaleString()} detail="Balance minus active reservations" tone="mint" />
       <MetricCard label="Reserved" value={(credits?.reserved ?? 0).toLocaleString()} detail="Held for active validated runs" tone="orange" />
       <MetricCard label="Runs remaining" value={`≈ ${runs}`} detail={`At ${tier} tier · ${perRun} credits/run`} tone="sky" />
-      <MetricCard label="Estimated provider value" value={`$${(runs * usdPerRun).toFixed(3)}`} detail={`Current rate card · $${usdPerRun.toFixed(3)}/run`} tone="paper" />
+      <MetricCard label="BYOK provider estimate" value={`$${usdPerRun.toFixed(4)}/run`} detail="Paid directly to your selected provider; platform routes show $0" tone="paper" />
     </section>
     <div className="two-column-grid">
       <Panel title="Closed beta allocation" description="Purchasing is intentionally not part of this milestone" tone="sky">
@@ -46,7 +50,8 @@ export default function CreditsPage() {
           <div><span>Before a run</span><strong>Maximum estimate reserved</strong></div>
           <div><span>Successful outputs</span><strong>Settled at the rate card</strong></div>
           <div><span>Unused reservation</span><strong>Released immediately</strong></div>
-          <div><span>Provider/platform failures</span><strong>Not billed to you</strong></div>
+          <div><span>Failed validated outputs</span><strong>0 Moeazi credits</strong></div>
+          <div><span>BYOK attempts</span><strong>Provider may still bill tokens</strong></div>
         </div>
       </Panel>
     </div>

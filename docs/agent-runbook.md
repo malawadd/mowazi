@@ -26,6 +26,22 @@ rate limits/timeouts. Focus requires four valid specialist outputs. Pro and Max 
 providers, their minimum valid-output count, and every critical role. Invalid or failed calls
 are operational cost and must not be settled against user credits.
 
+## BYOK connection or budget failure
+
+Open `/agents/models`, refresh the provider catalog, and run the compatibility probe. Rotation first
+verifies the replacement key and only then revokes the previous credential. Revocation pauses any
+agent whose active route depends on that connection. Never copy a credential into Convex or a
+Temporal input while debugging. If the Redis daily provider-cost reservation is exhausted, keep the
+run blocked until the UTC reset or an audited budget change; do not fall back to a platform key.
+
+## Monitoring trace review
+
+Use `/agents/monitoring` for account-scoped usage and open a run to inspect its evidence-to-action
+graph. Technical details include structured inputs, outputs, usage, latency, and errors. Hidden model
+reasoning is intentionally unavailable; investigate using the recorded decision summary, factors,
+uncertainties, evidence IDs, and deterministic check results. Detailed nodes expire after seven days,
+while aggregate usage remains available.
+
 ## Stale evidence or analysis
 
 Check ingestor logs and Redis `evidence:hot:*` TTLs, then verify Timescale evidence timestamps.

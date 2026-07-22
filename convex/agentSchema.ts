@@ -7,6 +7,7 @@ import {
   agentLifecycleStatus,
   authorityMode,
   intelligenceTier,
+  modelProvider,
   proposalStatus,
 } from "./agentValidators";
 
@@ -26,6 +27,8 @@ export const agentTables = {
     nextRunAt: v.optional(v.number()),
     activatedAt: v.optional(v.number()),
     scheduleRevision: v.optional(v.number()),
+    activeModelConfigurationId: v.optional(v.id("agentModelConfigurations")),
+    activeModelConfigurationVersion: v.optional(v.number()),
     version: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -33,6 +36,52 @@ export const agentTables = {
     .index("by_strategyAccountId", ["strategyAccountId"])
     .index("by_userId", ["userId"])
     .index("by_nextRunAt", ["nextRunAt"]),
+
+  modelProviderConnections: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    userId: v.id("users"),
+    provider: modelProvider,
+    label: v.string(),
+    secretRef: v.string(),
+    keyFingerprint: v.string(),
+    keyLast4: v.string(),
+    status: v.union(
+      v.literal("pending"), v.literal("verified"),
+      v.literal("invalid"), v.literal("revoked"),
+    ),
+    modelsJson: v.string(),
+    capabilitiesJson: v.string(),
+    failureReason: v.optional(v.string()),
+    verifiedAt: v.optional(v.number()),
+    lastUsedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    version: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_strategyAccountId_provider", ["strategyAccountId", "provider"])
+    .index("by_secretRef", ["secretRef"]),
+
+  agentModelConfigurations: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    userId: v.id("users"),
+    version: v.number(),
+    status: v.union(v.literal("draft"), v.literal("active"), v.literal("superseded")),
+    preset: v.union(v.literal("economy"), v.literal("balanced"), v.literal("quality"), v.literal("custom")),
+    routesJson: v.string(),
+    pricingVersion: v.string(),
+    estimatedCredits: v.number(),
+    estimatedProviderCostMicrousd: v.number(),
+    maximumProviderCostMicrousd: v.number(),
+    providerDailyLimitMicrousd: v.number(),
+    retries: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    activatedAt: v.optional(v.number()),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_strategyAccountId_status", ["strategyAccountId", "status"]),
 
   agentMarketSubscriptions: defineTable({
     profileId: v.id("agentProfiles"),

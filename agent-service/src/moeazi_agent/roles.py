@@ -41,6 +41,10 @@ ROLES = (
 class Assignment:
     role: RoleSpec
     provider: Provider
+    model: str | None = None
+    credential_source: str = "platform"
+    max_output_tokens: int | None = None
+    reasoning_effort: str | None = None
 
 
 def assignments_for_tier(tier: str) -> list[Assignment]:

@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     provider_max_concurrency: int = Field(default=40, ge=1, le=500)
     provider_retries: int = Field(default=2, ge=0, le=5)
     provider_mode: str = "balanced"
+    byok_enabled: bool = True
+    byok_secret_backend: str = "local"
+    byok_aws_kms_key_id: str = ""
+    byok_aws_region: str = "us-east-1"
+    trace_body_retention_days: int = Field(default=7, ge=1, le=30)
     deepseek_thinking_enabled: bool = False
     specialist_max_output_tokens: int = Field(default=700, ge=128, le=4_096)
     synthesis_max_output_tokens: int = Field(default=1_200, ge=256, le=8_192)

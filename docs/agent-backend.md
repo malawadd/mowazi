@@ -29,9 +29,39 @@ roles, then critic and synthesis. Max uses 20 roles, dual-runs ten directional/r
 per-provider syntheses, and an arbiter. Model names come from environment variables and are
 recorded in every provider-call entry.
 
+## Model routing and bring your own key
+
+Signed-in users configure models at `/agents/models`. A versioned routing document selects a
+provider, model, credential source, output cap, and optional reasoning effort for every role or
+synthesis stage. The workflow loads that exact activated version before dispatch and never
+silently substitutes another model. Pro and Max still enforce their provider-quorum rules.
+
+Provider secrets are sent only to the authenticated Python provider endpoint. Convex stores the
+connection status, fingerprint, last four characters, verified models, and vault reference; the
+encrypted secret lives in Postgres. Production requires AWS KMS. Local AES-GCM wrapping is accepted
+only in development. Decrypted keys exist only in the scoped provider client and are never placed in
+Convex, Redis, Temporal payloads, traces, or browser responses.
+
+Platform-key calls use the normal credit rate card. BYOK calls use the lower infrastructure-only
+rate card, while estimated and actual provider charges are shown separately because the provider
+bills the user directly. Reservations use the active route, and settlement charges only validated
+successful outputs. A per-account daily BYOK provider-cost ceiling is enforced in Redis.
+
+## Monitoring and decision traces
+
+`/agents/monitoring` shows runs, tokens, cached tokens, calls, latency, provider cost, and platform
+credits. A run detail page renders a React Flow graph from evidence references through specialist
+reports, synthesis, deterministic checks, proposals, and execution outcomes. It exposes concise
+decision summaries and validated structured inputs/outputs—not private model chain-of-thought.
+
+Detailed trace events are tenant-scoped, sanitized, and retained for seven days in Timescale;
+daily usage aggregates remain available for longer-range reporting. Redis publishes live updates
+only while a monitoring client is subscribed, so monitoring creates no idle polling traffic.
+
 ## Local start
 
-1. Copy `.env.agents.example` to `.env.agents` and set the shared Convex secret and provider keys.
+1. Copy `.env.agents.example` to `.env.agents` and set the shared Convex secret, platform provider
+   keys, and `MASTER_KEY` for development BYOK testing.
 2. Start the Next/Convex app normally.
 3. Run `npm run stack:start -- --BuildAgents`.
 4. Open Temporal UI on `http://localhost:8233`, API health on `http://localhost:8100/health`,

@@ -8,6 +8,8 @@ import ParticleAccountButton from "@/components/ParticleAccountButton";
 const navGroups = [
   { label: "Agent", items: [
     { href: "/agents", label: "My agent" },
+    { href: "/agents/models", label: "Models & keys" },
+    { href: "/agents/monitoring", label: "Monitoring" },
     { href: "/agents/approvals", label: "Approvals" },
     { href: "/agents/activity", label: "Agent activity" },
     { href: "/agents/policy", label: "Guardrails" },
@@ -79,7 +81,7 @@ export default function StrategyShell({
               <p className="nav-group-label">{group.label}</p>
               {group.items.map((item) => {
                 const active = activePathname === item.href
-                  || (item.href === "/agents" && activePathname.startsWith("/agents/"));
+                  || (item.href !== "/agents" && activePathname.startsWith(`${item.href}/`));
                 return (
                   <Link key={item.href} href={item.href}
                     className={active ? "nav-item nav-item-active" : "nav-item"}>

@@ -26,6 +26,8 @@ from .routing_contracts import RouteRequest
 from .routing_service import RoutingService
 from .swap_api import router as swap_router
 from .venue_setup_api import router as venue_setup_router
+from .provider_api import router as provider_router
+from .monitoring_api import router as monitoring_router
 
 
 settings = get_settings()
@@ -46,6 +48,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Moeazi Agent Platform", version="0.1.0", lifespan=lifespan)
 app.include_router(swap_router)
 app.include_router(venue_setup_router)
+app.include_router(provider_router)
+app.include_router(monitoring_router)
 FastAPIInstrumentor.instrument_app(app)
 
 

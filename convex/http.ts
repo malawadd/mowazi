@@ -111,6 +111,16 @@ http.route({
           return jsonResponse(await ctx.runMutation(internal.agentCredits.settleCredits, payload as any));
         case "releaseAgentCredits":
           return jsonResponse(await ctx.runMutation(internal.agentCredits.releaseCredits, payload as any));
+        case "getProviderOwnerContext":
+          return jsonResponse(await ctx.runQuery(internal.agentModels.getProviderOwnerContext, payload as any));
+        case "recordProviderConnection":
+          return jsonResponse(await ctx.runMutation(internal.agentModels.recordProviderConnection, payload as any));
+        case "updateProviderConnection":
+          return jsonResponse(await ctx.runMutation(internal.agentModels.updateProviderConnection, payload as any));
+        case "getProviderConnectionForWorker":
+          return jsonResponse(await ctx.runQuery(internal.agentModels.getProviderConnectionForWorker, payload as any));
+        case "getModelRunConfiguration":
+          return jsonResponse(await ctx.runQuery(internal.agentModels.getModelRunConfiguration, payload as any));
         case "scheduleDueAnalysisJobs":
           return jsonResponse(await ctx.runMutation(internal.agentScheduler.scheduleDueAnalysisJobs, payload as any));
         case "cancelAutomaticAnalysisJobs":

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
@@ -125,6 +126,7 @@ export default function CreateAgentPage() {
               Wake this agent for material market events in addition to its cadence.
             </label>
           </div>
+          <p className={styles.notice}>Provider keys, model presets, and individual specialist overrides live in <Link href="/agents/models">Models &amp; keys</Link>. Agent activation always uses the exact active routing version.</p>
         </Panel> : null}
 
         {step === 3 ? <Panel title="Resource budget" description="The agent stops before it can exceed this daily credit ceiling." tone="mint">

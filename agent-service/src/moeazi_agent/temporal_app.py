@@ -1,5 +1,4 @@
 import asyncio
-import asyncio
 from datetime import timedelta
 
 from temporalio import activity, workflow
@@ -13,13 +12,18 @@ with workflow.unsafe.imports_passed_through():
     from moeazi_agent.credits import estimated_credits
     from moeazi_agent.orchestrator import AnalysisOrchestrator, AnalysisRequest
     from moeazi_agent.providers import DeepSeekProvider, OpenAIProvider
+    from moeazi_agent.provider_factory import build_provider_bundle
+    from moeazi_agent.model_routing import ModelRouting, route_estimate
+    from moeazi_agent.roles import assignments_for_tier
     from moeazi_agent.execution_workflow import ExecutionWorkflow, execute_proposal_activity
     from moeazi_agent.analysis_completion import (
         complete_analysis_job_activity, fail_analysis_job_activity,
     )
     from moeazi_agent.runtime_controls import RuntimeControlStore
+    from moeazi_agent.provider_budget import reserve_provider_budget, settle_provider_budget
     from moeazi_agent.security import evidence_prompt_block
     from moeazi_agent.storage import AnalysisRepository
+    from moeazi_agent.tracing import TraceRepository
     from moeazi_agent.venue_setup_workflow import (
         VenueSetupWorkflow, fail_venue_setup_activity, finalize_venue_setup_activity,
     )
@@ -42,38 +46,69 @@ async def analyze_market_activity(payload: dict) -> dict:
         "evidence_max_items": 3 if controls.lite_mode else settings.evidence_max_items,
         "evidence_max_chars_per_item": 300 if controls.lite_mode else settings.evidence_max_chars_per_item,
     })
-    deepseek = DeepSeekProvider(effective_settings)
-    providers = (
-        {"openai": deepseek, "deepseek": deepseek}
-        if effective_settings.provider_mode == "deepseek_only" or controls.lite_mode
-        else {"openai": OpenAIProvider(effective_settings), "deepseek": deepseek}
-    )
     repository = AnalysisRepository(effective_settings.postgres_dsn)
+    model_config = None
+    if payload.get("account_id") and payload.get("model_configuration_version"):
+        model_config = await ConvexWorkerClient(effective_settings).command(
+            "getModelRunConfiguration", strategyAccountId=payload["account_id"],
+            version=payload["model_configuration_version"],
+        )
+        if not model_config:
+            raise RuntimeError("The selected model configuration is unavailable")
+        effective_settings = effective_settings.model_copy(update={
+            "provider_retries": 0 if controls.lite_mode else model_config.get("retries", 0),
+        })
+    bundle = await build_provider_bundle(effective_settings, repository.engine, model_config)
+    provider_reserved = 0
+    if model_config and payload.get("account_id"):
+        estimate = route_estimate(
+            payload["tier"], assignments_for_tier(payload["tier"]), bundle.routing,
+        )
+        provider_reserved = await reserve_provider_budget(
+            redis, payload["account_id"], estimate["provider_cost_microusd"],
+            int(model_config.get("providerDailyLimitMicrousd", 0)),
+        )
     evidence = await repository.recent_evidence(
         payload["market"], effective_settings.evidence_max_items,
     )
-    request = AnalysisRequest(**{
-        **payload,
-        "evidence": evidence_prompt_block(
-            [(ref.id, content) for ref, content in evidence],
-            effective_settings.evidence_max_chars_per_item,
-        ),
-        "evidence_refs": tuple(ref for ref, _ in evidence),
-        "lite_mode": controls.lite_mode,
-    })
-    result = await AnalysisOrchestrator(
-        providers, effective_settings.provider_max_concurrency,
-        allow_single_provider=effective_settings.provider_mode == "deepseek_only" or controls.lite_mode,
-    ).run(request)
-    await repository.save_run(
-        result.synthesis, result.reports, result.calls, payload["scope"], payload.get("account_id")
-    )
-    await redis.aclose()
-    return {
-        "synthesis": result.synthesis.model_dump(mode="json"),
-        "reports": [item.model_dump(mode="json") for item in result.reports],
-        "calls": result.calls,
-    }
+    try:
+        request = AnalysisRequest(**{
+            **payload,
+            "evidence": evidence_prompt_block(
+                [(ref.id, content) for ref, content in evidence],
+                effective_settings.evidence_max_chars_per_item,
+            ),
+            "evidence_refs": tuple(ref for ref, _ in evidence),
+            "lite_mode": controls.lite_mode,
+            "model_routing": bundle.routing,
+        })
+        result = await AnalysisOrchestrator(
+            bundle.providers, effective_settings.provider_max_concurrency,
+            allow_single_provider=effective_settings.provider_mode == "deepseek_only" or controls.lite_mode,
+        ).run(request)
+        await repository.save_run(
+            result.synthesis, result.reports, result.calls, payload["scope"], payload.get("account_id"),
+            model_configuration_version=payload.get("model_configuration_version"),
+        )
+        await TraceRepository(repository.engine, redis).record_analysis(
+            result.synthesis, result.reports, result.calls,
+            evidence, payload.get("account_id"),
+        )
+        if provider_reserved and payload.get("account_id"):
+            actual = sum(
+                int(call.get("provider_cost_microusd", 0))
+                for call in result.calls if call.get("credential_source") == "byok"
+            )
+            await settle_provider_budget(redis, payload["account_id"], provider_reserved, actual)
+        return {
+            "synthesis": result.synthesis.model_dump(mode="json"),
+            "reports": [item.model_dump(mode="json") for item in result.reports],
+            "calls": result.calls,
+            "model_configuration_version": payload.get("model_configuration_version"),
+        }
+    finally:
+        await bundle.close()
+        await redis.aclose()
 
 
 @activity.defn
@@ -110,13 +145,18 @@ async def prepare_scheduled_analysis_activity(payload: dict) -> dict | None:
             return None
         if controls.lite_mode:
             await runtime.reserve_lite_run(job.get("strategyAccountId"))
+        model_config = await convex.command(
+            "getModelRunConfiguration", strategyAccountId=job["strategyAccountId"],
+        )
+        routing = ModelRouting.model_validate(model_config["routes"]) if model_config else None
+        estimate = route_estimate(job["tier"], assignments_for_tier(job["tier"]), routing)
         reservation = await convex.command(
             "reserveAgentCredits",
             userId=job["userId"],
             jobId=job["_id"],
-            amount=estimated_credits(job["tier"]),
+            amount=estimate["credits"],
             expiresAt=job["createdAt"] + 900_000,
-            rateCardVersion=1,
+            rateCardVersion=2 if model_config else 1,
         )
         if reservation.get("insufficient"):
             await convex.fail(job["_id"], holder, "Insufficient credits", retryable=False)
@@ -130,6 +170,7 @@ async def prepare_scheduled_analysis_activity(payload: dict) -> dict | None:
                 "evidence": "",
                 "freshness_ms": 0,
                 "automatic": True,
+                "model_configuration_version": model_config.get("version") if model_config else None,
                 "lite_mode": controls.lite_mode,
                 "task_queue": payload["task_queue"],
             },

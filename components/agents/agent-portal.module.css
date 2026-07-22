@@ -50,4 +50,74 @@
 .ledger { width: 100%; border-collapse: collapse; }
 .ledger th, .ledger td { padding: 11px; border: 2px solid var(--line); text-align: left; }
 .ledger th { background: var(--surface-yellow); font: 800 .72rem var(--font-plex-mono), monospace; text-transform: uppercase; }
-@media (max-width: 900px) { .modeGrid, .metricGrid, .wizardModes, .policyGrid { grid-template-columns: 1fr; } .formGrid { grid-template-columns: 1fr; } .full { grid-column: auto; } .heroRow, .wizardHead { flex-direction: column; } .diffRow { grid-template-columns: 1fr; } }
+.securityNotice, .retentionNote { display: grid; gap: 5px; border: 3px solid var(--line); background: var(--surface-mint); padding: 13px; margin-bottom: 16px; }
+.connectionGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.connectionCard { display: grid; gap: 13px; border: 4px solid var(--line); background: var(--surface-paper); padding: 16px; box-shadow: var(--shadow-sm); }
+.connectionCard header, .routeHeader, .usageBars article header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.connectionCard h3, .routeHeader h3 { margin: 0; }
+.presetGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+.presetGrid button { display: grid; gap: 5px; border: 3px solid var(--line); padding: 14px; background: var(--surface-paper); text-align: left; cursor: pointer; box-shadow: var(--shadow-sm); }
+.presetGrid button[aria-pressed="true"] { background: var(--surface-yellow); transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--line); }
+.presetGrid strong { text-transform: capitalize; font-size: 1rem; }
+.presetGrid span { color: var(--muted); }
+.routeHeader { margin: 18px 0 12px; }
+.routeTable { display: grid; border: 4px solid var(--line); }
+.routeRow { display: grid; grid-template-columns: 1.2fr repeat(4, minmax(135px, 1fr)); gap: 10px; padding: 12px; border-bottom: 2px solid var(--line); align-items: end; background: var(--surface-paper); }
+.routeRow:nth-child(even) { background: var(--surface-cream); }
+.routeRow:last-child { border-bottom: 0; }
+.rateFields { grid-column: 1 / -1; border-top: 2px dashed var(--line); padding-top: 8px; }
+.rateFields summary { cursor: pointer; font-weight: 900; }
+.rateFields label { display: inline-grid; gap: 4px; margin: 8px 12px 0 0; font: 700 .7rem var(--font-plex-mono), monospace; }
+.rateFields input { border: 2px solid var(--line); padding: 7px; max-width: 130px; }
+.monitoringToolbar { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.monitoringToolbar .field { min-width: 220px; }
+.retentionNote { background: var(--surface-sky); }
+.costPreview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 3px solid var(--line); margin: 14px 0; background: var(--surface-cream); }
+.costPreview div { display: grid; gap: 4px; padding: 12px; border-right: 2px solid var(--line); }
+.costPreview div:last-child { border-right: 0; }
+.costPreview span { font: 800 .65rem var(--font-plex-mono), monospace; text-transform: uppercase; }
+.costPreview strong { font: 800 1.05rem var(--font-syne), sans-serif; }
+.usageBars { display: grid; gap: 16px; }
+.usageBars article { display: grid; gap: 7px; }
+.usageBars article header span { font: 800 .65rem var(--font-plex-mono), monospace; }
+.usageBars article > div { height: 14px; border: 2px solid var(--line); background: var(--surface-paper); }
+.usageBars article i { display: block; height: 100%; background: var(--surface-orange); border-right: 2px solid var(--line); }
+.usageBars article p { margin: 0; color: var(--muted); font-size: .82rem; }
+.traceWorkspace { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 660px; border: 3px solid var(--line); background: var(--surface-cream); }
+.traceCanvas { min-width: 0; min-height: 660px; border-right: 3px solid var(--line); }
+.traceDrawer { padding: 18px; overflow: auto; background: var(--surface-paper); }
+.traceDrawer h3 { margin: 0 0 12px; font-size: 1.45rem; }
+.traceSummary { line-height: 1.55; }
+.traceMetrics { display: grid; border: 2px solid var(--line); margin: 14px 0; }
+.traceMetrics div { display: flex; justify-content: space-between; gap: 10px; padding: 8px; border-bottom: 1px solid var(--line); }
+.traceMetrics div:last-child { border-bottom: 0; }
+.traceMetrics dt { color: var(--muted); }
+.traceMetrics dd { margin: 0; text-align: right; font-weight: 800; }
+.tracePayload { border-top: 2px solid var(--line); padding: 10px 0; }
+.tracePayload summary { cursor: pointer; font-weight: 900; }
+.tracePayload pre { max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; background: #171717; color: #f8f3e8; padding: 12px; font-size: .7rem; }
+.traceBoundary { border: 2px solid var(--line); background: var(--surface-sky); padding: 10px; font-size: .78rem; line-height: 1.45; }
+.traceNode { width: 220px; min-height: 88px; border: 4px solid var(--line); background: var(--surface-paper); padding: 12px; box-shadow: 5px 5px 0 var(--line); }
+.traceNode[data-source="byok"] { background: var(--surface-mint); }
+.traceNode[data-status="failed"], .traceNode[data-status="blocked"] { background: var(--surface-red); color: white; }
+.traceNode p { margin: 0 0 5px; font: 800 .62rem var(--font-plex-mono), monospace; text-transform: uppercase; }
+.traceNode h3 { margin: 0 0 6px; font-size: 1rem; }
+.traceNode span, .traceNode small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 .65rem var(--font-plex-mono), monospace; }
+.traceNode small { margin-top: 5px; color: var(--muted); }
+.traceMobileList { display: none; }
+@media (max-width: 1100px) { .routeRow { grid-template-columns: repeat(2, minmax(0, 1fr)); } .routeRow > div:first-child { grid-column: 1 / -1; } }
+@media (max-width: 900px) {
+  .modeGrid, .metricGrid, .wizardModes, .policyGrid, .connectionGrid, .presetGrid { grid-template-columns: 1fr; }
+  .formGrid, .routeRow { grid-template-columns: 1fr; } .full { grid-column: auto; }
+  .costPreview { grid-template-columns: 1fr 1fr; }
+  .costPreview div:nth-child(2) { border-right: 0; }
+  .costPreview div:nth-child(-n+2) { border-bottom: 2px solid var(--line); }
+  .heroRow, .wizardHead, .monitoringToolbar { flex-direction: column; align-items: stretch; }
+  .diffRow { grid-template-columns: 1fr; }
+  .traceWorkspace { display: block; min-height: 0; }
+  .traceCanvas { display: none; }
+  .traceDrawer { border-bottom: 3px solid var(--line); }
+  .traceMobileList { display: grid; gap: 8px; padding: 12px; }
+  .traceMobileList button { display: grid; gap: 5px; text-align: left; border: 3px solid var(--line); background: var(--surface-paper); padding: 11px; }
+  .traceMobileList span { color: var(--muted); }
+}
