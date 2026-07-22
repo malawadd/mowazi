@@ -110,7 +110,7 @@ export const docsPages = [
       tone: "warning",
       title: "Read the trust model before you fund anything",
       body:
-        "Moeazi currently uses app-controlled managed wallets and an external execution worker. It is built to make the workflow easier to follow and operate, not to remove custody or market risk.",
+        "Moeazi uses a user-controlled Universal Account with restricted venue delegates and an isolated execution gateway. It improves workflow safety without removing market risk.",
     },
     homePreview: {
       kicker: "Start here",
@@ -139,7 +139,7 @@ export const docsPages = [
         title: "What Moeazi is trying to make easier",
         summary: "The product goal is operational clarity, not magical abstraction.",
         paragraphs: [
-          "Moeazi packages the strategy into a managed account model: one user identity, one strategy account, three venue-specific managed wallets, and a visible record of status, activity, alerts, and controls.",
+          "Moeazi packages the strategy into one user identity, one UA-owned strategy account, restricted venue links, and a visible record of status, activity, alerts, and controls.",
           "Instead of a browser copilot or a manually operated wallet setup, the system separates responsibilities. The worker watches the market and decides what should happen next, while Convex owns the signing surface and records what the system did.",
         ],
         bullets: [
@@ -206,13 +206,13 @@ export const docsPages = [
       {
         id: "account-model",
         title: "Managed strategy account model",
-        summary: "One Particle account wallet, one strategy account, and three venue-specific managed wallets.",
+        summary: "One Particle or Magic signer, one Universal Account, and restricted venue authorities.",
         paragraphs: [
           "A Moeazi strategy account is the unit the user understands and interacts with. The visible account wallet is the user's Particle Universal Account, while strategy execution still uses separate managed venue wallets so funding, approvals, and execution responsibilities stay legible.",
-          "The current strategy uses one Optimism wallet for onchain strategy actions and two HyperLiquid wallets for master control and delegated execution.",
+          "The current strategy uses the user's Arbitrum UA as owner and creates only bounded, revocable venue delegates where protocols require them.",
         ],
         bullets: [
-          "Optimism execution wallet: holds strategy assets on Optimism, with USDC as strategy capital, LINK as strategy inventory, and ETH as an operational gas reserve.",
+          "Arbitrum UA: owns strategy assets and permissions. Optimism is shown only for legacy migration or Particle unified-balance sourcing.",
           "HyperLiquid master wallet: holds the primary HyperLiquid identity and is used for account-level approvals and withdrawals.",
           "HyperLiquid agent wallet: receives delegated trading authority so the strategy can place hedge orders without using the master wallet for every trade.",
         ],
@@ -271,7 +271,7 @@ export const docsPages = [
         title: "Technical deep dive",
         summary: "For readers who want the implementation shape, not just the product story.",
         paragraphs: [
-          "Managed wallet keys are generated in Convex Node actions and encrypted with AES-256-GCM before they are stored. The worker never needs the raw key material in plaintext because it calls Convex to perform the actual signed venue action.",
+          "Owner keys are never generated or stored. Restricted venue credentials are generated in the execution gateway, wrapped by KMS, and unwrapped only in process memory for signing.",
           "The worker uses short-lived execution leases per strategy account so multiple supervisors do not accidentally act on the same account at once. The app then uses structured tables for strategy accounts, venue accounts, executions, snapshots, alerts, and audit events to keep the workflow inspectable.",
         ],
       },
@@ -328,8 +328,8 @@ export const docsPages = [
         ],
         bullets: [
           "Particle UA: receives the user's cross-chain account wallet deposits and public payment-link deposits.",
-          "Optimism execution wallet: funded from the UA for Uniswap-side strategy actions and gas.",
-          "On that Optimism wallet, ETH is treated as a gas reserve rather than general strategy capital.",
+          "Arbitrum UA: funds Uniswap and venue setup through explicit, user-reviewed mainnet actions.",
+          "Arbitrum ETH is treated as operational gas and remains inside deterministic policy limits.",
           "HyperLiquid master wallet: funded from the UA for margin and higher-level HyperLiquid account control.",
           "HyperLiquid agent wallet: typically receives delegated authority rather than direct user funding as the primary rail.",
         ],
@@ -418,7 +418,7 @@ export const docsPages = [
           "Other parts are present but still need more production hardening or a more complete UI layer. The product should make that visible instead of pretending the entire operating story is equally mature.",
         ],
         bullets: [
-          "Live today: strategy account provisioning, managed wallet generation, config changes, strategy enable/pause, emergency stop, execution records, alerts, and audit logs.",
+          "Live today: UA-linked strategy provisioning, configuration changes, venue setup state, enable/pause, emergency stop, execution records, alerts, and audit logs.",
           "Partial today: supervisor maturity, venue-side validation with real funded accounts, automated deposit confirmation, and position synchronization completeness.",
           "Missing today: a polished withdrawal user flow and end-to-end production confidence across every venue action path.",
         ],
@@ -434,7 +434,7 @@ export const docsPages = [
         bullets: [
           "Range risk: the LP can move out of range and stop behaving as intended.",
           "Execution risk: swaps, hedge orders, or approvals can fail or settle differently than expected.",
-          "Venue risk: Optimism, Uniswap, HyperLiquid, or upstream APIs can degrade or become unavailable.",
+          "Venue risk: Arbitrum, any connected venue, or upstream API can degrade or become unavailable.",
           "Automation risk: the worker can stall, make a poor decision, or act on stale context if surrounding safeguards are incomplete.",
         ],
       },
@@ -447,7 +447,7 @@ export const docsPages = [
         ],
         bullets: [
           "Who controls the funds? Users receive deposits into their Particle Universal Account; funds moved into strategy execution are then held in Moeazi managed venue wallets for that strategy account.",
-          "Where do trades happen? Uniswap-side actions happen on Optimism, while hedge-side actions happen on HyperLiquid through the approved agent setup.",
+          "Where do trades happen? Uniswap, GMX, and direct strategy delegation use Arbitrum; other venues use restricted protocol linkages owned by the same UA.",
           "Why are there multiple wallets? Because funding, account control, and delegated trade execution are different responsibilities and the product keeps them separate.",
           "What happens if the worker stops? The app still keeps the recorded state, but live market supervision and new automated actions stop until the worker returns.",
           "What does emergency stop do? It pauses strategy activity, records the reason, and surfaces a critical alert in the account state.",
@@ -509,7 +509,7 @@ export const landingStoryFrames = [
   {
     id: "system-model",
     kicker: "System Model",
-    title: "One user surface, three managed wallets, one visible control plane.",
+    title: "One user-owned account, restricted venues, one visible control plane.",
     body:
       "The product account you see in the app is backed by separate venue responsibilities on purpose. Moeazi keeps funding, approvals, hedge execution, and recorded system state legible instead of hiding everything inside one mystery wallet.",
     tone: "mint",
@@ -546,7 +546,7 @@ export const landingStoryFrames = [
       "If the structure makes sense, move into the dashboard and provision the managed strategy account. If you still need conviction, keep reading the docs and the risk page before you treat the workflow like finished infrastructure.",
     tone: "yellow",
     bullets: [
-      "Create the account when you are ready to provision the managed wallets.",
+      "Create the strategy after syncing the UA; no fallback owner wallet is provisioned.",
       "Read the docs if you still want the deeper system model and walkthrough.",
       "Read the risk page before you rely on live automation with real capital.",
     ],
@@ -555,7 +555,7 @@ export const landingStoryFrames = [
 
 export const landingHeroProofs = [
   {
-    label: "Managed account",
+    label: "UA-owned account",
     value: "1",
     detail: "One product account per user is the operating surface they actually understand.",
     tone: "yellow",
@@ -563,7 +563,7 @@ export const landingHeroProofs = [
   {
     label: "Venue wallets",
     value: "3",
-    detail: "Optimism execution, HyperLiquid master, and HyperLiquid agent stay operationally separate.",
+    detail: "The Arbitrum owner and each restricted venue authority stay operationally separate.",
     tone: "sky",
   },
   {
@@ -589,7 +589,7 @@ export const landingSystemNodes = [
   },
   {
     label: "Venue 01",
-    title: "Optimism wallet",
+    title: "Arbitrum owner",
     body: "Holds strategy assets onchain, including LP-side inventory and an ETH gas reserve.",
     tone: "paper",
   },
@@ -647,7 +647,7 @@ export const landingTrustColumns = [
     body:
       "Some parts already work as real product infrastructure and should be presented that way without hedging.",
     bullets: [
-      "Strategy account provisioning and managed wallet generation.",
+      "UA-linked strategy provisioning and restricted venue setup.",
       "Configuration changes, enable or pause, and emergency stop.",
       "Execution records, alerts, audit history, and the signed-in operating surface.",
     ],

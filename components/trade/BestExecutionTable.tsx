@@ -2,6 +2,7 @@
 
 import { formatAge, formatNumber, formatUsd } from "@/lib/trade/format";
 import type { BestExecutionQuote, TradeVenueId } from "@/lib/trade/types";
+import Link from "next/link";
 import styles from "./trade-ui.module.css";
 
 export default function BestExecutionTable({
@@ -61,7 +62,7 @@ export default function BestExecutionTable({
                           {row.eligible ? (row.executable ? (isWinner ? "selected" : "ready") : "setup needed") : "excluded"}
                         </span>
                         {!row.eligible ? <p className={styles.cellMuted}>{row.reason}</p> : null}
-                        {row.eligible && !row.executable ? <p className={styles.cellMuted}>{row.setupRequirement}</p> : null}
+                        {row.eligible && !row.executable ? <p className={styles.cellMuted}>{row.setupRequirement} <Link href={`/venues?venue=${row.venue}`}>Connect</Link></p> : null}
                       </td>
                       <td>{row.estimatedEntryPrice ? formatNumber(row.estimatedEntryPrice, 5) : "N/A"}</td>
                       <td>{formatUsd(fees)}</td>

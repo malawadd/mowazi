@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     uniswap_api_url: str = "https://trade-api.gateway.uniswap.org/v1"
     master_key: SecretStr = SecretStr("")
     live_execution_enabled: bool = False
+    mainnet_venue_setup_enabled: bool = False
+    arbitrum_rpc_url: str = ""
     certified_venues: str = ""
     execution_gateway_url: str = "http://execution-gateway:8200"
     execution_sidecar_url: str = "http://execution-sidecar:8300"

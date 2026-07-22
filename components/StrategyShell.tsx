@@ -69,7 +69,7 @@ export default function StrategyShell({
           <p className="brand-kicker">Managed Strategy</p>
           <h1 className="brand-title">Moeazi</h1>
           <p className="brand-copy">
-            LINK/USDC delta-neutral execution across Optimism Uniswap and HyperLiquid.
+            Arbitrum-first execution from one user-owned Universal Account.
           </p>
         </div>
 
@@ -92,8 +92,8 @@ export default function StrategyShell({
         </nav>
 
         <div className="sidebar-footnote">
-          <p>Convex owns key custody.</p>
-          <p>External worker owns the live decision loop.</p>
+          <p>Your UA owns strategy authority.</p>
+          <p>Execution keys stay isolated from agents.</p>
         </div>
       </aside>
 

@@ -1,18 +1,16 @@
 # Moeazi
 
-Moeazi is a `Next.js + Convex + Particle Universal Accounts` app for managed strategy accounts.
+Moeazi is a `Next.js + Convex + Python/Temporal` app for user-owned autonomous strategy accounts.
 
 The current product direction is:
 
 - one user identity via Particle ConnectKit or Magic embedded wallet
-- one visible Universal Account wallet per user profile
-- one managed strategy account per user in Convex
-- three managed venue wallets per account:
-  - Optimism execution wallet
-  - HyperLiquid master wallet
-  - HyperLiquid agent wallet
-- one external Python supervisor that decides what to do
-- Convex-owned signing and execution actions that broadcast the actual trades
+- one user-controlled Universal Account per user profile
+- Arbitrum `42161` as the sole active EVM strategy chain
+- one strategy account linked to that UA
+- restricted venue delegates for Hyperliquid, Lighter, Orderly, GMX, Ostium, and Uniswap
+- Temporal workflows for agents, setup, execution, and reconciliation
+- an execution gateway that never exposes credentials or signing tools to LLM workers
 
 The legacy strategy engine still lives in the `123strk/` folder as internal code, but the public product name is `Moeazi`.
 
@@ -22,15 +20,15 @@ The legacy strategy engine still lives in the `123strk/` folder as internal code
 | --- | --- | --- |
 | Next.js app shell and pages | Working | Dashboard, deposits, positions, risk, activity, settings, emergency stop are live |
 | App auth | Working | Particle ConnectKit and Magic sign Moeazi challenges, then Moeazi mints Convex `customJwt` sessions |
-| Convex schema + managed account model | Working | Managed tables are in `convex/schema.ts` |
-| Managed wallet generation + encryption | Working | Wallets are generated in Convex Node actions and encrypted with `WALLET_MASTER_KEY` |
-| Strategy account provisioning | Working | Creates user record, strategy account, venue accounts, wallet secrets, default config |
+| Convex schema + UA-owned account model | Working | Product state and durable setup records are in `convex/schema.ts` |
+| Owner custody | Working | Particle/Magic owner keys are never generated or stored by Moeazi |
+| Strategy account provisioning | Working | Links the verified UA; creates no fallback funded owner wallets |
 | Strategy config save / enable / pause / emergency stop | Working | Backed by Convex mutations and audit events |
 | Account wallet UI | Working | `/profile/wallet` shows provider, account mode, deposit addresses, unified balance, receive instructions, and share link controls |
-| Deposit instructions UI | Working | Shows managed strategy funding addresses for Optimism + HyperLiquid master wallet |
+| Venue setup UI | Working | `/venues` shows the Arbitrum owner and six restricted venue connections |
 | Universal Account funding | Working | Receives funds into UA, supports public payment links, settles UA payments into Arbitrum USDC, and sends supported UA transfers into strategy rails |
 | Worker HTTP gateway + execution leases | Working | Exposed through `convex/http.ts` |
-| Uniswap execution actions | Implemented | Needs live funded-wallet validation before treating as production-ready |
+| Uniswap Arbitrum routing | Implemented, gated | Approval, quote, route-aware request shaping, validation, and simulation; live remains gated |
 | HyperLiquid approval / order / withdrawal actions | Implemented | Needs live funded-wallet validation before treating as production-ready |
 | External multi-account supervisor | Partial | Runs, leases accounts, reads markets, records activity, but still reuses some legacy reader code |
 | Position syncing | Partial | UI and schema are ready, but automated LP / hedge syncing is not fully ported yet |
@@ -99,11 +97,11 @@ Treat those as legacy internal bot code or reference material unless you intenti
 
 - Node.js 20+
 - npm
-- Python 3.10+ if you want to run the external supervisor
+- Python 3.12 for the agent and execution services
 - a Convex deployment
 - a Particle Network project
 - a Magic API key if you want native EIP-7702 embedded-wallet mode
-- an Optimism RPC endpoint
+- an Arbitrum RPC endpoint
 - a HyperLiquid account if you want to validate live hedge flows
 - a Uniswap API key if your environment requires one
 
@@ -136,10 +134,12 @@ Set these in the Convex dashboard or via `npx convex env set`.
 | `PARTICLE_CONVEX_JWT_PRIVATE_KEY_PEM` | Yes | RS256 private key used by Next.js to mint Convex JWTs |
 | `PARTICLE_CONVEX_JWT_PUBLIC_KEY_PEM` | Yes | Matching RS256 public key exposed from `/api/auth/jwks` |
 | `PARTICLE_CONVEX_JWT_KID` | Optional | JWKS key ID, defaults to `particle-convex` |
-| `WALLET_MASTER_KEY` | Yes | Master key used to encrypt managed private keys |
+| `WALLET_MASTER_KEY` | Legacy only | Reads existing managed wallet records during migration |
 | `WORKER_SHARED_SECRET` | Yes | Shared secret protecting the `/worker` HTTP route |
-| `OPTIMISM_RPC_URL` | Yes | Optimism RPC for managed signing actions |
-| `QUICKNODE_HTTP` | Optional | Fallback alias for `OPTIMISM_RPC_URL` |
+| `ARBITRUM_RPC_URL` | Yes | Active strategy simulation, token verification, and reconciliation RPC |
+| `OPTIMISM_RPC_URL` | Legacy only | Reads and migrates existing Optimism accounts; never active execution |
+| `MAINNET_VENUE_SETUP_ENABLED` | Yes | Independent mainnet setup gate; defaults to `false` |
+| `LIVE_EXECUTION_ENABLED` | Yes | Independent live order gate; defaults to `false` |
 | `UNISWAP_API_KEY` | Optional | Used by Uniswap Trading API quote / swap helpers |
 | `UNISWAP_API_URL` | Optional | Defaults to `https://trade-api.gateway.uniswap.org/v1` |
 

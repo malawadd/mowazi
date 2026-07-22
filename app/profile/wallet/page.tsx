@@ -37,7 +37,7 @@ export default function ProfileWalletPage() {
   };
 
   return (
-    <StrategyShell title="Wallet" subtitle="Account wallet and shared deposit link">
+    <StrategyShell title="Wallet" subtitle="Particle or Magic signer · Arbitrum strategy network">
       {!isSignedIn ? (
         <EmptyState
           title={status === "loading" ? "Loading Particle session..." : "Sign in to view your account wallet."}
@@ -84,12 +84,12 @@ export default function ProfileWalletPage() {
             <Panel title="Strategy funding" description="Optional after strategy provisioning" tone="paper">
               <p className="muted-copy">
                 You can receive and share deposits now. Create a strategy account later when you want to move funds into
-                managed execution wallets.
+                restricted venue connections beneath your UA.
               </p>
             </Panel>
           )}
           {refreshMessage ? (
-            <Panel title="Strategy wallet refresh" tone="paper">
+            <Panel title="Venue balance refresh" tone="paper">
               <p className="muted-copy">{refreshMessage}</p>
             </Panel>
           ) : null}

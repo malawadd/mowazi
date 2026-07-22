@@ -157,12 +157,15 @@ class UniswapTradingApiAdapter(VenueAdapter):
 
     @staticmethod
     def swap_body(quote_response: dict[str, Any], signature: str | None = None) -> dict[str, Any]:
-        body = dict(quote_response)
-        permit = body.get("permitData")
-        if permit is None:
-            body.pop("permitData", None)
-        elif signature:
-            body["signature"] = signature
+        body = {key: value for key, value in quote_response.items()
+                if key not in {"permitData", "permitTransaction", "moeazi"}}
+        permit = quote_response.get("permitData")
+        routing = str(quote_response.get("routing") or quote_response.get("quote", {}).get("routing") or "CLASSIC").upper()
+        if routing in {"DUTCH_V2", "DUTCH_V3", "PRIORITY"}:
+            if signature:
+                body["signature"] = signature
+        elif signature and isinstance(permit, dict):
+            body["signature"], body["permitData"] = signature, permit
         return body
 
     async def build_swap(self, quote_response: dict[str, Any], signature: str | None = None) -> dict[str, Any]:
@@ -173,7 +176,7 @@ class UniswapTradingApiAdapter(VenueAdapter):
         return result
 
     @staticmethod
-    def validate_transaction(result: dict[str, Any]) -> None:
+    def validate_transaction(result: dict[str, Any], expected_sender: str | None = None) -> None:
         tx = result.get("swap", result.get("transaction", result))
         if not isinstance(tx, dict): raise ValueError("Missing swap transaction")
         target, data = tx.get("to"), tx.get("data")
@@ -181,6 +184,10 @@ class UniswapTradingApiAdapter(VenueAdapter):
             raise ValueError("Invalid transaction target")
         if not isinstance(data, str) or not data.startswith("0x") or len(data) <= 2:
             raise ValueError("Invalid transaction data")
+        if int(tx.get("chainId", 42161)) != 42161:
+            raise ValueError("Uniswap transaction must use Arbitrum mainnet")
+        if expected_sender and str(tx.get("from", "")).lower() != expected_sender.lower():
+            raise ValueError("Uniswap transaction sender does not match the strategy UA")
         value = tx.get("value", "0")
         if not isinstance(value, (str, int)):
             raise ValueError("Invalid transaction value")

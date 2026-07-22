@@ -139,7 +139,7 @@ export default function DashboardPage() {
   if (dashboard === undefined) {
     return (
       <StrategyShell title="Overview" subtitle="Managed strategy account health and execution state">
-        <EmptyState title="Loading strategy dashboard..." body="Fetching your managed account state." />
+        <EmptyState title="Loading strategy dashboard..." body="Fetching your UA-owned strategy state." />
       </StrategyShell>
     );
   }
@@ -219,24 +219,26 @@ export default function DashboardPage() {
     <StrategyShell title="Overview" subtitle="Managed strategy account health and execution state">
       <AgentReadiness
         hasStrategy={Boolean(dashboard?.hasStrategyAccount)}
-        hasWallet={Boolean(dashboard?.hasStrategyAccount && dashboard.walletSummary)}
+        hasWallet={Boolean(dashboard?.accountWallet)}
       />
       {!dashboard?.hasStrategyAccount ? (
-        <Panel title="Provisioning" description="Create the managed wallet set for Moeazi" tone="orange">
+        <Panel title="Strategy account" description="Link your verified Universal Account to the Arbitrum strategy boundary" tone="orange">
           <EmptyState
             title="No strategy account provisioned yet."
-            body="Provisioning creates three managed wallets inside Convex: an Optimism execution wallet, a HyperLiquid master wallet, and a HyperLiquid agent wallet."
+            body={dashboard.accountWallet
+              ? "This creates no fallback wallet and stores no owner key. Venue delegates are added later under your Arbitrum UA."
+              : "Sync your Particle or Magic Universal Account first. Moeazi will not generate a separate funded owner wallet."}
             action={
               <button
                 className="primary-button"
                 onClick={provision}
-                disabled={busyAction === "provision" || convexAuth.isLoading || !convexAuth.isAuthenticated}
+                disabled={busyAction === "provision" || convexAuth.isLoading || !convexAuth.isAuthenticated || !dashboard.accountWallet}
               >
                 {busyAction === "provision"
                   ? "Provisioning..."
                   : convexAuth.isLoading
                     ? "Connecting auth..."
-                    : "Create strategy account"}
+                    : dashboard.accountWallet ? "Create strategy account" : "Sync wallet first"}
               </button>
             }
           />

@@ -37,8 +37,16 @@ type MagicWalletState = {
     input: Sign7702AuthorizationRequest,
   ) => Promise<Sign7702AuthorizationResponse>;
   signMessage: (message: string) => Promise<string>;
+  signTypedData: (input: TypedDataPayload) => Promise<string>;
   signRootHash: (rootHash: string) => Promise<string>;
   switchChain: (chainId: number) => Promise<void>;
+};
+
+export type TypedDataPayload = {
+  domain: Record<string, unknown>;
+  types: Record<string, Array<{ name: string; type: string }>>;
+  primaryType: string;
+  message: Record<string, unknown>;
 };
 
 const MagicWalletContext = createContext<MagicWalletState | null>(null);
@@ -155,6 +163,13 @@ export function MagicWalletProvider({ children }: { children: ReactNode }) {
     [magic],
   );
 
+  const signTypedData = useCallback(async (input: TypedDataPayload) => {
+    if (!magic) throw new Error("Magic is not configured.");
+    const types = { ...input.types };
+    delete types.EIP712Domain;
+    return await (await getSigner(magic)).signTypedData(input.domain, types, input.message);
+  }, [magic]);
+
   const sign7702Authorization = useCallback(
     async (input: Sign7702AuthorizationRequest) => {
       if (!magic) throw new Error("Magic is not configured.");
@@ -199,6 +214,7 @@ export function MagicWalletProvider({ children }: { children: ReactNode }) {
       showWallet,
       sign7702Authorization,
       signMessage,
+      signTypedData,
       signRootHash,
       switchChain,
     }),
@@ -214,6 +230,7 @@ export function MagicWalletProvider({ children }: { children: ReactNode }) {
       showWallet,
       sign7702Authorization,
       signMessage,
+      signTypedData,
       signRootHash,
       status,
       switchChain,

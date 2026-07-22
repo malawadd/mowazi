@@ -112,7 +112,7 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
     setMessage(null);
     try {
       await ensureEip7702Delegated();
-      setMessage("Magic 7702 delegation submitted. Refresh the account after confirmation.");
+      setMessage("Arbitrum EIP-7702 delegation submitted. Refresh the account after confirmation.");
     } catch (nextError) {
       setMessage(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
@@ -123,7 +123,7 @@ export default function AccountWalletPanel({ savedWallet }: { savedWallet: Saved
   return (
     <Panel
       title="Account wallet"
-      description="Receive funds into your Universal Account, then move them into Moeazi strategy wallets when ready."
+      description="Your Particle or Magic signer controls one Universal Account. Arbitrum is the strategy execution network."
       tone="sky"
       actions={
         <button className="secondary-button" type="button" disabled={loading} onClick={refresh}>

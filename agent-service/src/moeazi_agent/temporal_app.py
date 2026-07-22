@@ -1,4 +1,5 @@
 import asyncio
+import asyncio
 from datetime import timedelta
 
 from temporalio import activity, workflow
@@ -19,6 +20,9 @@ with workflow.unsafe.imports_passed_through():
     from moeazi_agent.runtime_controls import RuntimeControlStore
     from moeazi_agent.security import evidence_prompt_block
     from moeazi_agent.storage import AnalysisRepository
+    from moeazi_agent.venue_setup_workflow import (
+        VenueSetupWorkflow, fail_venue_setup_activity, finalize_venue_setup_activity,
+    )
 
 
 @activity.defn
@@ -207,11 +211,12 @@ async def run_worker() -> None:
     client = await Client.connect(settings.temporal_address, namespace=settings.temporal_namespace)
     worker = Worker(
         client, task_queue=settings.temporal_task_queue,
-        workflows=[MarketAnalysisWorkflow, ScheduledAnalysisWorkflow, ExecutionWorkflow],
+        workflows=[MarketAnalysisWorkflow, ScheduledAnalysisWorkflow, ExecutionWorkflow, VenueSetupWorkflow],
         activities=[
             analyze_market_activity, complete_analysis_job_activity,
             fail_analysis_job_activity, prepare_scheduled_analysis_activity,
             execute_proposal_activity,
+            finalize_venue_setup_activity, fail_venue_setup_activity,
         ],
     )
     await worker.run()

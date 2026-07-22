@@ -246,10 +246,14 @@ export const getStrategyDashboard = query({
   args: {},
   handler: async (ctx) => {
     const { user, strategyAccount } = await getViewerState(ctx);
+    const accountWallet = user
+      ? await ctx.db.query("accountWallets").withIndex("by_userId", (q) => q.eq("userId", user._id)).first()
+      : null;
     if (!user || !strategyAccount) {
       return {
         hasStrategyAccount: false,
         strategyType: STRATEGY_SLUG,
+        accountWallet,
         user: user
           ? {
               authSubject: user.authSubject ?? null,
@@ -305,6 +309,7 @@ export const getStrategyDashboard = query({
     return {
       hasStrategyAccount: true,
       strategyType: strategyAccount.strategyType,
+      accountWallet,
       user: {
         authSubject: user.authSubject ?? null,
         authProvider: user.authProvider ?? null,

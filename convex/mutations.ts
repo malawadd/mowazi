@@ -543,22 +543,40 @@ export const provisionStrategyAccountRecords = internalMutation({
       .first();
 
     if (existing) {
+      if (!existing.accountWalletId) {
+        const wallet = await ctx.db.query("accountWallets")
+          .withIndex("by_userId", (q) => q.eq("userId", args.userId)).first();
+        if (wallet) {
+          await ctx.db.patch(existing._id, { accountWalletId: wallet._id, updatedAt: now });
+          await ctx.db.patch(wallet._id, { strategyAccountId: existing._id, updatedAt: now });
+        }
+      }
       return { strategyAccountId: existing._id, created: false };
+    }
+
+    const accountWallet = await ctx.db
+      .query("accountWallets")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .first();
+    if (!accountWallet) {
+      throw new Error("Sync your Particle or Magic Universal Account before creating a strategy.");
     }
 
     const strategyAccountId = await ctx.db.insert("strategyAccounts", {
       userId: args.userId,
+      accountWalletId: accountWallet._id,
       strategyType: args.strategyType,
       label: args.label,
       status: "ready",
       emergencyStop: false,
       healthStatus: STRATEGY_HEALTH_STATUS.bootstrapping,
-      healthReason: "Strategy account is provisioned and waiting for funding plus first venue sync.",
+      healthReason: "Arbitrum strategy owner linked; connect at least one venue before activation.",
       healthUpdatedAt: now,
       lastReconciledAt: undefined,
       createdAt: now,
       updatedAt: now,
     });
+    await ctx.db.patch(accountWallet._id, { strategyAccountId, updatedAt: now });
 
     const createdVenueAccounts: Record<string, string> = {};
 
@@ -660,9 +678,11 @@ export const provisionStrategyAccountRecords = internalMutation({
       userId: args.userId,
       actor: "system",
       kind: "strategy.provisioned",
-      summary: "Managed strategy account provisioned",
+      summary: "User-owned Arbitrum strategy account provisioned",
       detail: JSON.stringify({
-        roles: Object.keys(createdVenueAccounts),
+        owner: accountWallet.evmUaAddress,
+        chainId: 42161,
+        generatedWallets: 0,
         strategyType: args.strategyType,
       }),
       createdAt: now,

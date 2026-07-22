@@ -21,6 +21,7 @@ export default defineSchema({
 
   strategyAccounts: defineTable({
     userId: v.id("users"),
+    accountWalletId: v.optional(v.id("accountWallets")),
     strategyType: v.string(),
     label: v.string(),
     status: v.union(
@@ -61,6 +62,12 @@ export default defineSchema({
     chainRef: v.string(),
     accountRef: v.string(),
     walletAddress: v.string(),
+    ownerAddress: v.optional(v.string()),
+    accountId: v.optional(v.string()),
+    delegatePublicKey: v.optional(v.string()),
+    collateralJson: v.optional(v.string()),
+    readinessJson: v.optional(v.string()),
+    legacy: v.optional(v.boolean()),
     status: v.union(
       v.literal("provisioning"),
       v.literal("ready"),
@@ -86,6 +93,10 @@ export default defineSchema({
     strategyAccountId: v.id("strategyAccounts"),
     venue: managedTradingVenue,
     enabled: v.boolean(),
+    routingEnabled: v.optional(v.boolean()),
+    authorityMode: v.optional(
+      v.union(v.literal("shadow"), v.literal("approval"), v.literal("autopilot")),
+    ),
     status: v.union(
       v.literal("disabled"),
       v.literal("authorization_required"),
@@ -94,6 +105,7 @@ export default defineSchema({
     ),
     lastHealthAt: v.optional(v.number()),
     lastHealthMessage: v.optional(v.string()),
+    activeSetupAttemptId: v.optional(v.id("venueSetupAttempts")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -111,6 +123,81 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_venueAccountId", ["venueAccountId"]),
+
+  venueCredentials: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venue: managedTradingVenue,
+    venueAccountId: v.optional(v.id("venueAccounts")),
+    publicKey: v.string(),
+    encryptedEnvelope: v.string(),
+    kmsKeyRef: v.string(),
+    keyVersion: v.number(),
+    status: v.union(v.literal("active"), v.literal("revoked"), v.literal("rotating")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_strategyAccountId_venue", ["strategyAccountId", "venue"])
+    .index("by_publicKey", ["publicKey"]),
+
+  venuePermissions: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    venue: managedTradingVenue,
+    ownerAddress: v.string(),
+    delegatePublicKey: v.optional(v.string()),
+    authorityMode: v.union(v.literal("shadow"), v.literal("approval"), v.literal("autopilot")),
+    chainId: v.number(),
+    limitsJson: v.string(),
+    status: v.union(v.literal("pending"), v.literal("active"), v.literal("revoked"), v.literal("expired")),
+    expiresAt: v.optional(v.number()),
+    transactionId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_strategyAccountId_venue", ["strategyAccountId", "venue"]),
+
+  venueSetupAttempts: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    accountWalletId: v.id("accountWallets"),
+    venue: managedTradingVenue,
+    authorityMode: v.union(v.literal("shadow"), v.literal("approval"), v.literal("autopilot")),
+    fundingAmount: v.string(),
+    state: v.union(
+      v.literal("created"),
+      v.literal("awaiting_delegation"),
+      v.literal("awaiting_funding"),
+      v.literal("awaiting_signature"),
+      v.literal("verifying"),
+      v.literal("ready"),
+      v.literal("failed"),
+      v.literal("cancelled"),
+    ),
+    step: v.string(),
+    transactionId: v.optional(v.string()),
+    signatureHash: v.optional(v.string()),
+    error: v.optional(v.string()),
+    workflowId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_strategyAccountId", ["strategyAccountId"])
+    .index("by_strategyAccountId_venue", ["strategyAccountId", "venue"])
+    .index("by_workflowId", ["workflowId"]),
+
+  optimismMigrations: defineTable({
+    strategyAccountId: v.id("strategyAccounts"),
+    accountWalletId: v.id("accountWallets"),
+    legacyVenueAccountId: v.id("venueAccounts"),
+    balancesJson: v.string(),
+    allowancesJson: v.string(),
+    pendingTransactionsJson: v.string(),
+    retainedGasWei: v.string(),
+    status: v.union(v.literal("review"), v.literal("submitted"), v.literal("reconciling"), v.literal("complete"), v.literal("failed")),
+    transactionId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  }).index("by_strategyAccountId", ["strategyAccountId"]),
 
   strategyConfigs: defineTable({
     strategyAccountId: v.id("strategyAccounts"),
@@ -178,6 +265,12 @@ export default defineSchema({
     walletProvider: v.optional(v.union(v.literal("particle"), v.literal("magic"), v.literal("wallet"))),
     accountMode: v.optional(v.union(v.literal("smart_account"), v.literal("eip7702"))),
     eip7702Delegated: v.optional(v.boolean()),
+    arbitrumDelegationStatus: v.optional(
+      v.union(v.literal("not_supported"), v.literal("required"), v.literal("pending"), v.literal("active"), v.literal("expired")),
+    ),
+    accountImplementation: v.optional(v.string()),
+    capabilitiesJson: v.optional(v.string()),
+    ownerVerifiedAt: v.optional(v.number()),
     delegatedChainIdsJson: v.optional(v.string()),
     unifiedBalanceUsd: v.number(),
     assetsJson: v.string(),

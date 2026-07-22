@@ -53,6 +53,7 @@ export const proposalStatus = v.union(
 );
 
 export const managedVenueRole = v.union(
+  v.literal("arbitrum_ua_owner"),
   v.literal("optimism_execution_wallet"),
   v.literal("hyperliquid_master_wallet"),
   v.literal("hyperliquid_agent_wallet"),

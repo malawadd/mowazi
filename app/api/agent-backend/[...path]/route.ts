@@ -10,7 +10,8 @@ function isAllowed(path: string) {
     || path.startsWith("v1/tiers/")
     || path === "v1/jobs/dispatch"
     || path.startsWith("v1/routing/")
-    || path === "v1/swap/quote"
+    || path.startsWith("v1/swap/")
+    || path.startsWith("v1/venues/")
     || path === "internal/evidence"
     || path === "internal/runtime-controls"
     || path.startsWith("internal/workflows");
@@ -27,7 +28,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   }
 
   const headers = new Headers({ Accept: "application/json" });
-  if (path.startsWith("internal/") || path.startsWith("v1/routing/") || path === "v1/swap/quote" || path === "v1/jobs/dispatch") {
+  if (path.startsWith("internal/") || path.startsWith("v1/routing/") || path.startsWith("v1/swap/") || path.startsWith("v1/venues/") || path === "v1/jobs/dispatch") {
     const secret = process.env.WORKER_SHARED_SECRET;
     if (!secret) return NextResponse.json({ error: "Worker secret is not configured." }, { status: 503 });
     headers.set("Authorization", `Bearer ${secret}`);

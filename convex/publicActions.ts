@@ -4,12 +4,7 @@ import { action } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { ARBITRUM_CAIP2, OPTIMISM_CAIP2, STRATEGY_SLUG } from "./constants";
-import { generateManagedWallet } from "./helpers/walletCrypto";
-
-function toCaip10(chainRef: string, address: string) {
-  return `${chainRef}:${address.toLowerCase()}`;
-}
+import { STRATEGY_SLUG } from "./constants";
 
 export const createStrategyAccount = action({
   args: {
@@ -47,62 +42,11 @@ export const createStrategyAccount = action({
         identity.nickname,
     })) as Id<"users">;
 
-    const optimismWallet = generateManagedWallet(1);
-    const hlMasterWallet = generateManagedWallet(1);
-    const hlAgentWallet = generateManagedWallet(1);
-
     return await ctx.runMutation(internal.mutations.provisionStrategyAccountRecords, {
       userId,
       label: args.label ?? "LINK / USDC Delta Neutral",
       strategyType: STRATEGY_SLUG,
-      venueWallets: [
-        {
-          role: "optimism_execution_wallet",
-          venue: "uniswap",
-          chainRef: OPTIMISM_CAIP2,
-          accountRef: toCaip10(OPTIMISM_CAIP2, optimismWallet.address),
-          walletAddress: optimismWallet.address,
-          status: "ready",
-          metadataJson: JSON.stringify({ venueLabel: "Optimism execution wallet" }),
-          cipherText: optimismWallet.cipherText,
-          iv: optimismWallet.iv,
-          authTag: optimismWallet.authTag,
-          algorithm: optimismWallet.algorithm,
-          keyVersion: optimismWallet.keyVersion,
-        },
-        {
-          role: "hyperliquid_master_wallet",
-          venue: "hyperliquid",
-          chainRef: ARBITRUM_CAIP2,
-          accountRef: toCaip10(ARBITRUM_CAIP2, hlMasterWallet.address),
-          walletAddress: hlMasterWallet.address,
-          status: "ready",
-          metadataJson: JSON.stringify({ venueLabel: "HyperLiquid master wallet" }),
-          cipherText: hlMasterWallet.cipherText,
-          iv: hlMasterWallet.iv,
-          authTag: hlMasterWallet.authTag,
-          algorithm: hlMasterWallet.algorithm,
-          keyVersion: hlMasterWallet.keyVersion,
-        },
-        {
-          role: "hyperliquid_agent_wallet",
-          venue: "hyperliquid",
-          chainRef: ARBITRUM_CAIP2,
-          accountRef: toCaip10(ARBITRUM_CAIP2, hlAgentWallet.address),
-          walletAddress: hlAgentWallet.address,
-          status: "approval_required",
-          metadataJson: JSON.stringify({
-            venueLabel: "HyperLiquid agent wallet",
-            approved: false,
-            approvedBy: hlMasterWallet.address,
-          }),
-          cipherText: hlAgentWallet.cipherText,
-          iv: hlAgentWallet.iv,
-          authTag: hlAgentWallet.authTag,
-          algorithm: hlAgentWallet.algorithm,
-          keyVersion: hlAgentWallet.keyVersion,
-        },
-      ],
+      venueWallets: [],
     }) as { strategyAccountId: Id<"strategyAccounts">; created: boolean };
   },
 });

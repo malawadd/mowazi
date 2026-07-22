@@ -22,9 +22,10 @@ from .runtime_controls import RuntimeControlStore, RuntimeControlUpdate
 from .schedule_manager import set_agent_schedules_paused, sync_profile_schedules
 from .convex import ConvexWorkerClient
 from .storage import AnalysisRepository
-from .routing_contracts import RouteRequest, SwapQuoteRequest
+from .routing_contracts import RouteRequest
 from .routing_service import RoutingService
-import httpx
+from .swap_api import router as swap_router
+from .venue_setup_api import router as venue_setup_router
 
 
 settings = get_settings()
@@ -43,6 +44,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Moeazi Agent Platform", version="0.1.0", lifespan=lifespan)
+app.include_router(swap_router)
+app.include_router(venue_setup_router)
 FastAPIInstrumentor.instrument_app(app)
 
 
@@ -126,26 +129,6 @@ async def routing_preview(request: RouteRequest, authorization: str | None = Hea
         return await app.state.routing.preview(request)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@app.post("/v1/swap/quote")
-async def swap_quote(request: SwapQuoteRequest, authorization: str | None = Header(default=None)):
-    authorize(authorization)
-    payload = {
-        "tokenIn": request.token_in, "tokenOut": request.token_out, "amount": request.amount,
-        "type": request.type, "tokenInChainId": request.token_in_chain_id,
-        "tokenOutChainId": request.token_out_chain_id, "swapper": request.swapper,
-    }
-    if request.slippage_tolerance is not None:
-        payload["slippageTolerance"] = request.slippage_tolerance
-    async with httpx.AsyncClient(timeout=settings.routing_timeout_seconds) as client:
-        response = await client.post(
-            f"{settings.execution_sidecar_url}/internal/uniswap/quote", json=payload,
-            headers={"Authorization": f"Bearer {settings.worker_shared_secret.get_secret_value()}"},
-        )
-    if not response.is_success:
-        raise HTTPException(status_code=502, detail="Uniswap quote is temporarily unavailable")
-    return response.json()
 
 
 @app.get("/v1/tiers/{tier}")

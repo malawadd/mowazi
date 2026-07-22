@@ -27,18 +27,14 @@ export type StrategyFundingTarget = {
   };
 };
 
-const OPTIMISM_USDC = "0x0b2c639c533813f4aa9d7837caf62653d097ff85";
 const ARBITRUM_USDC = "0xaf88d065e77c8cc2239327c5edb3a432268e5831";
 
 export function tokenForStrategyFundingTarget(role: string, asset: string) {
-  if (role === "optimism_execution_wallet" && asset === "USDC") {
-    return { chainId: CHAIN_ID.OPTIMISM_MAINNET, address: OPTIMISM_USDC };
-  }
-  if (role === "optimism_execution_wallet" && asset === "ETH") {
-    return { chainId: CHAIN_ID.OPTIMISM_MAINNET, address: ZeroAddress };
-  }
-  if (role === "hyperliquid_master_wallet" && asset === "USDC") {
+  if ((role === "arbitrum_ua_owner" || role === "hyperliquid_master_wallet") && asset === "USDC") {
     return { chainId: CHAIN_ID.ARBITRUM_MAINNET_ONE, address: ARBITRUM_USDC };
+  }
+  if (role === "arbitrum_ua_owner" && asset === "ETH") {
+    return { chainId: CHAIN_ID.ARBITRUM_MAINNET_ONE, address: ZeroAddress };
   }
   return null;
 }

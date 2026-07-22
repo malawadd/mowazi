@@ -1,5 +1,7 @@
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { GmxApiSdk } from "@gmx-io/sdk/v2";
+import { createPublicClient, defineChain, http } from "viem";
+import { allowedTargets, assertFresh, prepareSwapRequest, routingOf, validateTransaction } from "./uniswap.js";
 
 const port = Number(process.env.PORT ?? 8300);
 const sharedSecret = process.env.WORKER_SHARED_SECRET ?? "";
@@ -7,6 +9,13 @@ const liveExecution = process.env.LIVE_EXECUTION_ENABLED === "true";
 const certified = new Set((process.env.CERTIFIED_VENUES ?? "").split(",").filter(Boolean));
 const uniswapApiKey = process.env.UNISWAP_API_KEY ?? "";
 const uniswapApiUrl = process.env.UNISWAP_API_URL ?? "https://trade-api.gateway.uniswap.org/v1";
+const mainnetSetup = process.env.MAINNET_VENUE_SETUP_ENABLED === "true";
+const arbitrumRpcUrl = process.env.ARBITRUM_RPC_URL ?? "";
+const swapTargets = allowedTargets(process.env.UNISWAP_ARBITRUM_TARGETS);
+const arbitrum = defineChain({ id: 42161, name: "Arbitrum One",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: [arbitrumRpcUrl || "http://127.0.0.1"] } } });
+const arbitrumClient = arbitrumRpcUrl ? createPublicClient({ chain: arbitrum, transport: http(arbitrumRpcUrl) }) : null;
 const gmx = new GmxApiSdk({ chainId: 42161 });
 
 function json(res: ServerResponse, status: number, value: unknown) {
@@ -43,36 +52,13 @@ async function uniswap(path: string, payload: unknown) {
   return result;
 }
 
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" ? value as Record<string, unknown> : null;
-}
-
-function validatedSwap(result: unknown, expectedChainId?: number) {
-  const root = record(result);
-  const transaction = record(root?.swap) ?? record(root?.transaction) ?? root;
-  if (!transaction || typeof transaction !== "object") throw new Error("Missing swap transaction");
-  if (typeof transaction.to !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(transaction.to)) {
-    throw new Error("Invalid swap transaction target");
-  }
-  if (typeof transaction.data !== "string" || !/^0x[0-9a-fA-F]+$/.test(transaction.data) || transaction.data === "0x") {
-    throw new Error("Invalid swap transaction calldata");
-  }
-  if (expectedChainId && transaction.chainId && Number(transaction.chainId) !== expectedChainId) {
-    throw new Error("Swap transaction chain does not match the request");
-  }
-  if (!["string", "number", "bigint"].includes(typeof transaction.value)) {
-    throw new Error("Invalid swap transaction value");
-  }
-  return transaction;
-}
-
 const server = createServer(async (req, res) => {
   try {
     if (req.method === "GET" && req.url === "/health") {
       return json(res, 200, {
         status: "ok",
         gmx: { sdk: "@gmx-io/sdk/v2", live: liveExecution && certified.has("gmx") },
-        uniswap: { live: liveExecution && certified.has("uniswap") },
+        uniswap: { chainId: 42161, setup: mainnetSetup, live: liveExecution && certified.has("uniswap") },
       });
     }
     if (!authorized(req)) return json(res, 401, { error: "Unauthorized" });
@@ -103,9 +89,23 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "POST" && req.url === "/internal/uniswap/swap") {
       const request = await body(req);
-      const result = await uniswap("swap", request);
-      validatedSwap(result, request.chainId ? Number(request.chainId) : undefined);
-      return json(res, 200, result);
+      const quoteResponse = request.quoteResponse ?? request;
+      const quotedAt = Number(request.quotedAt ?? request.moeazi?.quotedAt);
+      const expectedSender = String(request.expectedSender ?? request.swapper ?? "");
+      assertFresh(quotedAt);
+      const result = await uniswap("swap", prepareSwapRequest(quoteResponse, request.signature));
+      const transaction = validateTransaction({ result, expectedSender, allowedTargets: swapTargets });
+      let simulation = { success: false, reason: "ARBITRUM_RPC_URL is not configured" };
+      if (arbitrumClient) {
+        try {
+          await arbitrumClient.call({ account: transaction.from, to: transaction.to, data: transaction.data, value: transaction.value });
+          simulation = { success: true, reason: "eth_call succeeded" };
+        } catch (error) {
+          simulation = { success: false, reason: error instanceof Error ? error.message.slice(0, 300) : String(error) };
+        }
+      }
+      return json(res, 200, { ...result, routing: routingOf(quoteResponse), transaction,
+        simulation, broadcastAllowed: liveExecution && certified.has("uniswap") && simulation.success });
     }
     if (req.method === "POST" && req.url === "/internal/uniswap/broadcast") {
       await body(req);

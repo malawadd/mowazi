@@ -1,5 +1,7 @@
 # Autonomous Agent Backend Architecture
 
+> Active venue ownership and chain boundaries are documented in [Arbitrum-first venue architecture](./arbitrum-venue-architecture.md). Optimism references below describe legacy migration behavior only.
+
 ## Principles
 
 - Convex owns customer-visible state; Timescale owns detailed history.

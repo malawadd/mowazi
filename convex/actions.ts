@@ -61,7 +61,7 @@ function normalizeEvmAddress(address: string) {
 function getOptimismRpcUrl() {
   const rpcUrl = process.env.OPTIMISM_RPC_URL ?? process.env.QUICKNODE_HTTP;
   if (!rpcUrl) {
-    throw new Error("OPTIMISM_RPC_URL or QUICKNODE_HTTP must be configured for managed execution.");
+    throw new Error("OPTIMISM_RPC_URL is only required to read or migrate a legacy Optimism account.");
   }
   return rpcUrl;
 }
@@ -876,6 +876,9 @@ export const executeUniPoolSwap = internalAction({
     notionalUsd: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (process.env.LEGACY_OPTIMISM_EXECUTION_ENABLED !== "true") {
+      throw new Error("Legacy Optimism execution is disabled; use the Arbitrum execution gateway.");
+    }
     const { venueAccount, walletSecret } = await ctx.runQuery(internal.private.getManagedWalletContext, {
       strategyAccountId: args.strategyAccountId,
       role: "optimism_execution_wallet",
@@ -1010,6 +1013,9 @@ export const executeUniRebalance = internalAction({
     notionalUsd: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    if (process.env.LEGACY_OPTIMISM_EXECUTION_ENABLED !== "true") {
+      throw new Error("Legacy Optimism execution is disabled; use the Arbitrum execution gateway.");
+    }
     const { venueAccount, walletSecret } = await ctx.runQuery(internal.private.getManagedWalletContext, {
       strategyAccountId: args.strategyAccountId,
       role: "optimism_execution_wallet",

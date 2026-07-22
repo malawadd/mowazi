@@ -235,7 +235,7 @@ export default function WithdrawalsPage() {
       <StrategyShell title="Withdrawals" subtitle="Wallet balances and settlement tracking">
         <EmptyState
           title="Loading withdrawals..."
-          body="Fetching managed wallet balances and the recent withdrawal pipeline."
+          body="Fetching strategy balances and the recent withdrawal pipeline."
         />
       </StrategyShell>
     );
@@ -246,7 +246,7 @@ export default function WithdrawalsPage() {
       <StrategyShell title="Withdrawals" subtitle="Wallet balances and settlement tracking">
         <EmptyState
           title="No managed strategy account yet."
-          body="Provision the managed wallets before creating withdrawals."
+          body="Connect your Arbitrum UA and venue before creating withdrawals."
         />
       </StrategyShell>
     );
@@ -535,13 +535,13 @@ export default function WithdrawalsPage() {
             </div>
             <div className="support-note">
               <p>
-                Native ETH on Optimism is treated as an operational gas reserve, so the withdrawable
+                For legacy Optimism accounts only, native ETH is retained as an operational gas reserve, so the withdrawable
                 amount can be slightly lower than the full balance.
               </p>
             </div>
             <div className="support-note">
               <p>
-                Optimism withdrawals complete from transaction receipts. HyperLiquid withdrawals stay
+                Legacy Optimism withdrawals complete from transaction receipts. HyperLiquid withdrawals stay
                 in confirming until the venue state settles.
               </p>
             </div>

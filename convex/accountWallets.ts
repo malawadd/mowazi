@@ -150,6 +150,8 @@ export const syncViewerAccountWallet = mutation({
     accountMode: v.optional(accountWalletModeValidator),
     eip7702Delegated: v.optional(v.boolean()),
     delegatedChainIdsJson: v.optional(v.string()),
+    accountImplementation: v.optional(v.string()),
+    capabilitiesJson: v.optional(v.string()),
     unifiedBalanceUsd: v.number(),
     assetsJson: v.string(),
   },
@@ -171,6 +173,15 @@ export const syncViewerAccountWallet = mutation({
     }
 
     const now = Date.now();
+    const delegatedChainIds = (() => {
+      try {
+        const value = JSON.parse(args.delegatedChainIdsJson ?? "[]");
+        return Array.isArray(value) ? value.map(Number).filter(Number.isFinite) : [];
+      } catch {
+        return [];
+      }
+    })();
+    const arbitrumDelegated = Boolean(args.eip7702Delegated) && delegatedChainIds.includes(42161);
     const strategyAccount = await getStrategyAccountByUserId(ctx, user._id);
     const existing = await getAccountWalletByUserId(ctx, user._id);
     const next = {
@@ -184,6 +195,20 @@ export const syncViewerAccountWallet = mutation({
       accountMode: args.accountMode ?? "smart_account",
       eip7702Delegated: args.eip7702Delegated,
       delegatedChainIdsJson: args.delegatedChainIdsJson,
+      arbitrumDelegationStatus:
+        args.accountMode !== "eip7702"
+          ? "required" as const
+          : arbitrumDelegated
+            ? "active" as const
+            : "pending" as const,
+      accountImplementation: args.accountImplementation,
+      capabilitiesJson: args.capabilitiesJson ?? JSON.stringify({
+        shadow: true,
+        approval: true,
+        autopilot: arbitrumDelegated,
+        chainId: 42161,
+      }),
+      ownerVerifiedAt: now,
       unifiedBalanceUsd: args.unifiedBalanceUsd,
       assetsJson: args.assetsJson,
       lastRefreshedAt: now,

@@ -8,7 +8,7 @@ import {
   type IAssetsResponse,
   type ITransaction,
 } from "@particle-network/universal-account-sdk";
-import { useMagicWallet } from "@/components/MagicWalletProvider";
+import { useMagicWallet, type TypedDataPayload } from "@/components/MagicWalletProvider";
 import { useParticleSession } from "@/components/ParticleConnectKitProvider";
 import {
   detectEip7702Capability,
@@ -41,6 +41,8 @@ type AccountInfo = {
   solanaSmartAccount: string;
   walletProvider: AccountWalletProvider;
 };
+
+const ARBITRUM_CHAIN_ID = 42161;
 
 export type UniversalTransferInput = {
   token: { chainId: number; address: string };
@@ -121,7 +123,7 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
         accountMode,
         delegatedChainIds,
         eip7702Delegated:
-          accountMode === "eip7702" && delegatedChainIds.includes(magicWallet.chainId),
+          accountMode === "eip7702" && delegatedChainIds.includes(ARBITRUM_CHAIN_ID),
         evmDepositAddress,
         evmSmartAccount: accountMode === "eip7702" ? resolvedOwner : smartAccountAddress,
         ownerAddress: resolvedOwner,
@@ -240,24 +242,51 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
   );
 
   const ensureEip7702Delegated = useCallback(async () => {
-    if (!isMagicSession || !universalAccount || !ownerAddress) {
-      throw new Error("Magic 7702 wallet is not active.");
+    if (!universalAccount || !ownerAddress || !eip7702Capability.supported) {
+      throw new Error("This wallet cannot authorize Arbitrum EIP-7702 delegation.");
     }
-    await magicWallet.switchChain(magicWallet.chainId);
-    const auth = firstEip7702Auth(await universalAccount.getEIP7702Auth([magicWallet.chainId]));
+    if (!useEIP7702) {
+      throw new Error("Reconnect in EIP-7702 mode before enabling Arbitrum delegation.");
+    }
+    const auth = firstEip7702Auth(await universalAccount.getEIP7702Auth([ARBITRUM_CHAIN_ID]));
     if (!auth?.address) throw new Error("Particle did not return a 7702 authorization target.");
-    const authorization = await magicWallet.sign7702Authorization({
-      chainId: magicWallet.chainId,
-      contractAddress: auth.address,
-      nonce: auth.nonce !== undefined ? auth.nonce + 1 : undefined,
-    });
-    await magicWallet.send7702Transaction({
-      authorizationList: [authorization],
-      data: "0x",
-      to: ownerAddress,
-    });
-    return await refresh();
-  }, [isMagicSession, magicWallet, ownerAddress, refresh, universalAccount]);
+    let submission: unknown;
+    if (isMagicSession) {
+      await magicWallet.switchChain(ARBITRUM_CHAIN_ID);
+      const authorization = await magicWallet.sign7702Authorization({
+        chainId: ARBITRUM_CHAIN_ID,
+        contractAddress: auth.address,
+        nonce: auth.nonce !== undefined ? auth.nonce + 1 : undefined,
+      });
+      submission = await magicWallet.send7702Transaction({ authorizationList: [authorization], data: "0x", to: ownerAddress });
+    } else {
+      const activation = await universalAccount.createUniversalTransaction({
+        chainId: ARBITRUM_CHAIN_ID,
+        expectTokens: [],
+        transactions: [{ to: ownerAddress, data: "0x", value: "0" }],
+      });
+      submission = await signAndSend(activation);
+    }
+    const refreshed = await refresh();
+    return refreshed ? { ...refreshed, transactionId: transactionReference(submission) } : null;
+  }, [eip7702Capability.supported, isMagicSession, magicWallet, ownerAddress, refresh, signAndSend, universalAccount, useEIP7702]);
+
+  const signTypedData = useCallback(async (input: TypedDataPayload) => {
+    if (accountMode !== "eip7702") {
+      throw new Error("This smart-account route requires an audited scoped-signature module.");
+    }
+    if (isMagicSession) return await magicWallet.signTypedData(input);
+    const client = walletClient as Record<string, unknown> | null | undefined;
+    if (typeof client?.signTypedData === "function") {
+      return await (client.signTypedData as (value: unknown) => Promise<string>)({ account: ownerAddress, ...input });
+    }
+    if (typeof client?.request === "function") {
+      return await (client.request as (value: unknown) => Promise<string>)({
+        method: "eth_signTypedData_v4", params: [ownerAddress, JSON.stringify(input)],
+      });
+    }
+    throw new Error("Connected Particle wallet cannot sign typed data.");
+  }, [accountMode, isMagicSession, magicWallet, ownerAddress, walletClient]);
 
   return {
     ownerAddress,
@@ -272,5 +301,14 @@ export function useUniversalAccount(mode: UniversalAccountMode = "smart") {
     createSettledTransfer,
     ensureEip7702Delegated,
     signAndSend,
+    signTypedData,
   };
+}
+
+function transactionReference(value: unknown) {
+  if (value && typeof value === "object") {
+    const row = value as Record<string, unknown>;
+    return String(row.transactionId ?? row.hash ?? row.txHash ?? "submitted");
+  }
+  return String(value ?? "submitted");
 }

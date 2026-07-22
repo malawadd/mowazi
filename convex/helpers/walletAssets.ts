@@ -13,6 +13,7 @@ export const ASSET_PURPOSE = {
 export type AssetPurpose = (typeof ASSET_PURPOSE)[keyof typeof ASSET_PURPOSE];
 
 type VenueRole =
+  | "arbitrum_ua_owner"
   | "optimism_execution_wallet"
   | "hyperliquid_master_wallet"
   | "hyperliquid_agent_wallet"
@@ -30,6 +31,12 @@ export type WalletAssetProfile = {
 };
 
 const SUPPORTED_ASSETS_BY_ROLE: Record<VenueRole, WalletAssetProfile[]> = {
+  arbitrum_ua_owner: [
+    { asset: "USDC", purpose: ASSET_PURPOSE.capital, label: "Strategy capital", includedInStrategyEquity: true, supported: true },
+    { asset: "LINK", purpose: ASSET_PURPOSE.inventory, label: "Strategy inventory", includedInStrategyEquity: true, supported: true },
+    { asset: "WETH", purpose: ASSET_PURPOSE.inventory, label: "Wrapped ETH inventory", includedInStrategyEquity: true, supported: true },
+    { asset: "ETH", purpose: ASSET_PURPOSE.gas, label: "Arbitrum gas reserve", includedInStrategyEquity: false, supported: true },
+  ],
   optimism_execution_wallet: [
     {
       asset: "USDC",

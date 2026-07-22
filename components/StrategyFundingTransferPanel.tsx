@@ -21,7 +21,7 @@ export default function StrategyFundingTransferPanel({
   instructions,
   onTransferComplete,
   title = "Move UA funds to strategy",
-  description = "Use your unified Particle balance to fund Moeazi managed wallets.",
+  description = "Use your unified balance to fund restricted venue connections from your Arbitrum UA.",
 }: {
   instructions: DepositInstructionForFunding[];
   onTransferComplete: () => Promise<void>;

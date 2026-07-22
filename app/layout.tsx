@@ -24,7 +24,7 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "Moeazi",
-  description: "Moeazi manages LINK/USDC delta-neutral strategy accounts on Optimism and HyperLiquid.",
+  description: "Moeazi coordinates Arbitrum-first agentic trading from a user-owned Universal Account.",
   icons: {
     icon: "/convex.svg",
   },

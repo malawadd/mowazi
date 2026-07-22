@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class VenueId(StrEnum):
@@ -117,13 +117,69 @@ class SwapQuoteRequest(BaseModel):
     token_out: str
     amount: str
     type: str = "EXACT_INPUT"
-    token_in_chain_id: int
-    token_out_chain_id: int
+    token_in_chain_id: str
+    token_out_chain_id: str
     swapper: str
     slippage_tolerance: float | None = Field(default=None, ge=0, le=100)
+
+    @field_validator("token_in", "token_out", "swapper")
+    @classmethod
+    def valid_address(cls, value: str):
+        if len(value) != 42 or not value.startswith("0x"):
+            raise ValueError("Expected an EVM address")
+        int(value[2:], 16)
+        return value.lower()
+
+    @field_validator("amount")
+    @classmethod
+    def integer_amount(cls, value: str):
+        if not value.isdigit() or int(value) <= 0:
+            raise ValueError("Amount must be a positive integer in base units")
+        return value
+
+    @field_validator("token_in_chain_id", "token_out_chain_id")
+    @classmethod
+    def arbitrum_only(cls, value: str):
+        if value != "42161":
+            raise ValueError("Strategy swaps must use Arbitrum mainnet (42161)")
+        return value
 
     @model_validator(mode="after")
     def reject_same_token(self):
         if self.token_in.lower() == self.token_out.lower() and self.token_in_chain_id == self.token_out_chain_id:
             raise ValueError("Choose two different assets")
         return self
+
+
+class SwapApprovalRequest(BaseModel):
+    wallet_address: str
+    token: str
+    amount: str
+    chain_id: int = 42161
+
+    @model_validator(mode="after")
+    def validate_request(self):
+        if self.chain_id != 42161:
+            raise ValueError("Strategy approvals must use Arbitrum mainnet (42161)")
+        for value in (self.wallet_address, self.token):
+            if len(value) != 42 or not value.startswith("0x"):
+                raise ValueError("Expected an EVM address")
+            int(value[2:], 16)
+        if not self.amount.isdigit() or int(self.amount) <= 0:
+            raise ValueError("Amount must be a positive integer in base units")
+        return self
+
+
+class SwapPrepareRequest(BaseModel):
+    quote_response: dict
+    expected_sender: str
+    quoted_at: int
+    signature: str | None = None
+
+    @field_validator("expected_sender")
+    @classmethod
+    def valid_sender(cls, value: str):
+        if len(value) != 42 or not value.startswith("0x"):
+            raise ValueError("Expected an EVM address")
+        int(value[2:], 16)
+        return value.lower()

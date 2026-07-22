@@ -1,6 +1,7 @@
 export const STRATEGY_SLUG = "link_usdc_delta_neutral_v1";
 
 export const VENUE_ROLES = {
+  arbitrumOwner: "arbitrum_ua_owner",
   optimismExecution: "optimism_execution_wallet",
   hyperliquidMaster: "hyperliquid_master_wallet",
   hyperliquidAgent: "hyperliquid_agent_wallet",
@@ -87,7 +88,7 @@ export const DEFAULT_STRATEGY_CONFIG = {
   pollIntervalSeconds: 2,
   maxDailyDrawdownPct: 8,
   maxSlippageBps: 250,
-  executionMode: EXECUTION_MODE.live,
+  executionMode: EXECUTION_MODE.shadow,
   maxSingleActionUsd: 25,
   maxDailyVolumeUsd: 250,
   rebalanceCooldownSeconds: 45,
@@ -101,27 +102,31 @@ export const DEFAULT_STRATEGY_CONFIG = {
 export const OPTIMISM_CAIP2 = "eip155:10";
 export const ARBITRUM_CAIP2 = "eip155:42161";
 
-export const UNISWAP_LINK_ADDRESS = "0x350a791Bfc2C21F9Ed5d10980Dad2e2638FFa7f6";
-export const UNISWAP_USDC_ADDRESS = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85";
-export const UNISWAP_POOL_ADDRESS = "0x2eD85aD8093FdefF2f5B0b1CfcA560dDc03c48Ed";
-export const UNISWAP_POOL_FEE = 500;
-export const UNISWAP_SWAP_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
-export const UNISWAP_POSITION_MANAGER = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
+export const UNISWAP_LINK_ADDRESS = "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4";
+export const UNISWAP_USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
+export const UNISWAP_WETH_ADDRESS = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
+export const UNISWAP_SWAP_ROUTER = "0xa51afafe0263b40edaef0df8781ea9aa03e381a3";
+export const UNISWAP_PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+// Legacy-only values remain available to read and migrate existing Optimism accounts.
+export const LINK_USDC_POOL_FEE = 500;
 export const OPTIMISM_ETH_USD_FEED_ADDRESS = "0x13e3Ee699D1909E989722E753853AE30b17e08c5";
 
 export const LINK_ADDRESS = UNISWAP_LINK_ADDRESS;
 export const USDC_ADDRESS = UNISWAP_USDC_ADDRESS;
-export const LINK_USDC_POOL_FEE = UNISWAP_POOL_FEE;
 export const SWAP_ROUTER_ADDRESS = UNISWAP_SWAP_ROUTER;
 export const OPTIMISM_NATIVE_ASSET = "ETH";
 export const OPTIMISM_GAS_RESERVE_WARNING_ETH = 0.002;
 export const OPTIMISM_NATIVE_WITHDRAW_BUFFER_ETH = 0.00005;
 
-export const ALLOWED_UNISWAP_TOKENS = [LINK_ADDRESS.toLowerCase(), USDC_ADDRESS.toLowerCase()];
+export const ALLOWED_UNISWAP_TOKENS = [
+  LINK_ADDRESS.toLowerCase(),
+  USDC_ADDRESS.toLowerCase(),
+  UNISWAP_WETH_ADDRESS.toLowerCase(),
+];
 export const ALLOWED_HYPERLIQUID_COINS = ["LINK"];
 export const ALLOWED_UNISWAP_EXECUTORS = [
   SWAP_ROUTER_ADDRESS.toLowerCase(),
-  "0x6ff5693b99212da76ad316178a184ab56d299b43",
+  UNISWAP_PERMIT2.toLowerCase(),
 ];
 
 export const HYPERLIQUID_API_URL = "https://api.hyperliquid.xyz";
