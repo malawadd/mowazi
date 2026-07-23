@@ -6,6 +6,7 @@ from .config import Settings
 from .model_routing import ModelRouting
 from .provider_credentials import ProviderSecretVault, zero_secret
 from .providers import DeepSeekProvider, OpenAIProvider, SignalProvider
+from .openrouter_provider import OpenRouterProvider
 
 
 @dataclass
@@ -49,10 +50,14 @@ async def build_provider_bundle(
             secret = await vault.retrieve(connection["secretRef"])
             api_key = secret.decode()
         try:
-            providers[provider_name] = (
-                OpenAIProvider(settings, api_key) if provider_name == "openai"
-                else DeepSeekProvider(settings, api_key)
-            )
+            if provider_name == "openai":
+                providers[provider_name] = OpenAIProvider(settings, api_key)
+            elif provider_name == "deepseek":
+                providers[provider_name] = DeepSeekProvider(settings, api_key)
+            elif api_key:
+                providers[provider_name] = OpenRouterProvider(settings, api_key)
+            else:
+                raise RuntimeError("OpenRouter requires a BYOK connection")
         finally:
             if secret is not None:
                 zero_secret(secret)

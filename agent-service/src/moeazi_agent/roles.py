@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 
-Provider = Literal["openai", "deepseek"]
+Provider = Literal["openai", "deepseek", "openrouter"]
 
 
 @dataclass(frozen=True)
@@ -45,6 +45,7 @@ class Assignment:
     credential_source: str = "platform"
     max_output_tokens: int | None = None
     reasoning_effort: str | None = None
+    provider_preferences: dict | None = None
 
 
 def assignments_for_tier(tier: str) -> list[Assignment]:
@@ -72,5 +73,5 @@ def required_synthesis_steps(tier: str) -> tuple[str, ...]:
     return {
         "focus": ("synthesis",),
         "pro": ("critic", "synthesis"),
-        "max": ("openai_synthesis", "deepseek_synthesis", "arbiter"),
+        "max": ("synthesis_primary", "synthesis_challenger", "arbiter"),
     }[tier]

@@ -8,6 +8,9 @@ x-agent-service: &agent-service
     CONVEX_WORKER_URL: ${CONVEX_WORKER_URL:-}
     OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+    OPENROUTER_HTTP_REFERER: ${OPENROUTER_HTTP_REFERER:-https://moeazi.com}
+    OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-Moeazi}
     BYOK_ENABLED: ${BYOK_ENABLED:-true}
     BYOK_SECRET_BACKEND: ${BYOK_SECRET_BACKEND:-local}
     BYOK_AWS_KMS_KEY_ID: ${BYOK_AWS_KMS_KEY_ID:-}
@@ -29,6 +32,8 @@ x-agent-service: &agent-service
       condition: service_started
     timescaledb:
       condition: service_healthy
+    migrations:
+      condition: service_completed_successfully
     redis:
       condition: service_healthy
   restart: unless-stopped
@@ -60,6 +65,24 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  migrations:
+    image: postgres:16-alpine
+    environment:
+      PGHOST: timescaledb
+      PGDATABASE: moeazi
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    volumes:
+      - ./agent-service/migrations:/migrations:ro
+    command:
+      - /bin/sh
+      - -ec
+      - for file in /migrations/*.sql; do echo "Applying $$file"; psql -v ON_ERROR_STOP=1 -f "$$file"; done
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: "no"
 
   temporal:
     image: temporalio/temporal:latest

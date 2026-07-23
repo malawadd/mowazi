@@ -80,6 +80,7 @@ export const saveModelConfigurationDraft = mutation({
   args: {
     preset: v.union(v.literal("economy"), v.literal("balanced"), v.literal("quality"), v.literal("custom")),
     routesJson: v.string(), providerDailyLimitMicrousd: v.number(), retries: v.number(),
+    openRouterPrivacyConfirmed: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const state = await viewer(ctx);
@@ -88,6 +89,12 @@ export const saveModelConfigurationDraft = mutation({
       throw new Error("Provider daily limit must be a non-negative integer.");
     }
     if (!Number.isInteger(args.retries) || args.retries < 0 || args.retries > 2) throw new Error("Retries must be 0-2.");
+    const relaxedOpenRouterPrivacy = routing.routes.some((route) =>
+      route.provider === "openrouter"
+      && (!route.openrouter?.zeroDataRetention || route.openrouter?.dataCollection === "allow"));
+    if (relaxedOpenRouterPrivacy && !args.openRouterPrivacyConfirmed) {
+      throw new Error("Confirm the OpenRouter data-retention warning before saving this route.");
+    }
     const profile = await ctx.db.query("agentProfiles").withIndex("by_strategyAccountId", (q) =>
       q.eq("strategyAccountId", state.strategyAccount._id)).first();
     const estimate = estimateModelRouting(routing, profile?.tier ?? "focus");
@@ -101,12 +108,29 @@ export const saveModelConfigurationDraft = mutation({
       if (selectedRoutes.some((route) => route.provider !== connection.provider)) {
         throw new Error(`Connection ${connection.label} does not match the selected provider.`);
       }
-      const compatible = new Set(parse<{ compatibleModels?: string[] }>(
-        connection.capabilitiesJson, {},
-      ).compatibleModels ?? []);
+      const capabilities = parse<{
+        compatibleModels?: string[];
+        modelDetails?: Record<string, {
+          inputPriceMicrousdPerMillion: number;
+          outputPriceMicrousdPerMillion: number;
+          maximumInputPriceMicrousdPerMillion: number;
+          maximumOutputPriceMicrousdPerMillion: number;
+        }>;
+      }>(connection.capabilitiesJson, {});
+      const compatible = new Set(capabilities.compatibleModels ?? []);
       const selected = selectedRoutes.map((route) => route.model);
       if (selected.some((model) => !compatible.has(model))) {
         throw new Error(`Run the typed-output probe for every model using ${connection.label}.`);
+      }
+      if (connection.provider === "openrouter" && selectedRoutes.some((route) => {
+        const detail = capabilities.modelDetails?.[route.model];
+        return !detail
+          || route.inputPriceMicrousdPerMillion !== detail.maximumInputPriceMicrousdPerMillion
+          || route.outputPriceMicrousdPerMillion !== detail.maximumOutputPriceMicrousdPerMillion
+          || route.estimatedInputPriceMicrousdPerMillion !== detail.inputPriceMicrousdPerMillion
+          || route.estimatedOutputPriceMicrousdPerMillion !== detail.outputPriceMicrousdPerMillion;
+      })) {
+        throw new Error(`OpenRouter prices changed or were edited. Probe the selected model again.`);
       }
     }
     const latest = await ctx.db.query("agentModelConfigurations").withIndex("by_strategyAccountId", (q) =>
@@ -115,7 +139,7 @@ export const saveModelConfigurationDraft = mutation({
     const id = await ctx.db.insert("agentModelConfigurations", {
       strategyAccountId: state.strategyAccount._id, userId: state.user._id,
       version: (latest?.version ?? 0) + 1, status: "draft", preset: args.preset,
-      routesJson: JSON.stringify(routing), pricingVersion: "model-routing-v2",
+      routesJson: JSON.stringify(routing), pricingVersion: "model-routing-v3",
       estimatedCredits: estimate.credits,
       estimatedProviderCostMicrousd: estimate.estimatedProviderCostMicrousd,
       maximumProviderCostMicrousd: estimate.maximumProviderCostMicrousd,
@@ -181,8 +205,9 @@ export const recordProviderConnection = internalMutation({
     const owner = await ownerForSubject(ctx, args.subject);
     if (!owner) throw new Error("Strategy account not found.");
     const now = Date.now();
+    const { subject: _subject, ...connection } = args;
     return await ctx.db.insert("modelProviderConnections", {
-      ...args, userId: owner.userId, strategyAccountId: owner.strategyAccountId,
+      ...connection, userId: owner.userId, strategyAccountId: owner.strategyAccountId,
       version: 1, verifiedAt: args.status === "verified" ? now : undefined, createdAt: now, updatedAt: now,
     });
   },
@@ -202,13 +227,16 @@ export const updateProviderConnection = internalMutation({
     if (!owner || !row || row.strategyAccountId !== owner.strategyAccountId) throw new Error("Provider connection not found.");
     const now = Date.now();
     const { connectionId } = args;
-    const values = {
-      status: args.status, modelsJson: args.modelsJson,
-      capabilitiesJson: args.capabilitiesJson, failureReason: args.failureReason,
-      secretRef: args.secretRef, keyFingerprint: args.keyFingerprint, keyLast4: args.keyLast4,
-    };
     await ctx.db.patch(connectionId, {
-      ...values, failureReason: args.status === "verified" ? undefined : args.failureReason,
+      status: args.status,
+      ...(args.modelsJson !== undefined ? { modelsJson: args.modelsJson } : {}),
+      ...(args.capabilitiesJson !== undefined ? { capabilitiesJson: args.capabilitiesJson } : {}),
+      ...(args.secretRef !== undefined ? { secretRef: args.secretRef } : {}),
+      ...(args.keyFingerprint !== undefined ? { keyFingerprint: args.keyFingerprint } : {}),
+      ...(args.keyLast4 !== undefined ? { keyLast4: args.keyLast4 } : {}),
+      ...(args.status === "verified"
+        ? { failureReason: undefined }
+        : args.failureReason !== undefined ? { failureReason: args.failureReason } : {}),
       version: row.version + 1, updatedAt: now,
       verifiedAt: args.status === "verified" ? now : row.verifiedAt,
       revokedAt: args.status === "revoked" ? now : undefined,
@@ -255,7 +283,7 @@ export const getModelRunConfiguration = internalQuery({
     const routing = parseModelRouting(config.routesJson);
     const connectionIds = [...new Set(routing.routes.filter((route) => route.connectionId).map((route) => route.connectionId!))];
     const connections: Array<{
-      id: string; provider: "openai" | "deepseek"; status: string; secretRef: string;
+      id: string; provider: "openai" | "deepseek" | "openrouter"; status: string; secretRef: string;
     }> = [];
     for (const id of connectionIds) {
       const row = await ctx.db.get(id as Id<"modelProviderConnections">);

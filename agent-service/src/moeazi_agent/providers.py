@@ -40,6 +40,7 @@ class SignalProvider(ABC):
         self, market: str, tier: str, step: str, materials: list[dict],
         model: str | None = None, max_output_tokens: int | None = None,
         reasoning_effort: str | None = None,
+        provider_preferences: dict | None = None,
     ) -> SynthesisDraft | ProviderResponse: ...
 
     async def close(self) -> None:
@@ -95,6 +96,7 @@ class OpenAIProvider(SignalProvider):
         self, market: str, tier: str, step: str, materials: list[dict],
         model: str | None = None, max_output_tokens: int | None = None,
         reasoning_effort: str | None = None,
+        provider_preferences: dict | None = None,
     ) -> SynthesisDraft:
         try:
             request = {
@@ -171,6 +173,7 @@ class DeepSeekProvider(SignalProvider):
         self, market: str, tier: str, step: str, materials: list[dict],
         model: str | None = None, max_output_tokens: int | None = None,
         reasoning_effort: str | None = None,
+        provider_preferences: dict | None = None,
     ) -> SynthesisDraft:
         body = {
             "model": model or self.synthesis_model,
@@ -229,6 +232,7 @@ class DeterministicProvider(SignalProvider):
         self, market: str, tier: str, step: str, materials: list[dict],
         model: str | None = None, max_output_tokens: int | None = None,
         reasoning_effort: str | None = None,
+        provider_preferences: dict | None = None,
     ) -> SynthesisDraft:
         scores = [float(item.get("score", item.get("consensus", 0))) for item in materials]
         consensus = sum(scores) / max(1, len(scores))

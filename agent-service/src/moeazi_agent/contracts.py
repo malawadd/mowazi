@@ -25,7 +25,7 @@ class EvidenceRef(StrictModel):
 
 class SignalReport(StrictModel):
     role: str
-    provider: Literal["openai", "deepseek", "deterministic"]
+    provider: Literal["openai", "deepseek", "openrouter", "deterministic"]
     model: str
     horizon: Literal["minutes", "hours", "days", "weeks"]
     stance: Literal["strong_bearish", "bearish", "neutral", "bullish", "strong_bullish"]
@@ -71,6 +71,13 @@ class AgentRunView(StrictModel):
     provider_cost_microusd: int = Field(default=0, ge=0)
     platform_credits: int = Field(default=0, ge=0)
     credential_source: str = "platform"
+    served_model: str | None = None
+    upstream_provider: str | None = None
+    model_family: str | None = None
+    routing_strategy: str | None = None
+    fallback_attempts: int = Field(default=0, ge=0)
+    generation_id: str | None = None
+    cost_source: str = "rate_estimate"
     decision_summary: str = ""
     error: str | None = None
 

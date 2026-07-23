@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr = SecretStr("")
     deepseek_api_key: SecretStr = SecretStr("")
     deepseek_base_url: str = "https://api.deepseek.com"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_http_referer: str = "https://moeazi.com"
+    openrouter_app_title: str = "Moeazi"
     openai_specialist_model: str = "gpt-5.4-mini"
     openai_synthesis_model: str = "gpt-5.6-sol"
     deepseek_specialist_model: str = "deepseek-v4-flash"

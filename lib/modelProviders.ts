@@ -1,12 +1,20 @@
-export type ModelProvider = "openai" | "deepseek";
+export type ModelProvider = "openai" | "deepseek" | "openrouter";
 export type CredentialSource = "platform" | "byok";
 
 export type AccessibleModel = {
   id: string;
+  name?: string;
+  author?: string;
+  contextLength?: number;
+  supportedParameters?: string[];
   pricingKnown: boolean;
   inputPriceMicrousdPerMillion: number;
   cachedInputPriceMicrousdPerMillion: number;
   outputPriceMicrousdPerMillion: number;
+  maximumInputPriceMicrousdPerMillion?: number;
+  maximumOutputPriceMicrousdPerMillion?: number;
+  upstreamProviders?: string[];
+  pricingVersion?: string;
 };
 
 export type ProviderConnection = {
@@ -16,7 +24,12 @@ export type ProviderConnection = {
   keyLast4: string;
   status: "pending" | "verified" | "invalid" | "revoked";
   models: AccessibleModel[];
-  capabilities: { compatibleModels?: string[] };
+  capabilities: {
+    compatibleModels?: string[];
+    modelDetails?: Record<string, AccessibleModel>;
+    catalogMode?: "embedded" | "remote";
+    catalogCount?: number;
+  };
   failureReason?: string;
   verifiedAt?: number;
   lastUsedAt?: number;
@@ -34,9 +47,21 @@ export type ModelRoute = {
   inputPriceMicrousdPerMillion: number;
   cachedInputPriceMicrousdPerMillion: number;
   outputPriceMicrousdPerMillion: number;
+  estimatedInputPriceMicrousdPerMillion?: number;
+  estimatedOutputPriceMicrousdPerMillion?: number;
+  openrouter?: OpenRouterPreferences;
 };
 
-export type ModelRoutingDocument = { schemaVersion: 1; routes: ModelRoute[] };
+export type OpenRouterPreferences = {
+  sort: "price" | "latency" | "throughput";
+  allowFallbacks: boolean;
+  allowedProviders: string[];
+  ignoredProviders: string[];
+  dataCollection: "allow" | "deny";
+  zeroDataRetention: boolean;
+};
+
+export type ModelRoutingDocument = { schemaVersion: 2; routes: ModelRoute[] };
 
 export const specialistRoles = [
   "technical_trend", "liquidity", "derivatives", "on_chain", "news", "social",
@@ -46,7 +71,7 @@ export const specialistRoles = [
   "market_integrity",
 ] as const;
 
-export const platformModels: Record<ModelProvider, AccessibleModel[]> = {
+export const platformModels: Record<Exclude<ModelProvider, "openrouter">, AccessibleModel[]> = {
   openai: [
     { id: "gpt-5.4-mini", pricingKnown: false, inputPriceMicrousdPerMillion: 0, cachedInputPriceMicrousdPerMillion: 0, outputPriceMicrousdPerMillion: 0 },
     { id: "gpt-5.6-luna", pricingKnown: true, inputPriceMicrousdPerMillion: 1_000_000, cachedInputPriceMicrousdPerMillion: 100_000, outputPriceMicrousdPerMillion: 6_000_000 },
@@ -59,7 +84,10 @@ export const platformModels: Record<ModelProvider, AccessibleModel[]> = {
   ],
 };
 
-function route(slot: string, provider: ModelProvider, model: string, maxOutputTokens: number): ModelRoute {
+function route(
+  slot: string, provider: Exclude<ModelProvider, "openrouter">,
+  model: string, maxOutputTokens: number,
+): ModelRoute {
   const price = platformModels[provider].find((item) => item.id === model)!;
   return {
     slot, provider, model, credentialSource: "platform", maxOutputTokens,
@@ -77,14 +105,23 @@ export function presetRouting(preset: "economy" | "balanced" | "quality"): Model
     route("synthesis", "openai", preset === "economy" ? "gpt-5.6-luna" : "gpt-5.6-sol", 1_200),
     route("critic", "deepseek", "deepseek-v4-pro", 1_200),
     route("arbiter", "openai", preset === "economy" ? "gpt-5.6-luna" : "gpt-5.6-sol", 1_200),
-    route("openai_synthesis", "openai", preset === "economy" ? "gpt-5.6-luna" : "gpt-5.6-sol", 1_200),
-    route("deepseek_synthesis", "deepseek", "deepseek-v4-pro", 1_200),
+    route("synthesis_primary", "openai", preset === "economy" ? "gpt-5.6-luna" : "gpt-5.6-sol", 1_200),
+    route("synthesis_challenger", "deepseek", "deepseek-v4-pro", 1_200),
     route("policy_draft", "deepseek", deepseek, 700),
   ];
   specialistRoles.forEach((roleName, index) => {
     if (index % 2 === 1) routes.push(route(`role:${roleName}`, "deepseek", deepseek, 700));
   });
-  return { schemaVersion: 1, routes };
+  return { schemaVersion: 2, routes };
+}
+
+export const safeOpenRouterPreferences = (): OpenRouterPreferences => ({
+  sort: "price", allowFallbacks: true, allowedProviders: [], ignoredProviders: [],
+  dataCollection: "deny", zeroDataRetention: true,
+});
+
+export function providerLabel(provider: ModelProvider) {
+  return provider === "openai" ? "OpenAI" : provider === "deepseek" ? "DeepSeek" : "OpenRouter";
 }
 
 export async function providerRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -92,6 +129,29 @@ export async function providerRequest<T>(path: string, init?: RequestInit): Prom
     ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) }, cache: "no-store",
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.detail ?? payload.error ?? `Provider service returned ${response.status}.`);
+  if (!response.ok) throw new Error(providerErrorMessage(payload, response.status));
   return payload as T;
+}
+
+export function providerErrorMessage(payload: unknown, status: number): string {
+  if (!payload || typeof payload !== "object") return `Provider service returned ${status}.`;
+  const record = payload as { detail?: unknown; error?: unknown };
+  if (typeof record.detail === "string") return record.detail;
+  if (Array.isArray(record.detail)) {
+    const messages = record.detail.map((item) => {
+      if (!item || typeof item !== "object") return String(item);
+      const issue = item as { msg?: unknown; loc?: unknown };
+      const field = Array.isArray(issue.loc)
+        ? issue.loc.filter((part) => part !== "body").join(".") : "";
+      const message = typeof issue.msg === "string" ? issue.msg : "Invalid request";
+      return field ? `${field}: ${message}` : message;
+    }).filter(Boolean);
+    if (messages.length) return messages.join(" ");
+  }
+  if (typeof record.error === "string") return record.error;
+  if (record.error && typeof record.error === "object") {
+    const message = (record.error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return `Provider service returned ${status}.`;
 }

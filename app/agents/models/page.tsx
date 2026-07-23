@@ -28,7 +28,9 @@ export default function AgentModelsPage() {
       action={status === "unauthenticated" ? <Link className="primary-button" href="/sign-in?redirect=/agents/models">Sign in</Link> : null} />
   </StrategyShell>;
   if (!settings) return <StrategyShell title="Models & keys" subtitle="Your providers, your models, your limits">
-    <EmptyState title="Create a strategy account first." body="Model credentials are isolated to your signed-in strategy account." />
+    <EmptyState title="Create a strategy account first."
+      body="Model credentials are isolated to your signed-in strategy account."
+      action={<Link className="primary-button" href="/dashboard">Continue setup</Link>} />
   </StrategyShell>;
   return <StrategyShell title="Models & keys" subtitle="Your providers, your models, your limits">
     <ProviderConnectionPanel connections={settings.connections as unknown as ProviderConnection[]} />

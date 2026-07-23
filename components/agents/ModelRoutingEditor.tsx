@@ -6,8 +6,9 @@ import { Panel, StatusBadge } from "@/components/strategy-ui";
 import { api } from "@/convex/_generated/api";
 import { estimateModelRouting } from "@/convex/helpers/modelRouting";
 import styles from "@/components/agents/agent-portal.module.css";
+import OpenRouterControls from "@/components/agents/OpenRouterControls";
 import {
-  platformModels, presetRouting, specialistRoles,
+  platformModels, presetRouting, safeOpenRouterPreferences, specialistRoles,
   type AccessibleModel, type ModelProvider, type ModelRoute,
   type ModelRoutingDocument, type ProviderConnection,
 } from "@/lib/modelProviders";
@@ -21,7 +22,9 @@ type Props = {
 
 const labels: Record<string, string> = {
   specialist_default: "Specialist default", synthesis: "Final synthesis", critic: "Critic",
-  arbiter: "Max arbiter", openai_synthesis: "OpenAI synthesis", deepseek_synthesis: "DeepSeek synthesis",
+  arbiter: "Max arbiter", synthesis_primary: "Primary synthesis",
+  synthesis_challenger: "Challenger synthesis",
+  openai_synthesis: "Primary synthesis", deepseek_synthesis: "Challenger synthesis",
   policy_draft: "Policy drafting",
 };
 
@@ -34,6 +37,7 @@ export default function ModelRoutingEditor({ connections, effective, tier }: Pro
   const [retries, setRetries] = useState(0);
   const [advanced, setAdvanced] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [openRouterPrivacyConfirmed, setOpenRouterPrivacyConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -57,28 +61,58 @@ export default function ModelRoutingEditor({ connections, effective, tier }: Pro
   };
 
   const modelsFor = (route: ModelRoute): AccessibleModel[] => {
-    if (route.credentialSource === "platform") return platformModels[route.provider];
+    if (route.credentialSource === "platform" && route.provider !== "openrouter") {
+      return platformModels[route.provider];
+    }
     return connections.find((item) => item._id === route.connectionId)?.models ?? [];
   };
 
   const chooseProvider = (route: ModelRoute, provider: ModelProvider) => {
+    if (provider === "openrouter") {
+      const connection = connections.find((item) =>
+        item.provider === provider && item.status === "verified");
+      const model = connection?.models[0];
+      replaceRoute(route.slot, {
+        provider, model: model?.id ?? "", credentialSource: "byok",
+        connectionId: connection?._id, openrouter: safeOpenRouterPreferences(),
+        inputPriceMicrousdPerMillion: model?.maximumInputPriceMicrousdPerMillion ?? 0,
+        cachedInputPriceMicrousdPerMillion: model?.inputPriceMicrousdPerMillion ?? 0,
+        outputPriceMicrousdPerMillion: model?.maximumOutputPriceMicrousdPerMillion ?? 0,
+        estimatedInputPriceMicrousdPerMillion: model?.inputPriceMicrousdPerMillion ?? 0,
+        estimatedOutputPriceMicrousdPerMillion: model?.outputPriceMicrousdPerMillion ?? 0,
+      });
+      return;
+    }
     const model = platformModels[provider][0];
     replaceRoute(route.slot, {
       provider, model: model.id, credentialSource: "platform", connectionId: undefined,
       inputPriceMicrousdPerMillion: model.inputPriceMicrousdPerMillion,
       cachedInputPriceMicrousdPerMillion: model.cachedInputPriceMicrousdPerMillion,
       outputPriceMicrousdPerMillion: model.outputPriceMicrousdPerMillion,
+      estimatedInputPriceMicrousdPerMillion: undefined,
+      estimatedOutputPriceMicrousdPerMillion: undefined, openrouter: undefined,
     });
   };
 
   const chooseCredential = (route: ModelRoute, value: string) => {
     const connection = connections.find((item) => item._id === value);
-    const model = connection?.models[0] ?? platformModels[route.provider][0];
+    const fallback = route.provider === "openrouter" ? undefined : platformModels[route.provider][0];
+    const model = connection?.models[0] ?? fallback;
+    if (!model) return;
     replaceRoute(route.slot, {
       credentialSource: connection ? "byok" : "platform", connectionId: connection?._id,
-      model: model.id, inputPriceMicrousdPerMillion: model.inputPriceMicrousdPerMillion,
+      model: model.id,
+      inputPriceMicrousdPerMillion: route.provider === "openrouter"
+        ? model.maximumInputPriceMicrousdPerMillion ?? model.inputPriceMicrousdPerMillion
+        : model.inputPriceMicrousdPerMillion,
       cachedInputPriceMicrousdPerMillion: model.cachedInputPriceMicrousdPerMillion,
-      outputPriceMicrousdPerMillion: model.outputPriceMicrousdPerMillion,
+      outputPriceMicrousdPerMillion: route.provider === "openrouter"
+        ? model.maximumOutputPriceMicrousdPerMillion ?? model.outputPriceMicrousdPerMillion
+        : model.outputPriceMicrousdPerMillion,
+      estimatedInputPriceMicrousdPerMillion: route.provider === "openrouter"
+        ? model.inputPriceMicrousdPerMillion : undefined,
+      estimatedOutputPriceMicrousdPerMillion: route.provider === "openrouter"
+        ? model.outputPriceMicrousdPerMillion : undefined,
     });
   };
 
@@ -87,9 +121,17 @@ export default function ModelRoutingEditor({ connections, effective, tier }: Pro
     replaceRoute(route.slot, {
       model: modelId,
       ...(model ? {
-        inputPriceMicrousdPerMillion: model.inputPriceMicrousdPerMillion,
+        inputPriceMicrousdPerMillion: route.provider === "openrouter"
+          ? model.maximumInputPriceMicrousdPerMillion ?? model.inputPriceMicrousdPerMillion
+          : model.inputPriceMicrousdPerMillion,
         cachedInputPriceMicrousdPerMillion: model.cachedInputPriceMicrousdPerMillion,
-        outputPriceMicrousdPerMillion: model.outputPriceMicrousdPerMillion,
+        outputPriceMicrousdPerMillion: route.provider === "openrouter"
+          ? model.maximumOutputPriceMicrousdPerMillion ?? model.outputPriceMicrousdPerMillion
+          : model.outputPriceMicrousdPerMillion,
+        estimatedInputPriceMicrousdPerMillion: route.provider === "openrouter"
+          ? model.inputPriceMicrousdPerMillion : undefined,
+        estimatedOutputPriceMicrousdPerMillion: route.provider === "openrouter"
+          ? model.outputPriceMicrousdPerMillion : undefined,
       } : {}),
     });
   };
@@ -100,6 +142,7 @@ export default function ModelRoutingEditor({ connections, effective, tier }: Pro
       const draft = await save({
         preset, routesJson: JSON.stringify(routing),
         providerDailyLimitMicrousd: Math.round(dailyUsd * 1_000_000), retries,
+        openRouterPrivacyConfirmed,
       });
       await activate({ configurationId: draft.configurationId, confirmed });
       setMessage(`Model route v${draft.version} activated: ${draft.credits} maximum infrastructure credits per ${tier} run.`);
@@ -129,11 +172,12 @@ export default function ModelRoutingEditor({ connections, effective, tier }: Pro
           <label className={styles.field}>Provider
             <select value={route.provider} onChange={(event) => chooseProvider(route, event.target.value as ModelProvider)}>
               <option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option>
+              <option value="openrouter">OpenRouter</option>
             </select>
           </label>
           <label className={styles.field}>Billing source
             <select value={route.connectionId ?? "platform"} onChange={(event) => chooseCredential(route, event.target.value)}>
-              <option value="platform">Moeazi platform key</option>
+              {route.provider !== "openrouter" ? <option value="platform">Moeazi platform key</option> : null}
               {connections.filter((item) => item.provider === route.provider && item.status === "verified").map((item) =>
                 <option key={item._id} value={item._id}>{item.label} · •••• {item.keyLast4}</option>)}
             </select>
@@ -147,7 +191,7 @@ export default function ModelRoutingEditor({ connections, effective, tier }: Pro
             <input type="number" min={128} max={8192} value={route.maxOutputTokens}
               onChange={(event) => replaceRoute(route.slot, { maxOutputTokens: Number(event.target.value) })} />
           </label>
-          {route.provider === "openai" ? <label className={styles.field}>Reasoning effort
+          {route.provider !== "deepseek" ? <label className={styles.field}>Reasoning effort
             <select value={route.reasoningEffort ?? "none"} onChange={(event) => replaceRoute(route.slot, {
               reasoningEffort: event.target.value as ModelRoute["reasoningEffort"],
             })}>
@@ -155,13 +199,24 @@ export default function ModelRoutingEditor({ connections, effective, tier }: Pro
               <option value="medium">Medium</option><option value="high">High</option>
             </select>
           </label> : null}
-          {route.credentialSource === "byok" ? <details className={styles.rateFields}><summary>Confirmed provider rates</summary>
+          {route.provider === "openrouter" && route.openrouter ? <OpenRouterControls
+            value={route.openrouter}
+            onPrivacyRelaxed={() => setOpenRouterPrivacyConfirmed(true)}
+            onChange={(openrouter) => replaceRoute(route.slot, { openrouter })}
+          /> : null}
+          {route.credentialSource === "byok" && route.provider !== "openrouter"
+            ? <details className={styles.rateFields}><summary>Confirmed provider rates</summary>
             {(["inputPriceMicrousdPerMillion", "cachedInputPriceMicrousdPerMillion", "outputPriceMicrousdPerMillion"] as const).map((field) =>
               <label key={field}>{field.replace("PriceMicrousdPerMillion", " $/M")}
                 <input type="number" min={0} step={0.001} value={route[field] / 1_000_000}
                   onChange={(event) => replaceRoute(route.slot, { [field]: Math.round(Number(event.target.value) * 1_000_000) })} />
               </label>)}
           </details> : null}
+          {route.provider === "openrouter" ? <div className={styles.dataList}>
+            <div><span>Expected input</span><strong>${((route.estimatedInputPriceMicrousdPerMillion ?? 0) / 1_000_000).toFixed(3)}/M</strong></div>
+            <div><span>Maximum input</span><strong>${(route.inputPriceMicrousdPerMillion / 1_000_000).toFixed(3)}/M</strong></div>
+            <div><span>Maximum output</span><strong>${(route.outputPriceMicrousdPerMillion / 1_000_000).toFixed(3)}/M</strong></div>
+          </div> : null}
         </article>;
       })}
     </div>
@@ -169,6 +224,7 @@ export default function ModelRoutingEditor({ connections, effective, tier }: Pro
       <div><span>Maximum calls/run</span><strong>{estimate.calls}</strong></div>
       <div><span>Moeazi credits/run</span><strong>{estimate.credits}</strong></div>
       <div><span>Estimated provider spend/run</span><strong>${(estimate.estimatedProviderCostMicrousd / 1_000_000).toFixed(4)}</strong></div>
+      <div><span>Worst-case provider spend/run</span><strong>${(estimate.maximumProviderCostMicrousd / 1_000_000).toFixed(4)}</strong></div>
       <div><span>Configured daily ceiling</span><strong>${dailyUsd.toFixed(2)}</strong></div>
     </div>
     {usesByok && estimate.maximumProviderCostMicrousd > dailyUsd * 1_000_000

@@ -48,7 +48,9 @@ $env:AGENT_ENV_FILE = ".env.agents"
 $services = if ($InfrastructureOnly) { @("timescaledb", "redis", "temporal") } else { @() }
 $arguments = @("compose", "-f", "docker-compose.agents.yml")
 $arguments += @("up", "-d")
-if ($Build) { $arguments += "--build" }
+# A normal agent start must reflect the checked-out backend source. Docker reuses
+# unchanged layers, so rebuilding here is both reliable and inexpensive.
+if ($Build -or -not $InfrastructureOnly) { $arguments += "--build" }
 $arguments += $services
 Push-Location $root
 try {

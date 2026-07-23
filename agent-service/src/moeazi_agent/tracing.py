@@ -65,11 +65,20 @@ class TraceRepository:
                 {"consensus": synthesis.consensus, "confidence": synthesis.confidence}
                 if kind == "synthesis" else {}
             )
+            if call.get("metadata"):
+                output = {**output, "routing": call["metadata"]}
             await self.append({
                 "event_id": event_id, "analysis_id": synthesis.analysis_id,
                 "account_id": account_id, "parent_event_id": root_id,
                 "event_type": kind, "role": call.get("role"), "provider": call.get("provider"),
                 "model": call.get("model"), "credential_source": call.get("credential_source", "platform"),
+                "served_model": call.get("served_model"),
+                "upstream_provider": call.get("upstream_provider"),
+                "model_family": call.get("model_family"),
+                "routing_strategy": call.get("routing_strategy"),
+                "fallback_attempts": call.get("fallback_attempts", 0),
+                "generation_id": call.get("generation_id"),
+                "cost_source": call.get("cost_source", "rate_estimate"),
                 "status": call.get("status", "failed"),
                 "input_summary": {"evidenceIds": call.get("evidence_ids", []), "promptVersion": "agent-v2"},
                 "output_summary": output,
@@ -90,11 +99,15 @@ class TraceRepository:
             await conn.execute(text("""
                 INSERT INTO agent_trace_events
                   (event_id, analysis_id, account_id, parent_event_id, event_type, role, provider,
-                   model, credential_source, status, input_summary, output_summary, decision_summary,
+                   model, credential_source, served_model, upstream_provider, model_family,
+                   routing_strategy, fallback_attempts, generation_id, cost_source,
+                   status, input_summary, output_summary, decision_summary,
                    input_tokens, cached_input_tokens, output_tokens, provider_cost_microusd,
                    platform_credits, latency_ms, retry_number, error, created_at, completed_at)
                 VALUES (:event_id, :analysis_id, :account_id, :parent_event_id, :event_type, :role,
-                  :provider, :model, :credential_source, :status, CAST(:input_summary AS jsonb),
+                  :provider, :model, :credential_source, :served_model, :upstream_provider,
+                  :model_family, :routing_strategy, :fallback_attempts, :generation_id, :cost_source,
+                  :status, CAST(:input_summary AS jsonb),
                   CAST(:output_summary AS jsonb), :decision_summary, :input_tokens,
                   :cached_input_tokens, :output_tokens, :provider_cost_microusd, :platform_credits,
                   :latency_ms, :retry_number, :error, :created_at, :completed_at)
@@ -173,6 +186,9 @@ def _event_values(event: dict) -> dict:
     defaults = {
         "parent_event_id": None, "role": None, "provider": None, "model": None,
         "credential_source": None, "input_summary": {}, "output_summary": {},
+        "served_model": None, "upstream_provider": None, "model_family": None,
+        "routing_strategy": None, "fallback_attempts": 0, "generation_id": None,
+        "cost_source": "rate_estimate",
         "decision_summary": None, "input_tokens": 0, "cached_input_tokens": 0,
         "output_tokens": 0, "provider_cost_microusd": 0, "platform_credits": 0,
         "latency_ms": 0, "retry_number": 0, "error": None,

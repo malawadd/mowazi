@@ -47,8 +47,9 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   });
   const body = ["GET", "HEAD"].includes(request.method) ? undefined : await request.text();
   if (body !== undefined) headers.set("Content-Type", request.headers.get("content-type") ?? "application/json");
+  const query = ["GET", "HEAD"].includes(request.method) ? request.nextUrl.search : "";
   try {
-    const response = await fetch(`${backendUrl}/v1/providers/${path}`, {
+    const response = await fetch(`${backendUrl}/v1/providers/${path}${query}`, {
       method: request.method, headers, body, cache: "no-store", signal: AbortSignal.timeout(60_000),
     });
     return new NextResponse(await response.text(), {

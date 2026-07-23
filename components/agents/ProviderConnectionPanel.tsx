@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { Panel, StatusBadge } from "@/components/strategy-ui";
 import styles from "@/components/agents/agent-portal.module.css";
-import { providerRequest, type ModelProvider, type ProviderConnection } from "@/lib/modelProviders";
+import {
+  providerLabel, providerRequest, type AccessibleModel,
+  type ModelProvider, type ProviderConnection,
+} from "@/lib/modelProviders";
 
 type Props = { connections: ProviderConnection[] };
 
@@ -15,6 +18,9 @@ export default function ProviderConnectionPanel({ connections }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [probeModels, setProbeModels] = useState<Record<string, string>>({});
   const [rotationKeys, setRotationKeys] = useState<Record<string, string>>({});
+  const [searches, setSearches] = useState<Record<string, string>>({});
+  const [catalogs, setCatalogs] = useState<Record<string, AccessibleModel[]>>({});
+  const [catalogTotals, setCatalogTotals] = useState<Record<string, number>>({});
 
   const run = async (key: string, action: () => Promise<unknown>, success: string) => {
     setBusy(key); setMessage(null);
@@ -30,6 +36,32 @@ export default function ProviderConnectionPanel({ connections }: Props) {
     setApiKey("");
   }, "Provider key stored and checked. It cannot be shown again.");
 
+  const searchCatalog = async (connection: ProviderConnection) => {
+    const search = searches[connection._id]?.trim() ?? "";
+    if (!search) {
+      setMessage("Enter a model company, name, or exact OpenRouter model ID.");
+      return;
+    }
+    setBusy(`catalog:${connection._id}`); setMessage(null);
+    try {
+      const result = await providerRequest<{ models: AccessibleModel[]; total: number }>(
+        `connections/${connection._id}/models?q=${encodeURIComponent(search)}&limit=50`,
+      );
+      setCatalogs((value) => ({ ...value, [connection._id]: result.models }));
+      setCatalogTotals((value) => ({ ...value, [connection._id]: result.total }));
+      setProbeModels((value) => ({
+        ...value, [connection._id]: result.models[0]?.id ?? "",
+      }));
+      setMessage(result.total
+        ? `${result.total} matching model${result.total === 1 ? "" : "s"} found.`
+        : `No accessible OpenRouter model matches “${search}”.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return <Panel title="Provider keys" description="Encrypted credentials for private agent calls only" tone="sky">
     <div className={styles.securityNotice}>
       <strong>Your provider bills model tokens directly.</strong>
@@ -39,8 +71,11 @@ export default function ProviderConnectionPanel({ connections }: Props) {
       <label className={styles.field}>Provider
         <select value={provider} onChange={(event) => {
           const value = event.target.value as ModelProvider;
-          setProvider(value); setLabel(`My ${value === "openai" ? "OpenAI" : "DeepSeek"} project`);
-        }}><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select>
+          setProvider(value); setLabel(`My ${providerLabel(value)} project`);
+        }}>
+          <option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option>
+          <option value="openrouter">OpenRouter</option>
+        </select>
       </label>
       <label className={styles.field}>Connection label
         <input value={label} maxLength={60} onChange={(event) => setLabel(event.target.value)} />
@@ -59,21 +94,47 @@ export default function ProviderConnectionPanel({ connections }: Props) {
 
     <div className={styles.connectionGrid}>
       {connections.map((connection) => {
-        const selected = probeModels[connection._id] ?? connection.models[0]?.id ?? "";
+        const catalog = catalogs[connection._id] ?? connection.models;
+        const selected = probeModels[connection._id] ?? catalog[0]?.id ?? "";
         return <article className={styles.connectionCard} key={connection._id}>
-          <header><div><p className={styles.eyebrow}>{connection.provider}</p><h3>{connection.label}</h3></div>
+          <header><div><p className={styles.eyebrow}>{providerLabel(connection.provider)}</p><h3>{connection.label}</h3></div>
             <StatusBadge tone={connection.status === "verified" ? "positive" : connection.status === "revoked" ? "danger" : "warning"}>{connection.status}</StatusBadge></header>
           <div className={styles.dataList}>
             <div><span>Secret</span><strong>•••• {connection.keyLast4}</strong></div>
-            <div><span>Accessible models</span><strong>{connection.models.length}</strong></div>
+            <div><span>Accessible models</span><strong>{connection.capabilities.catalogCount ?? connection.models.length}</strong></div>
             <div><span>Validated models</span><strong>{connection.capabilities.compatibleModels?.length ?? 0}</strong></div>
           </div>
           {connection.failureReason ? <p className={styles.error}>{connection.failureReason}</p> : null}
           {connection.status !== "revoked" ? <>
+            {connection.provider === "openrouter" ? <div className={styles.actions}>
+              <label className={styles.field}>Search OpenRouter models
+                <input value={searches[connection._id] ?? ""}
+                  onChange={(event) => setSearches((value) => ({ ...value, [connection._id]: event.target.value }))}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault(); void searchCatalog(connection);
+                    }
+                  }}
+                  placeholder="Company, name, or exact ID…" />
+                <small>Paste IDs directly, for example poolside/laguna-s-2.1:free.</small>
+              </label>
+              <button type="button" disabled={busy !== null || !(searches[connection._id]?.trim())}
+                onClick={() => void searchCatalog(connection)}>
+                {busy === `catalog:${connection._id}` ? "Searching…" : "Search catalog"}
+              </button>
+            </div> : null}
             <label className={styles.field}>Compatibility probe
               <select value={selected} onChange={(event) => setProbeModels((value) => ({ ...value, [connection._id]: event.target.value }))}>
-                {connection.models.map((model) => <option value={model.id} key={model.id}>{model.id}</option>)}
+                {!catalog.length ? <option value="">Search the catalog first</option> : null}
+                {catalog.map((model) => <option value={model.id} key={model.id}>
+                  {model.name ?? model.id} · {model.id}
+                  {model.supportedParameters?.includes("structured_outputs") ? " · strict JSON" : " · probe required"}
+                </option>)}
               </select>
+              {connection.provider === "openrouter" && catalogs[connection._id] ? <small>
+                {catalogTotals[connection._id] ?? 0} exact catalog matches. Models without advertised strict JSON
+                remain searchable, but must pass Moeazi’s compatibility probe before activation.
+              </small> : null}
             </label>
             <label className={styles.field}>Rotate key
               <input type="password" autoComplete="new-password" value={rotationKeys[connection._id] ?? ""}

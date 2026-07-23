@@ -34,7 +34,14 @@ recorded in every provider-call entry.
 Signed-in users configure models at `/agents/models`. A versioned routing document selects a
 provider, model, credential source, output cap, and optional reasoning effort for every role or
 synthesis stage. The workflow loads that exact activated version before dispatch and never
-silently substitutes another model. Pro and Max still enforce their provider-quorum rules.
+silently substitutes another model. Pro and Max require two distinct canonical model families,
+including when calls are routed through OpenRouter.
+
+OpenRouter is BYOK-only. Its remote catalog is cached briefly in Redis rather than copied into
+Convex; only models that pass strict typed-output validation are stored with expected and maximum
+price snapshots. Routes default to ZDR, deny data collection, require every request parameter, and
+permit only same-model upstream-host fallback. Provider-reported cost and routing metadata are
+retained with the call trace.
 
 Provider secrets are sent only to the authenticated Python provider endpoint. Convex stores the
 connection status, fingerprint, last four characters, verified models, and vault reference; the

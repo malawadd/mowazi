@@ -1,304 +1,271 @@
 # Moeazi
 
-Moeazi is a `Next.js + Convex + Python/Temporal` app for user-owned autonomous strategy accounts.
+Moeazi is an Arbitrum-first autonomous trading application built from:
 
-The current product direction is:
+- Next.js 15 and React 19 for the public terminal and signed-in portal
+- Convex for users, agent configuration, credits, proposals, and current UI state
+- Python 3.12 workers and Temporal for durable agent workflows
+- Postgres/Timescale for evidence, traces, and analysis history
+- Redis for runtime controls, budgets, demand state, and concurrency limits
+- isolated Python and TypeScript execution services for venue access
 
-- one user identity via Particle ConnectKit or Magic embedded wallet
-- one user-controlled Universal Account per user profile
-- Arbitrum `42161` as the sole active EVM strategy chain
-- one strategy account linked to that UA
-- restricted venue delegates for Hyperliquid, Lighter, Orderly, GMX, Ostium, and Uniswap
-- Temporal workflows for agents, setup, execution, and reconciliation
-- an execution gateway that never exposes credentials or signing tools to LLM workers
+Users sign with Particle or Magic. Agent workers never receive wallet keys, venue
+credentials, or signing tools.
 
-The legacy strategy engine still lives in the `123strk/` folder as internal code, but the public product name is `Moeazi`.
+## Local Services
 
-## Current Status
-
-| Area | Status | Notes |
+| Service | Local address | Purpose |
 | --- | --- | --- |
-| Next.js app shell and pages | Working | Dashboard, deposits, positions, risk, activity, settings, emergency stop are live |
-| App auth | Working | Particle ConnectKit and Magic sign Moeazi challenges, then Moeazi mints Convex `customJwt` sessions |
-| Convex schema + UA-owned account model | Working | Product state and durable setup records are in `convex/schema.ts` |
-| Owner custody | Working | Particle/Magic owner keys are never generated or stored by Moeazi |
-| Strategy account provisioning | Working | Links the verified UA; creates no fallback funded owner wallets |
-| Strategy config save / enable / pause / emergency stop | Working | Backed by Convex mutations and audit events |
-| Account wallet UI | Working | `/profile/wallet` shows provider, account mode, deposit addresses, unified balance, receive instructions, and share link controls |
-| Venue setup UI | Working | `/venues` shows the Arbitrum owner and six restricted venue connections |
-| Universal Account funding | Working | Receives funds into UA, supports public payment links, settles UA payments into Arbitrum USDC, and sends supported UA transfers into strategy rails |
-| Worker HTTP gateway + execution leases | Working | Exposed through `convex/http.ts` |
-| Uniswap Arbitrum routing | Implemented, gated | Approval, quote, route-aware request shaping, validation, and simulation; live remains gated |
-| HyperLiquid approval / order / withdrawal actions | Implemented | Needs live funded-wallet validation before treating as production-ready |
-| External multi-account supervisor | Partial | Runs, leases accounts, reads markets, records activity, but still reuses some legacy reader code |
-| Position syncing | Partial | UI and schema are ready, but automated LP / hedge syncing is not fully ported yet |
-| Deposit detection | Partial | `markDepositConfirmed` exists, but no automated chain watcher is wired yet |
-| Withdrawal UX | Partial | Backend exists, but no dedicated frontend flow yet |
-| Legacy single-wallet bot | Legacy | Not part of the managed Moeazi app path |
+| Web app | `http://127.0.0.1:3002` | Terminal, portal, Agent Lab, and API proxies |
+| Convex | Configured by `CONVEX_DEPLOYMENT` | Canonical application state |
+| Agent API | `http://127.0.0.1:8100/health` | Agent, BYOK, monitoring, and runtime-control APIs |
+| Execution gateway | `http://127.0.0.1:8200/health` | Python venue preflight and execution |
+| Execution sidecar | `http://127.0.0.1:8300/health` | GMX and Uniswap TypeScript integrations |
+| Temporal UI | `http://127.0.0.1:8233` | Workflow inspection |
+| Temporal gRPC | `127.0.0.1:7233` | Workflow coordination |
+| Timescale/Postgres | `127.0.0.1:5432` | Detailed agent history |
+| Redis | `127.0.0.1:6379` | Hot state and development safeguards |
 
-## What Is Connected
+## Safety Defaults
 
-These files are part of the current managed Moeazi path:
+Local development is intentionally resource-safe:
 
-- `app/`
-  - public marketing page
-  - authenticated dashboard pages
-  - legacy route redirects for old URLs
-- `components/`
-  - app shell and shared UI
-- `convex/`
-  - schema, queries, mutations, public actions
-  - Node execution actions for signing and broadcasting
-  - `/worker` HTTP endpoint for the external supervisor
-- `123strk/convex_supervisor.py`
-  - external worker loop
-- `123strk/convex_worker_client.py`
-  - HTTP client for Convex worker commands
-- `123strk/managed_runtime.py`
-  - account-level runtime and decision helpers
-- `123strk/uniswap_client.py`
-  - currently reused for market reads
-- `123strk/hyperliquid_client.py`
-  - currently reused for market reads
+- Manual Guard is **ON**: scheduled and event-triggered analysis is blocked.
+- Lite Mode is **ON**: runs use at most two provider calls with strict daily caps.
+- Live execution is **OFF**: Autopilot exercises the workflow but simulates submission.
+- Background ingestion is **OFF**.
 
-## What Is Not Connected
+Use `/agent-lab` to run agents manually or inspect the effective controls. Turning
+off a safeguard requires confirmation. Do not enable live execution merely to test
+the UI.
 
-These files are still in the repo, but they are not the current Moeazi execution path:
+## Prerequisites
 
-- `123strk/main.py`
-- `123strk/arbitrage_engine.py`
-- `123strk/executor.py`
-- `123strk/hedger.py`
-- `123strk/rebalance.py`
-- `123strk/balance_tracker.py`
-- `123strk/exposure_scanner.py`
+- Windows PowerShell 5.1 or PowerShell 7
+- Node.js 20 or newer and npm
+- Docker Desktop with Docker Compose
+- a Convex development deployment
+- Python 3.12 only if running Python tests outside Docker
+- Particle project credentials, or a Magic key, for authenticated wallet flows
+- an Arbitrum RPC URL for wallet, token, venue, and execution features
+- at least a DeepSeek key for the current local agent bootstrap
 
-Treat those as legacy internal bot code or reference material unless you intentionally decide to port them into the managed system.
+The all-in-one launcher is currently a PowerShell script. The application services
+themselves are portable containers.
 
-## Repo Map
+## First-Time Setup
 
-| Path | Purpose |
-| --- | --- |
-| `app/` | Next.js pages and route redirects |
-| `components/` | Shared UI shell and primitives |
-| `convex/schema.ts` | Managed data model |
-| `convex/queries.ts` | Client-facing read APIs |
-| `convex/mutations.ts` | Client-facing state changes |
-| `convex/publicActions.ts` | Provisioning and user-triggered actions |
-| `convex/actions.ts` | Internal Node actions for signing and execution |
-| `convex/http.ts` | Worker HTTP gateway |
-| `convex/private.ts` | Internal queries for managed wallet contexts |
-| `convex/helpers/walletCrypto.ts` | AES-256-GCM encryption / decryption and wallet generation |
-| `123strk/convex_supervisor.py` | External worker loop |
-| `123strk/managed_runtime.py` | Account context and decision helpers |
-| `tests/` | Lease and wallet crypto tests |
+### 1. Install JavaScript dependencies
 
-## Requirements
-
-- Node.js 20+
-- npm
-- Python 3.12 for the agent and execution services
-- a Convex deployment
-- a Particle Network project
-- a Magic API key if you want native EIP-7702 embedded-wallet mode
-- an Arbitrum RPC endpoint
-- a HyperLiquid account if you want to validate live hedge flows
-- a Uniswap API key if your environment requires one
-
-## Environment Variables
-
-Start from `.env.example`. It documents the current variables without exposing live secrets.
-
-### Local Next.js app
-
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `CONVEX_DEPLOYMENT` | Yes | Convex deployment selector used by local tooling |
-| `NEXT_PUBLIC_CONVEX_URL` | Yes | Convex URL used by the browser client |
-| `NEXT_PUBLIC_PROJECT_ID` | Yes | Particle project ID |
-| `NEXT_PUBLIC_CLIENT_KEY` | Yes | Particle browser client key |
-| `NEXT_PUBLIC_APP_ID` | Yes | Particle app ID |
-| `PARTICLE_PROJECT_SERVER_KEY` | Yes | Particle server key used to verify project users |
-| `NEXT_PUBLIC_MAGIC_API_KEY` | Optional | Magic embedded wallet API key for native EIP-7702 login |
-| `NEXT_PUBLIC_MAGIC_DELEGATION_CHAIN_ID` | Optional | Chain used for Magic 7702 delegation, defaults to Arbitrum `42161` |
-| `NEXT_PUBLIC_MAGIC_RPC_URL` | Optional | RPC used by the Magic EVM extension, defaults to public Arbitrum RPC |
-
-### Convex deployment environment
-
-Set these in the Convex dashboard or via `npx convex env set`.
-
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `PARTICLE_CONVEX_JWT_ISSUER` | Yes | Issuer used by Moeazi app-owned Convex JWTs |
-| `PARTICLE_CONVEX_JWKS_URL` | Yes | Public JWKS URL Convex fetches for JWT validation |
-| `PARTICLE_CONVEX_JWT_PRIVATE_KEY_PEM` | Yes | RS256 private key used by Next.js to mint Convex JWTs |
-| `PARTICLE_CONVEX_JWT_PUBLIC_KEY_PEM` | Yes | Matching RS256 public key exposed from `/api/auth/jwks` |
-| `PARTICLE_CONVEX_JWT_KID` | Optional | JWKS key ID, defaults to `particle-convex` |
-| `WALLET_MASTER_KEY` | Legacy only | Reads existing managed wallet records during migration |
-| `WORKER_SHARED_SECRET` | Yes | Shared secret protecting the `/worker` HTTP route |
-| `ARBITRUM_RPC_URL` | Yes | Active strategy simulation, token verification, and reconciliation RPC |
-| `OPTIMISM_RPC_URL` | Legacy only | Reads and migrates existing Optimism accounts; never active execution |
-| `MAINNET_VENUE_SETUP_ENABLED` | Yes | Independent mainnet setup gate; defaults to `false` |
-| `LIVE_EXECUTION_ENABLED` | Yes | Independent live order gate; defaults to `false` |
-| `UNISWAP_API_KEY` | Optional | Used by Uniswap Trading API quote / swap helpers |
-| `UNISWAP_API_URL` | Optional | Defaults to `https://trade-api.gateway.uniswap.org/v1` |
-
-### External Python supervisor
-
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `CONVEX_WORKER_URL` | Yes | Full URL to the Convex `/worker` HTTP endpoint |
-| `WORKER_SHARED_SECRET` | Yes | Must match the Convex deployment secret |
-| `QUICKNODE_HTTP` | Yes | Used by the reused Uniswap market reader |
-| `QUICKNODE_WSS` | Optional | Present in legacy config; not required by the current supervisor loop |
-| `UNISWAP_API_KEY` | Optional | Used by reused Uniswap quote utilities |
-
-### Legacy-only variables
-
-These are not required for the managed Moeazi flow unless you intentionally run the old single-wallet bot:
-
-- `PRIVATE_KEY`
-- `HL_PRIVATE_KEY`
-- `HL_WALLET_ADDRESS`
-- `LP_WALLET_ADDRESS`
-
-### Variables that appear stale for the current app
-
-These showed up in local env state but are not used by the managed Moeazi path:
-
-- `HEDERA_PRIVATE_KEY`
-- `OPENAI_API_KEY`
-
-## Particle Setup
-
-1. Create or open a project in the Particle Dashboard.
-2. Copy the project ID, client key, app ID, and server key into `.env.local`.
-3. Generate an RS256 keypair for Moeazi JWTs and set the private/public PEM env values.
-4. Set `PARTICLE_CONVEX_JWT_ISSUER` to your app origin and `PARTICLE_CONVEX_JWKS_URL` to `<origin>/api/auth/jwks`.
-5. Set the same issuer and JWKS values in Convex with `npx convex env set`.
-6. Start the app and verify `/sign-in` offers `Particle Connect`.
-
-For deployed Convex, the JWKS URL must be publicly reachable by Convex.
-
-## Magic 7702 Setup
-
-1. Create or open a Magic app and copy the publishable API key into `NEXT_PUBLIC_MAGIC_API_KEY`.
-2. Set `NEXT_PUBLIC_MAGIC_DELEGATION_CHAIN_ID=42161` for Arbitrum-native Moeazi accounts.
-3. Set `NEXT_PUBLIC_MAGIC_RPC_URL` to an Arbitrum RPC endpoint.
-4. Start the app and verify `/sign-in` offers `Magic 7702 Wallet`.
-5. After Magic login, open `/profile/wallet`; the owner EOA should be shown as the EVM deposit address because in 7702 mode the EOA is the Universal Account.
-
-## Running The App
-
-### One-time install
-
-```bash
+```powershell
 npm install
 ```
 
-### Start the web app and Convex backend
+### 2. Create local environment files
 
-If you want the normal all-in-one dev flow:
-
-```bash
-npm run dev
+```powershell
+Copy-Item .env.example .env.local
+Copy-Item .env.agents.example .env.agents
 ```
 
-Notes:
+Both files are ignored by Git. Never put real secrets in the example files.
 
-- `npm run dev` runs both Next.js and Convex.
-- the current `predev` script also opens the Convex dashboard once the backend is reachable.
+### 3. Configure `.env.local`
 
-If you want separate terminals:
+At minimum, set:
 
-```bash
-npm run dev:backend
-npm run dev:frontend
+```env
+CONVEX_DEPLOYMENT=dev:your-deployment
+NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+NEXT_PUBLIC_APP_URL=http://127.0.0.1:3002
+
+NEXT_PUBLIC_PROJECT_ID=...
+NEXT_PUBLIC_CLIENT_KEY=...
+NEXT_PUBLIC_APP_ID=...
+PARTICLE_PROJECT_SERVER_KEY=...
+
+PARTICLE_CONVEX_JWT_ISSUER=http://127.0.0.1:3002
+PARTICLE_CONVEX_JWKS_URL=http://127.0.0.1:3002/api/auth/jwks
+PARTICLE_CONVEX_JWT_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+PARTICLE_CONVEX_JWT_PUBLIC_KEY_PEM="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+
+WORKER_SHARED_SECRET=use-a-long-random-value
+ARBITRUM_RPC_URL=https://your-arbitrum-rpc
+AGENT_API_URL=http://127.0.0.1:8100
+AGENT_LAB_ENABLED=true
+MAINNET_VENUE_SETUP_ENABLED=false
+LIVE_EXECUTION_ENABLED=false
 ```
+
+Magic is optional. To enable it, set `NEXT_PUBLIC_MAGIC_API_KEY`,
+`NEXT_PUBLIC_MAGIC_DELEGATION_CHAIN_ID=42161`, and
+`NEXT_PUBLIC_MAGIC_RPC_URL`.
+
+Convex must be able to fetch `PARTICLE_CONVEX_JWKS_URL`. A loopback URL works
+for page development but not authenticated Convex sessions; use a secure tunnel or
+deployed app URL when testing sign-in end to end.
+
+### 4. Configure `.env.agents`
+
+Required local values are:
+
+```env
+WORKER_SHARED_SECRET=the-exact-same-value-used-by-convex
+CONVEX_WORKER_URL=https://your-deployment.convex.site/worker
+DEEPSEEK_API_KEY=...
+PROVIDER_MODE=deepseek_only
+
+BYOK_ENABLED=true
+BYOK_SECRET_BACKEND=local
+MASTER_KEY=a-32-byte-urlsafe-base64-key
+
+ARBITRUM_RPC_URL=https://your-arbitrum-rpc
+AGENT_DEV_CONTROLS_ENABLED=true
+AGENT_MANUAL_GUARD_DEFAULT=true
+AGENT_LITE_MODE_DEFAULT=true
+MAINNET_VENUE_SETUP_ENABLED=false
+LIVE_EXECUTION_ENABLED=false
+```
+
+`PROVIDER_MODE=deepseek_only` is the least expensive bootstrap. For balanced
+platform routing, change it to `balanced` and add `OPENAI_API_KEY`.
+
+OpenRouter is BYOK-only. Do not add an OpenRouter key to an environment file;
+connect it from `/agents/models` so it is encrypted in the provider vault.
+
+Generate a local provider-vault key with:
+
+```powershell
+node -e "const c=require('crypto'); console.log(c.randomBytes(32).toString('base64').replace(/\+/g,'-').replace(/\//g,'_'))"
+```
+
+### 5. Configure the Convex deployment
+
+Set the server-side values in the Convex dashboard or with `npx convex env set`:
+
+- `PARTICLE_CONVEX_JWT_ISSUER`
+- `PARTICLE_CONVEX_JWKS_URL`
+- `WORKER_SHARED_SECRET`
+- `ARBITRUM_RPC_URL`
+- `MAINNET_VENUE_SETUP_ENABLED=false`
+- `LIVE_EXECUTION_ENABLED=false`
+
+The worker secret must match `.env.local` and `.env.agents`.
+
+## Run Everything
+
+From the repository root:
+
+```powershell
+npm run stack:start
+```
+
+This command:
+
+1. starts the Next.js app on port `3002`;
+2. starts `convex dev`;
+3. rebuilds the current agent and execution images;
+4. applies Postgres migrations;
+5. starts Temporal, Timescale, Redis, the Agent API, two workers, and both
+   execution services;
+6. removes the obsolete polling dispatcher and background ingestor containers.
+
+The launcher is idempotent. Running it again keeps existing services and rebuilds
+the backend source when necessary.
 
 Open:
 
-- `http://localhost:3002`
+- app: `http://127.0.0.1:3002`
+- safe development controls: `http://127.0.0.1:3002/agent-lab`
+- model connections and OpenRouter BYOK: `http://127.0.0.1:3002/agents/models`
+- workflow history: `http://127.0.0.1:8233`
 
-## Running The External Supervisor
+## Stop Everything
 
-The web app can run without this, but live automated strategy behavior needs it.
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r 123strk/requirements.txt
-python 123strk/convex_supervisor.py
+```powershell
+npm run stack:stop
 ```
 
-The supervisor currently:
+This stops the website, Convex development process, and Docker services. Postgres
+and Redis volumes are preserved.
 
-- fetches runnable accounts from Convex
-- acquires a per-account lease
-- reads Uniswap and HyperLiquid market prices
-- records snapshots
-- decides whether to trigger a Uniswap swap or HyperLiquid hedge order
-- releases the lease
-
-## First Manual Smoke Test
-
-1. Start Convex and Next.js.
-2. Sign in with Particle Connect or Magic 7702 Wallet.
-3. Open `/dashboard`.
-4. Click `Create strategy account`.
-5. Confirm three venue wallets appear.
-6. Open `/profile/wallet` and confirm the account wallet shows provider, account mode, owner EOA, EVM deposit address, Solana UA, and unified balance.
-   - Particle / wallet-connect users should see Smart Account mode.
-   - Magic users should see EIP-7702 mode and the owner EOA as the EVM deposit address.
-7. Sync the account wallet, create/copy the shared payment link, and open `/pay/<slug>` in a public browser context.
-8. On the public payment page, connect a payer wallet and preview settlement into Arbitrum USDC.
-9. Move funds from the owner UA into the supported strategy rails, then refresh managed funding state.
-10. Open `/deposits` and confirm the managed funding addresses and refreshed balances render.
-11. Approve the HyperLiquid agent wallet from the dashboard.
-12. Enable the strategy.
-13. Start the external supervisor if you want automated activity.
-14. Check `/risk` and `/activity` for snapshots, alerts, and execution events.
-
-## Useful Commands
+## Run Only Part of the Stack
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Start Next.js + Convex together |
-| `npm run dev:frontend` | Start Next.js only |
-| `npm run dev:backend` | Start Convex only |
-| `npx convex codegen` | Refresh generated Convex types |
-| `npm run build` | Production build |
-| `npm test` | Run unit tests |
-| `python 123strk/convex_supervisor.py` | Start the external supervisor |
+| `npm run dev:frontend` | Next.js only on port `3002` |
+| `npm run dev:backend` | Convex development process only |
+| `npm run dev` | Next.js and Convex; does not start agent containers |
+| `powershell -File scripts/start-agent-stack.ps1` | Rebuild and start agent/execution services |
+| `powershell -File scripts/start-agent-stack.ps1 -InfrastructureOnly` | Start only Temporal, Postgres, and Redis |
 
-## Known Gaps
+The old `123strk/convex_supervisor.py` loop is not part of the normal agent runtime.
+Temporal schedules and workflows replaced Convex job polling.
 
-- There is no automated deposit watcher yet.
-- Public payment links record intent metadata, but balances still come from Particle UA and managed wallet refreshes.
-- Position syncing is not complete, so positions may stay empty until data is explicitly recorded.
-- Withdrawal requests exist at the backend level, but there is no dedicated withdrawal page yet.
-- The supervisor still reuses legacy market-reader modules from `123strk/`.
-- Live HyperLiquid and Uniswap execution paths still need validation with funded accounts.
-- Legacy compatibility routes still exist under paths like `/copilot-trading`, `/agents`, `/audit`, and `/styleguide`, but they only redirect into the new app.
+## Inspect the Running Stack
 
-## Recommended Next Steps
+```powershell
+docker compose -f docker-compose.agents.yml ps
+docker compose -f docker-compose.agents.yml logs -f api worker execution-gateway execution-sidecar
+Get-Content .data\website-frontend.err.log -Tail 50
+Get-Content .data\website-backend.err.log -Tail 50
+```
 
-1. Remove tracked local secrets from version control and rotate any credentials that have been shared.
-2. Add a real `.env.local` bootstrap process based on `.env.example`.
-3. Add automated deposit detection and confirmation.
-4. Port LP / hedge state syncing into the managed supervisor path.
-5. Build a real withdrawal UI on top of `requestWithdrawal`.
-6. Add integration tests for onboarding, execution, and multi-account isolation.
-7. Decide whether the legacy single-wallet bot files should be archived, ported, or deleted.
+If a backend change appears missing, run `npm run stack:start` again. The launcher
+rebuilds normal agent starts so a stale Docker image is not reused.
 
-## Security Notes
+## Tests and Checks
 
-- Managed private keys are encrypted at rest in Convex with AES-256-GCM, but this is still app-controlled custody.
-- The current repo state includes a tracked `.env.local`. Treat any real secrets that ever lived there as exposed if this repo has been pushed or shared.
-- `WORKER_SHARED_SECRET` should be a different value from `WALLET_MASTER_KEY`.
+```powershell
+npm test
+npx tsc --noEmit
+npm run build
+```
 
-## Source Of Truth
+For Python tests outside Docker:
 
-Use this root `README.md` as the source of truth for the managed Moeazi app.
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e "./agent-service[test]"
+python -m pytest agent-service/tests
+```
 
-The older docs in `123strk/README.md` and `convex/README.md` are historical context unless they are explicitly updated to match the managed architecture.
+Type-check the execution sidecar with:
+
+```powershell
+npm --prefix execution-sidecar install
+npm --prefix execution-sidecar run typecheck
+```
+
+## Repository Map
+
+| Path | Purpose |
+| --- | --- |
+| `app/` | Next.js routes, portal, terminal, and server proxies |
+| `components/` | Shared UI and agent monitoring interfaces |
+| `convex/` | Canonical product state, APIs, credits, policies, and audit events |
+| `agent-service/` | Python API, Temporal workflows, agents, providers, and gateway |
+| `execution-sidecar/` | TypeScript GMX and Uniswap execution adapter |
+| `docker-compose.agents.yml` | Local durable-agent infrastructure |
+| `scripts/start-all.ps1` | Complete local startup |
+| `scripts/shutdown-all.ps1` | Complete local shutdown |
+| `tests/` | TypeScript contract and application tests |
+| `docs/` | Architecture, routing, and operational runbooks |
+| `123strk/` | Legacy strategy-engine reference code |
+
+## Mainnet and Security Notes
+
+- Arbitrum `42161` is the only active EVM strategy execution chain.
+- Optimism support is read/migration-only.
+- Particle and Magic owner keys are never stored by Moeazi.
+- Provider keys are encrypted locally with `MASTER_KEY`; production must use KMS.
+- BYOK keys never enter Convex, traces, prompts, or agent-visible state.
+- `MAINNET_VENUE_SETUP_ENABLED` and `LIVE_EXECUTION_ENABLED` are independent.
+- Keep `CERTIFIED_VENUES` empty in development.
+- Never expose the Agent API, execution ports, Redis, Postgres, or Temporal directly
+  to the public internet.
+
+See [docs/agent-runbook.md](docs/agent-runbook.md) for operations and
+[docs/agentic-backend-architecture.md](docs/agentic-backend-architecture.md) for
+the detailed system design.

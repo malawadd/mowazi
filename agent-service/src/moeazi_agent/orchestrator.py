@@ -5,7 +5,9 @@ from typing import Any
 
 from .contracts import AgentRunView, EvidenceRef, MarketSynthesis, SignalReport
 from .costs import Usage
-from .model_routing import ModelRoute, ModelRouting, call_cost, call_credits, routed_assignments
+from .model_routing import (
+    ModelRoute, ModelRouting, call_cost, call_credits, provider_preferences, routed_assignments,
+)
 from .providers import ProviderFailure, ProviderResponse, SignalProvider
 from .roles import Assignment, assignments_for_tier, lite_assignments
 from .synthesis import synthesize
@@ -52,7 +54,7 @@ class AnalysisOrchestrator:
         )
         reports = [report for report, _ in outcomes if report]
         calls = [call for _, call in outcomes]
-        self._enforce_quorum(request.tier, assignments, reports, request.lite_mode)
+        self._enforce_quorum(request.tier, assignments, reports, calls, request.lite_mode)
         draft, synthesis_calls = (
             (None, []) if request.lite_mode else await self._run_synthesis(request, reports)
         )
@@ -68,6 +70,13 @@ class AnalysisOrchestrator:
                 provider_cost_microusd=call.get("provider_cost_microusd", 0),
                 platform_credits=call.get("platform_credits", 0),
                 credential_source=call.get("credential_source", "platform"),
+                served_model=call.get("served_model"),
+                upstream_provider=call.get("upstream_provider"),
+                model_family=call.get("model_family"),
+                routing_strategy=call.get("routing_strategy"),
+                fallback_attempts=call.get("fallback_attempts", 0),
+                generation_id=call.get("generation_id"),
+                cost_source=call.get("cost_source", "rate_estimate"),
                 decision_summary=call.get("decision_summary", ""), error=call.get("error"),
             )
             for call in calls
@@ -116,8 +125,8 @@ class AnalysisOrchestrator:
             )
             return draft, [critic_call, synthesis_call]
         first, second = await asyncio.gather(
-            self._synthesis_call("openai_synthesis", "openai", request, materials),
-            self._synthesis_call("deepseek_synthesis", "deepseek", request, materials),
+            self._synthesis_call("synthesis_primary", "openai", request, materials),
+            self._synthesis_call("synthesis_challenger", "deepseek", request, materials),
         )
         arbiter, arbiter_call = await self._synthesis_call(
             "arbiter", "openai", request,
@@ -135,6 +144,7 @@ class AnalysisOrchestrator:
                 request.market, request.tier, step, materials, model=model,
                 max_output_tokens=route.max_output_tokens if route else None,
                 reasoning_effort=route.reasoning_effort if route else None,
+                provider_preferences=provider_preferences(route) if route else None,
             )
         draft, usage = _provider_value(response)
         return draft, {
@@ -151,6 +161,7 @@ class AnalysisOrchestrator:
         tier: str,
         assignments: list[Assignment],
         reports: list[SignalReport],
+        calls: list[dict],
         lite_mode: bool = False,
     ) -> None:
         if lite_mode:
@@ -161,9 +172,12 @@ class AnalysisOrchestrator:
         if tier == "focus" and len(reports) < 4:
             raise ProviderFailure("quorum", "Focus requires four successful specialists")
         if tier in {"pro", "max"}:
-            providers = {report.provider for report in reports}
             required = 8 if tier == "pro" else 14
-            provider_quorum = self.allow_single_provider or {"openai", "deepseek"}.issubset(providers)
+            families = {
+                call.get("model_family") for call in calls
+                if call.get("status") == "completed" and call.get("model_family") not in {None, "unknown"}
+            }
+            provider_quorum = self.allow_single_provider or len(families) >= 2
             if len(reports) < required or not provider_quorum:
                 raise ProviderFailure("quorum", f"{tier.title()} provider quorum failed")
             critical = {item.role.name for item in assignments if item.role.critical}
@@ -180,6 +194,10 @@ def _provider_value(response):
 def _usage_fields(route: ModelRoute | None, provider: str, model: str, usage: Usage, kind: str) -> dict:
     cost_microusd = call_cost(route, usage) if route else 0
     credits = call_credits(route, kind) if route else (3 if kind == "specialist" else 9 if kind == "arbiter" else 7)
+    routing = usage.routing_metadata or {}
+    family = routing.get("modelFamily")
+    if not family and provider in {"openai", "deepseek"}:
+        family = provider
     return {
         "input_tokens": usage.input_tokens,
         "cached_input_tokens": usage.cached_input_tokens,
@@ -188,11 +206,19 @@ def _usage_fields(route: ModelRoute | None, provider: str, model: str, usage: Us
         "provider_cost_microusd": cost_microusd,
         "platform_credits": credits,
         "credential_source": route.credential_source if route else "platform",
+        "served_model": routing.get("servedModel") or model,
+        "upstream_provider": routing.get("upstreamProvider"),
+        "model_family": family or "unknown",
+        "routing_strategy": routing.get("routingStrategy"),
+        "fallback_attempts": routing.get("fallbackAttempts", 0),
+        "generation_id": routing.get("generationId"),
+        "cost_source": usage.cost_source,
         "metadata": {
             "input_tokens": usage.input_tokens,
             "cached_input_tokens": usage.cached_input_tokens,
             "output_tokens": usage.output_tokens,
             "estimated_cost_usd": cost_microusd / 1_000_000,
+            **routing,
         },
     }
 

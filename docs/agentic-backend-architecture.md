@@ -64,6 +64,7 @@ flowchart TB
     subgraph MODEL["Model providers"]
       OPENAI["OpenAI"]
       DEEP["DeepSeek"]
+      OPENROUTER["OpenRouter BYOK<br/>upstream-aware routing"]
     end
     subgraph GATE["Execution boundary"]
       PY["Python venue adapters"]
@@ -78,7 +79,7 @@ flowchart TB
     PROFILE --> SCHEDULE --> FLOW
     EVENT --> FLOW
     REDIS & PG --> FLOW
-    FLOW --> ROUTE --> OPENAI & DEEP
+    FLOW --> ROUTE --> OPENAI & DEEP & OPENROUTER
     ROUTE --> PG & SNAP & TRADE
     TRADE --> EXEC
     EXEC --> POLICY & CREDIT

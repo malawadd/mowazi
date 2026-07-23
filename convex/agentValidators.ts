@@ -30,7 +30,9 @@ export const analysisCadence = v.union(
 
 export const analysisScope = v.union(v.literal("public"), v.literal("private"));
 
-export const modelProvider = v.union(v.literal("openai"), v.literal("deepseek"));
+export const modelProvider = v.union(
+  v.literal("openai"), v.literal("deepseek"), v.literal("openrouter"),
+);
 
 export const credentialSource = v.union(v.literal("platform"), v.literal("byok"));
 

@@ -57,3 +57,34 @@ def test_byok_requires_a_connection():
             "schemaVersion": 1,
             "routes": [invalid, route("synthesis", "byok")],
         })
+
+
+def test_openrouter_is_byok_only_and_receives_safe_defaults():
+    specialist = route("specialist_default", "byok")
+    specialist.update({"provider": "openrouter", "model": "anthropic/claude-sonnet"})
+    synthesis = {**specialist, "slot": "synthesis"}
+    parsed = ModelRouting.model_validate({
+        "schemaVersion": 2, "routes": [specialist, synthesis],
+    })
+    assert parsed.routes[0].openrouter.sort == "price"
+    assert parsed.routes[0].openrouter.data_collection == "deny"
+    assert parsed.routes[0].openrouter.zero_data_retention is True
+
+    specialist["credentialSource"] = "platform"
+    specialist["connectionId"] = None
+    with pytest.raises(ValidationError, match="BYOK only"):
+        ModelRouting.model_validate({
+            "schemaVersion": 2, "routes": [specialist, synthesis],
+        })
+
+
+def test_v1_max_stage_aliases_resolve_to_provider_neutral_names():
+    parsed = ModelRouting.model_validate({
+        "schemaVersion": 1,
+        "routes": [
+            route("specialist_default"), route("synthesis"),
+            route("openai_synthesis"), route("deepseek_synthesis"),
+        ],
+    })
+    assert parsed.route("synthesis_primary").slot == "openai_synthesis"
+    assert parsed.route("synthesis_challenger").slot == "deepseek_synthesis"

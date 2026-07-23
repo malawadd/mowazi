@@ -36,6 +36,13 @@ export type TraceNodeData = {
   role?: string;
   provider?: string;
   model?: string;
+  servedModel?: string;
+  upstreamProvider?: string;
+  modelFamily?: string;
+  routingStrategy?: string;
+  fallbackAttempts?: number;
+  generationId?: string;
+  costSource?: string;
   credentialSource?: string;
   decisionSummary?: string;
   input: Record<string, unknown>;

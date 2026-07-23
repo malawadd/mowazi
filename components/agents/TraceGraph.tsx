@@ -40,11 +40,13 @@ function layout(contract: TraceGraphContract): TraceNode[] {
 
 function TraceNodeCard({ data }: { data: TraceNodeData }) {
   const calls = data.tokens.input + data.tokens.output;
+  const provider = data.provider === "openrouter"
+    ? `OpenRouter → ${data.upstreamProvider ?? "unreported host"}` : data.provider;
   return <article className={styles.traceNode} data-status={data.status} data-source={data.credentialSource ?? "system"}>
     <Handle type="target" position={Position.Left} />
     <p>{data.role?.replaceAll("_", " ") ?? "Decision trace"}</p>
     <h3>{data.label}</h3>
-    {data.provider ? <span>{data.provider} · {data.model}</span> : null}
+    {provider ? <span>{provider} · {data.servedModel ?? data.model}</span> : null}
     <small>{data.status.replaceAll("_", " ")}{calls ? ` · ${calls.toLocaleString()} tokens` : ""}</small>
     <Handle type="source" position={Position.Right} />
   </article>;
@@ -74,12 +76,18 @@ export default function TraceGraph({ contract }: { contract: TraceGraphContract 
         <p className={styles.traceSummary}>{selected.decisionSummary || "No separate rationale summary was returned."}</p>
         <dl className={styles.traceMetrics}>
           <div><dt>Status</dt><dd>{selected.status.replaceAll("_", " ")}</dd></div>
-          <div><dt>Provider</dt><dd>{selected.provider ?? "Deterministic"}</dd></div>
-          <div><dt>Model</dt><dd>{selected.model ?? "—"}</dd></div>
+          <div><dt>Provider</dt><dd>{selected.provider === "openrouter"
+            ? `OpenRouter → ${selected.upstreamProvider ?? "unreported host"}`
+            : selected.provider ?? "Deterministic"}</dd></div>
+          <div><dt>Requested model</dt><dd>{selected.model ?? "—"}</dd></div>
+          {selected.servedModel ? <div><dt>Served model</dt><dd>{selected.servedModel}</dd></div> : null}
+          {selected.routingStrategy ? <div><dt>Routing</dt><dd>{selected.routingStrategy}
+            {selected.fallbackAttempts ? ` · ${selected.fallbackAttempts} fallback` : ""}</dd></div> : null}
           <div><dt>Key source</dt><dd>{selected.credentialSource ?? "System"}</dd></div>
           <div><dt>Latency</dt><dd>{selected.latencyMs.toLocaleString()} ms</dd></div>
           <div><dt>Tokens</dt><dd>{selected.tokens.input} in · {selected.tokens.cached} cached · {selected.tokens.output} out</dd></div>
-          <div><dt>Provider usage</dt><dd>${(selected.providerCostMicrousd / 1_000_000).toFixed(4)}</dd></div>
+          <div><dt>Provider usage</dt><dd>${(selected.providerCostMicrousd / 1_000_000).toFixed(4)}
+            {selected.costSource === "rate_estimate" ? " estimated" : " reported"}</dd></div>
           <div><dt>Moeazi credits</dt><dd>{selected.platformCredits}</dd></div>
         </dl>
         {selected.error ? <p className={styles.error}>{selected.error}</p> : null}

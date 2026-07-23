@@ -5,6 +5,27 @@ import httpx
 from .config import Settings
 
 
+class ConvexCommandError(RuntimeError):
+    def __init__(self, message: str, status_code: int):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def _response_error(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {}
+    detail = payload.get("error") or payload.get("detail") if isinstance(payload, dict) else None
+    if isinstance(detail, list):
+        detail = " ".join(
+            str(item.get("msg", item)) if isinstance(item, dict) else str(item)
+            for item in detail
+        )
+    message = str(detail or f"Convex worker returned HTTP {response.status_code}.")
+    return message.splitlines()[0].removeprefix("Uncaught Error: ").strip()
+
+
 class ConvexWorkerClient:
     def __init__(self, settings: Settings):
         self.client = httpx.AsyncClient(
@@ -15,10 +36,11 @@ class ConvexWorkerClient:
 
     async def command(self, command: str, **payload: Any) -> Any:
         response = await self.client.post(self.url, json={"command": command, "payload": payload})
-        response.raise_for_status()
+        if response.is_error:
+            raise ConvexCommandError(_response_error(response), response.status_code)
         data = response.json()
         if isinstance(data, dict) and data.get("error"):
-            raise RuntimeError(data["error"])
+            raise ConvexCommandError(str(data["error"]), response.status_code)
         return data
 
     async def claim(self, holder_id: str) -> dict | None:

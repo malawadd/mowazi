@@ -106,6 +106,13 @@ def _graph(events: list[dict]) -> dict:
             "label": _label(row), "status": row["status"], "role": row.get("role"),
             "provider": row.get("provider"), "model": row.get("model"),
             "credentialSource": row.get("credential_source"),
+            "servedModel": row.get("served_model"),
+            "upstreamProvider": row.get("upstream_provider"),
+            "modelFamily": row.get("model_family"),
+            "routingStrategy": row.get("routing_strategy"),
+            "fallbackAttempts": row.get("fallback_attempts", 0),
+            "generationId": row.get("generation_id"),
+            "costSource": row.get("cost_source", "rate_estimate"),
             "decisionSummary": row.get("decision_summary"),
             "input": row.get("input_summary", {}), "output": row.get("output_summary", {}),
             "tokens": {
@@ -128,7 +135,10 @@ def _graph(events: list[dict]) -> dict:
         for source in sources:
             edges.append(_edge(source["event_id"], specialist["event_id"]))
     if syntheses:
-        first = [row for row in syntheses if row.get("role") in {"critic", "openai_synthesis", "deepseek_synthesis", "synthesis"}]
+        first = [row for row in syntheses if row.get("role") in {
+            "critic", "synthesis_primary", "synthesis_challenger",
+            "openai_synthesis", "deepseek_synthesis", "synthesis",
+        }]
         for specialist in specialists:
             for target in first:
                 edges.append(_edge(specialist["event_id"], target["event_id"]))

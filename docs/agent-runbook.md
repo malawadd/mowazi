@@ -22,8 +22,10 @@ with an operator audit record.
 ## Provider quorum failure
 
 Pause autopilot for affected accounts, inspect provider-call status by analysis ID, and check
-rate limits/timeouts. Focus requires four valid specialist outputs. Pro and Max require both
-providers, their minimum valid-output count, and every critical role. Invalid or failed calls
+rate limits/timeouts. Focus requires four valid specialist outputs. Pro and Max require two
+canonical model families, their minimum valid-output count, and every critical role. For OpenRouter,
+inspect the served model, selected upstream host, fallback attempts, and missing routing metadata.
+Invalid or failed calls
 are operational cost and must not be settled against user credits.
 
 ## BYOK connection or budget failure

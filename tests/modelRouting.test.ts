@@ -40,3 +40,41 @@ test("model routing rejects missing BYOK credentials and zero rates", () => {
   document.routes[0].connectionId = "connection-openai";
   assert.throws(() => parseModelRouting(JSON.stringify(document)), /confirmed model rates/);
 });
+
+test("OpenRouter routes are BYOK-only with safe defaults", () => {
+  const document = defaultModelRouting();
+  document.routes[0] = {
+    ...document.routes[0],
+    provider: "openrouter",
+    model: "anthropic/claude-sonnet",
+    credentialSource: "byok",
+    connectionId: "connection-openrouter",
+    inputPriceMicrousdPerMillion: 3_000_000,
+    cachedInputPriceMicrousdPerMillion: 3_000_000,
+    outputPriceMicrousdPerMillion: 15_000_000,
+  };
+  const parsed = parseModelRouting(JSON.stringify(document));
+  assert.equal(parsed.routes[0].openrouter?.sort, "price");
+  assert.equal(parsed.routes[0].openrouter?.dataCollection, "deny");
+  assert.equal(parsed.routes[0].openrouter?.zeroDataRetention, true);
+
+  document.routes[0].credentialSource = "platform";
+  document.routes[0].connectionId = undefined;
+  assert.throws(() => parseModelRouting(JSON.stringify(document)), /BYOK only/);
+});
+
+test("legacy Max synthesis slots normalize to provider-neutral names", () => {
+  const legacy = {
+    ...defaultModelRouting(),
+    schemaVersion: 1,
+    routes: defaultModelRouting().routes.map((route) => ({
+      ...route,
+      slot: route.slot === "synthesis_primary" ? "openai_synthesis"
+        : route.slot === "synthesis_challenger" ? "deepseek_synthesis" : route.slot,
+    })),
+  };
+  const parsed = parseModelRouting(JSON.stringify(legacy));
+  assert.equal(parsed.schemaVersion, 2);
+  assert.ok(parsed.routes.some((route) => route.slot === "synthesis_primary"));
+  assert.ok(parsed.routes.some((route) => route.slot === "synthesis_challenger"));
+});
