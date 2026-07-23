@@ -30,8 +30,6 @@ type BackendPreview = {
   warnings: string[]; created_at: string;
 };
 
-const ROUTING_VENUES = new Set<string>(["hyperliquid", "lighter", "orderly", "gmx", "ostium"]);
-
 export async function loadRoutingMarkets(): Promise<PerpMarket[]> {
   const result = await agentRequest<{ markets: BackendMarket[] }>("v1/routing/markets");
   return hydrateMarketPrices(result.markets.map(mapMarket));
@@ -40,10 +38,14 @@ export async function loadRoutingMarkets(): Promise<PerpMarket[]> {
 export async function previewBestRoute(args: {
   input: RouteInput; readyVenues: TradeVenueId[]; allowedVenues?: TradeVenueId[]; overrideVenue?: TradeVenueId | null;
 }): Promise<BestExecutionQuote> {
-  const request = buildRoutePreviewRequest(args);
   const payload = await agentRequest<BackendPreview>("v1/routing/preview", {
     method: "POST",
-    body: JSON.stringify(request),
+    body: JSON.stringify({
+      market_id: args.input.marketId, side: args.input.side, margin_usd: args.input.marginUsd,
+      leverage: args.input.leverage, hold_time_hours: args.input.holdTimeHours,
+      slippage_cap_bps: args.input.slippageCapBps, ready_venues: args.readyVenues,
+      allowed_venues: args.allowedVenues, override_venue: args.overrideVenue,
+    }),
   });
   return {
     input: args.input, market: mapMarket(payload.market),
@@ -72,29 +74,6 @@ export async function previewBestRoute(args: {
         fundingUsd: row.costs.funding_usd, totalCostUsd: row.costs.total_cost_usd,
       },
     })),
-  };
-}
-
-export function isRoutingVenue(value: unknown): value is TradeVenueId {
-  return typeof value === "string" && ROUTING_VENUES.has(value);
-}
-
-export function buildRoutePreviewRequest(args: {
-  input: RouteInput;
-  readyVenues: unknown[];
-  allowedVenues?: unknown[];
-  overrideVenue?: unknown;
-}) {
-  return {
-    market_id: args.input.marketId,
-    side: args.input.side,
-    margin_usd: args.input.marginUsd,
-    leverage: args.input.leverage,
-    hold_time_hours: args.input.holdTimeHours,
-    slippage_cap_bps: args.input.slippageCapBps,
-    ready_venues: args.readyVenues.filter(isRoutingVenue),
-    allowed_venues: args.allowedVenues?.filter(isRoutingVenue),
-    override_venue: isRoutingVenue(args.overrideVenue) ? args.overrideVenue : null,
   };
 }
 
