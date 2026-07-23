@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mapMarket, mergeLiveHyperliquidMarketData } from "../lib/trade/routeBackend";
+import { buildRoutePreviewRequest, mapMarket, mergeLiveHyperliquidMarketData } from "../lib/trade/routeBackend";
 import { routeBestExecution, validateTradeSettings } from "../lib/trade/routing";
 import type { PerpMarket, RouteInput, TradeVenueId, VenueSnapshot } from "../lib/trade/types";
 
@@ -227,4 +227,17 @@ test("Hyperliquid live metadata hydrates backend markets that lack prices", () =
   assert.equal(hydrated.oraclePrice, 3122.9);
   assert.equal(hydrated.volume24hUsd, 20_000_000);
   assert.equal(hydrated.fundingRateHourly, 0.0001);
+});
+
+test("route preview payload excludes non-perp venues like Uniswap", () => {
+  const request = buildRoutePreviewRequest({
+    input: baseInput,
+    readyVenues: ["hyperliquid", "uniswap", "lighter"],
+    allowedVenues: ["uniswap", "gmx"],
+    overrideVenue: "uniswap",
+  });
+
+  assert.deepEqual(request.ready_venues, ["hyperliquid", "lighter"]);
+  assert.deepEqual(request.allowed_venues, ["gmx"]);
+  assert.equal(request.override_venue, null);
 });
