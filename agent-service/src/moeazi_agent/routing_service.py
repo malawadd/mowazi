@@ -3,7 +3,7 @@ import hashlib
 
 import httpx
 
-from .routing_adapters import PublicRoutingAdapters, canonical_market
+from .routing_adapters import PublicRoutingAdapters, canonical_market, copy_listing_market_data
 from .routing_contracts import MarketListing, RoutePreview, RouteRequest, VenueId
 from .routing_math import build_quote, ranked
 from .routing_onchain_adapters import OnchainRoutingAdapters
@@ -15,7 +15,7 @@ class RoutingService:
         self.settings = settings
 
     async def markets(self):
-        key = "routing:markets:v1"
+        key = "routing:markets:v2"
         cached = await self.redis.get(key)
         if cached:
             return [MarketListing.model_validate_json(item) for item in cached.decode().split("\n") if item]
@@ -34,6 +34,7 @@ class RoutingService:
                     current = merged[item.market_id]
                     current.venues = list(dict.fromkeys([*current.venues, *item.venues]))
                     current.max_leverage = max(current.max_leverage, item.max_leverage)
+                    copy_listing_market_data(current, item)
                 else:
                     merged[item.market_id] = item
         markets = sorted(merged.values(), key=lambda item: (item.category != "crypto", item.market_id))

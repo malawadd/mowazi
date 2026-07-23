@@ -1,9 +1,13 @@
 import { agentRequest } from "@/lib/agentBackend";
+import { findHyperliquidMarket, getLiveHyperliquidMarkets } from "./hyperliquidMarkets";
 import type { BestExecutionQuote, PerpMarket, RouteInput, TradeVenueId } from "./types";
 
 type BackendMarket = {
   market_id: string; label: string; base_symbol: string; quote_symbol: string;
   category: "crypto" | "rwa"; max_leverage: number; price_precision: number; venues: TradeVenueId[];
+  mark_price?: number | null; oracle_price?: number | null; prev_day_price?: number | null;
+  day_change_pct?: number | null; open_interest_usd?: number | null; volume_24h_usd?: number | null;
+  funding_rate_hourly?: number | null;
 };
 
 type BackendQuote = {
@@ -28,7 +32,7 @@ type BackendPreview = {
 
 export async function loadRoutingMarkets(): Promise<PerpMarket[]> {
   const result = await agentRequest<{ markets: BackendMarket[] }>("v1/routing/markets");
-  return result.markets.map(mapMarket);
+  return hydrateMarketPrices(result.markets.map(mapMarket));
 }
 
 export async function previewBestRoute(args: {
@@ -73,10 +77,48 @@ export async function previewBestRoute(args: {
   };
 }
 
-function mapMarket(market: BackendMarket): PerpMarket {
+export function mapMarket(market: BackendMarket): PerpMarket {
   return {
     id: market.market_id, label: market.label, baseSymbol: market.base_symbol,
     quoteSymbol: "USDC", category: market.category, pricePrecision: market.price_precision,
-    maxLeverage: market.max_leverage, venues: market.venues,
+    maxLeverage: market.max_leverage,
+    markPrice: market.mark_price ?? null,
+    oraclePrice: market.oracle_price ?? null,
+    prevDayPrice: market.prev_day_price ?? null,
+    dayChangePct: market.day_change_pct ?? null,
+    openInterestUsd: market.open_interest_usd ?? null,
+    volume24hUsd: market.volume_24h_usd ?? null,
+    fundingRateHourly: market.funding_rate_hourly ?? null,
+    venues: market.venues,
+  };
+}
+
+async function hydrateMarketPrices(markets: PerpMarket[]) {
+  if (markets.every((market) => market.markPrice !== null && market.markPrice !== undefined)) return markets;
+  const hyperliquidMarkets = await getLiveHyperliquidMarkets().catch(() => []);
+  if (hyperliquidMarkets.length === 0) return markets;
+  return markets.map((market) => mergeLiveHyperliquidMarketData(market, hyperliquidMarkets));
+}
+
+export function mergeLiveHyperliquidMarketData(market: PerpMarket, hyperliquidMarkets: PerpMarket[]) {
+  if (!market.venues.includes("hyperliquid")) return market;
+  const live = findHyperliquidMarket(hyperliquidMarkets, market.id);
+  if (!live) return market;
+  return {
+    ...market,
+    pricePrecision: market.pricePrecision ?? live.pricePrecision,
+    szDecimals: market.szDecimals ?? live.szDecimals,
+    assetIndex: market.assetIndex ?? live.assetIndex,
+    onlyIsolated: market.onlyIsolated ?? live.onlyIsolated,
+    isDelisted: market.isDelisted ?? live.isDelisted,
+    markPrice: market.markPrice ?? live.markPrice ?? null,
+    oraclePrice: market.oraclePrice ?? live.oraclePrice ?? null,
+    prevDayPrice: market.prevDayPrice ?? live.prevDayPrice ?? null,
+    dayChangePct: market.dayChangePct ?? live.dayChangePct ?? null,
+    dayBaseVolume: market.dayBaseVolume ?? live.dayBaseVolume ?? null,
+    openInterestUsd: market.openInterestUsd ?? live.openInterestUsd ?? null,
+    volume24hUsd: market.volume24hUsd ?? live.volume24hUsd ?? null,
+    fundingRateHourly: market.fundingRateHourly ?? live.fundingRateHourly ?? null,
+    fetchedAt: market.fetchedAt ?? live.fetchedAt,
   };
 }

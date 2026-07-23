@@ -30,6 +30,13 @@ class MarketListing(BaseModel):
     category: str = "crypto"
     max_leverage: float = Field(default=1, ge=1)
     price_precision: int = Field(default=2, ge=0, le=12)
+    mark_price: float | None = Field(default=None, gt=0)
+    oracle_price: float | None = Field(default=None, gt=0)
+    prev_day_price: float | None = Field(default=None, gt=0)
+    day_change_pct: float | None = None
+    open_interest_usd: float | None = Field(default=None, ge=0)
+    volume_24h_usd: float | None = Field(default=None, ge=0)
+    funding_rate_hourly: float | None = None
     venues: list[VenueId]
 
 

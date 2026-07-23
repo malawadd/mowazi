@@ -34,6 +34,32 @@ def leverage_from_margin_fraction(value) -> float:
     return max(1, 1 / fraction)
 
 
+def price_decimals_from_size_decimals(value) -> int:
+    return max(0, 6 - max(0, int(value or 0)))
+
+
+def number_or_none(value) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def copy_listing_market_data(target: MarketListing, source: MarketListing) -> None:
+    for field in (
+        "mark_price",
+        "oracle_price",
+        "prev_day_price",
+        "day_change_pct",
+        "open_interest_usd",
+        "volume_24h_usd",
+        "funding_rate_hourly",
+    ):
+        if getattr(target, field) is None and getattr(source, field) is not None:
+            setattr(target, field, getattr(source, field))
+
+
 class PublicRoutingAdapters:
     def __init__(self, client: httpx.AsyncClient, settings):
         self.client = client
@@ -55,6 +81,7 @@ class PublicRoutingAdapters:
                 if current:
                     current.venues = list(dict.fromkeys([*current.venues, *item.venues]))
                     current.max_leverage = max(current.max_leverage, item.max_leverage)
+                    copy_listing_market_data(current, item)
                 else:
                     merged[item.market_id] = item
         return sorted(merged.values(), key=lambda item: (item.category != "crypto", item.market_id))
@@ -87,11 +114,25 @@ class PublicRoutingAdapters:
     async def hyperliquid_markets(self):
         response = await self.client.post(self.settings.hyperliquid_api_url, json={"type": "metaAndAssetCtxs"})
         response.raise_for_status(); meta, contexts = response.json()
-        return [MarketListing(
-            market_id=item["name"], label=f'{item["name"]} Perp', base_symbol=item["name"],
-            max_leverage=float(item.get("maxLeverage", 1)), price_precision=2,
-            venues=[VenueId.HYPERLIQUID],
-        ) for item, context in zip(meta["universe"], contexts) if not item.get("isDelisted") and context.get("midPx")]
+        listings = []
+        for item, context in zip(meta["universe"], contexts):
+            mark = number_or_none(context.get("markPx")) or number_or_none(context.get("midPx"))
+            oracle = number_or_none(context.get("oraclePx"))
+            prev = number_or_none(context.get("prevDayPx"))
+            if item.get("isDelisted") or mark is None:
+                continue
+            listings.append(MarketListing(
+                market_id=item["name"], label=f'{item["name"]} Perp', base_symbol=item["name"],
+                max_leverage=float(item.get("maxLeverage", 1)),
+                price_precision=price_decimals_from_size_decimals(item.get("szDecimals")),
+                mark_price=mark, oracle_price=oracle, prev_day_price=prev,
+                day_change_pct=((mark - prev) / prev) * 100 if prev else None,
+                open_interest_usd=(number_or_none(context.get("openInterest")) or 0) * mark,
+                volume_24h_usd=number_or_none(context.get("dayNtlVlm")),
+                funding_rate_hourly=float(context.get("funding", 0)),
+                venues=[VenueId.HYPERLIQUID],
+            ))
+        return listings
 
     async def lighter(self, market_id: str):
         coin = canonical_market(market_id)
@@ -121,7 +162,11 @@ class PublicRoutingAdapters:
             market_id=row["symbol"].upper(), label=f'{row["symbol"].upper()} Perp',
             base_symbol=row["symbol"].upper(),
             max_leverage=leverage_from_margin_fraction(row.get("min_initial_margin_fraction")),
-            price_precision=int(row.get("supported_price_decimals") or 2), venues=[VenueId.LIGHTER],
+            price_precision=int(row.get("supported_price_decimals") or 2),
+            mark_price=number_or_none(row.get("mark_price")),
+            volume_24h_usd=number_or_none(row.get("daily_quote_token_volume")),
+            funding_rate_hourly=float(row.get("current_funding_rate") or 0),
+            venues=[VenueId.LIGHTER],
         ) for row in await self._lighter_details() if row.get("market_type") == "perp" and row.get("status") == "active"]
 
     async def _lighter_details(self):
@@ -157,11 +202,23 @@ class PublicRoutingAdapters:
         )
 
     async def orderly_markets(self):
-        response = await self.client.get(f"{self.settings.orderly_api_url}/v1/public/info")
-        response.raise_for_status()
+        info_response, ticker_response = await asyncio.gather(
+            self.client.get(f"{self.settings.orderly_api_url}/v1/public/info"),
+            self.client.get(f"{self.settings.orderly_api_url}/v1/public/futures_market"),
+        )
+        info_response.raise_for_status(); ticker_response.raise_for_status()
+        tickers = {
+            canonical_market(row["symbol"]): row
+            for row in ticker_response.json()["data"]["rows"]
+            if row.get("status") in {"ACTIVE", "TRADING"}
+        }
         return [MarketListing(
             market_id=canonical_market(row["symbol"]), label=row.get("display_name") or row.get("display_symbol_name") or row["symbol"],
             base_symbol=canonical_market(row["symbol"]), max_leverage=1 / float(row.get("base_imr") or 1),
             price_precision=max(0, len(str(row.get("quote_tick", "0.01")).split(".")[-1].rstrip("0"))),
+            mark_price=number_or_none(tickers.get(canonical_market(row["symbol"]), {}).get("mark_price")),
+            oracle_price=number_or_none(tickers.get(canonical_market(row["symbol"]), {}).get("index_price")),
+            volume_24h_usd=number_or_none(tickers.get(canonical_market(row["symbol"]), {}).get("24h_amount")),
+            funding_rate_hourly=float(tickers.get(canonical_market(row["symbol"]), {}).get("est_funding_rate") or 0) / 8,
             venues=[VenueId.ORDERLY],
-        ) for row in response.json()["data"]["rows"] if row.get("status") in {"ACTIVE", "TRADING"}]
+        ) for row in info_response.json()["data"]["rows"] if row.get("status") in {"ACTIVE", "TRADING"}]

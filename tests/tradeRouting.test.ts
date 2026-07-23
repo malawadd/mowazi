@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mapMarket, mergeLiveHyperliquidMarketData } from "../lib/trade/routeBackend";
 import { routeBestExecution, validateTradeSettings } from "../lib/trade/routing";
 import type { PerpMarket, RouteInput, TradeVenueId, VenueSnapshot } from "../lib/trade/types";
 
@@ -183,4 +184,47 @@ test("trade settings validation rejects invalid defaults", () => {
       market: market(),
     }),
   );
+});
+
+test("backend market mapper carries live price fields for dropdown labels", () => {
+  const mapped = mapMarket({
+    market_id: "ETH",
+    label: "ETH Perp",
+    base_symbol: "ETH",
+    quote_symbol: "USDC",
+    category: "crypto",
+    max_leverage: 50,
+    price_precision: 1,
+    mark_price: 3123.45,
+    oracle_price: 3122.9,
+    prev_day_price: 3000,
+    day_change_pct: 4.115,
+    open_interest_usd: 10_000_000,
+    volume_24h_usd: 20_000_000,
+    funding_rate_hourly: 0.0001,
+    venues: ["hyperliquid"],
+  });
+
+  assert.equal(mapped.markPrice, 3123.45);
+  assert.equal(mapped.oraclePrice, 3122.9);
+  assert.equal(mapped.dayChangePct, 4.115);
+  assert.equal(mapped.volume24hUsd, 20_000_000);
+});
+
+test("Hyperliquid live metadata hydrates backend markets that lack prices", () => {
+  const routed = market(["hyperliquid", "lighter"], { id: "ETH", markPrice: null, volume24hUsd: null });
+  const hydrated = mergeLiveHyperliquidMarketData(routed, [
+    market(["hyperliquid"], {
+      id: "ETH",
+      markPrice: 3123.45,
+      oraclePrice: 3122.9,
+      volume24hUsd: 20_000_000,
+      fundingRateHourly: 0.0001,
+    }),
+  ]);
+
+  assert.equal(hydrated.markPrice, 3123.45);
+  assert.equal(hydrated.oraclePrice, 3122.9);
+  assert.equal(hydrated.volume24hUsd, 20_000_000);
+  assert.equal(hydrated.fundingRateHourly, 0.0001);
 });

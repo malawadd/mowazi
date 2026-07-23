@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import httpx
 
-from .routing_adapters import canonical_market, synthetic_book
+from .routing_adapters import canonical_market, number_or_none, synthetic_book
 from .routing_contracts import MarketListing, PublicVenueSnapshot, VenueId
 
 
@@ -47,7 +47,12 @@ class OnchainRoutingAdapters:
         return [MarketListing(
             market_id=canonical_market(row["symbol"]), label=row["symbol"],
             base_symbol=canonical_market(row["symbol"]), max_leverage=max(1, scaled(row.get("maxLeverage"), 4)),
-            price_precision=2, venues=[VenueId.GMX],
+            price_precision=2,
+            mark_price=number_or_none(scaled(row.get("markPrice"))),
+            open_interest_usd=scaled(row.get("longInterestUsd")) + scaled(row.get("shortInterestUsd")),
+            volume_24h_usd=0,
+            funding_rate_hourly=scaled(row.get("fundingRateLong"), 30),
+            venues=[VenueId.GMX],
         ) for row in response.json()["snapshots"]]
 
     async def ostium(self, market_id: str):
